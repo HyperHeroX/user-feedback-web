@@ -1,592 +1,273 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎯 user-feedback MCP Tools - Web版</title>
-    <style>
-        /* VS Code 风格的深色主题 */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: "Segoe UI", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
-            background: #1e1e1e;
-            color: #cccccc;
-            font-size: 13px;
-            line-height: 1.5;
-            padding: 20px;
-        }
-
-        /* 主容器 */
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        /* 页面标题 */
-        .page-title {
-            font-size: 24px;
-            font-weight: 600;
-            color: #ffffff;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .page-subtitle {
-            font-size: 14px;
-            color: #969696;
-            margin-bottom: 24px;
-        }
-
-        /* 连接状态 */
-        .connection-status {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 8px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .connection-status.connected {
-            background: #4ec9b0;
-            color: #1e1e1e;
-        }
-
-        .connection-status.disconnected {
-            background: #f14c4c;
-            color: white;
-        }
-
-        /* 导航标签 */
-        .nav-tabs {
-            display: flex;
-            margin-bottom: 24px;
-            border-bottom: 1px solid #3e3e42;
-        }
-
-        .nav-tab {
-            padding: 12px 20px;
-            background: transparent;
-            border: none;
-            color: #969696;
-            font-size: 13px;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s ease;
-        }
-
-        .nav-tab:hover {
-            color: #cccccc;
-        }
-
-        .nav-tab.active {
-            color: #ffffff;
-            border-bottom-color: #007acc;
-        }
-
-        /* 获取key链接 */
-        .get-key-link {
-            padding: 12px 20px;
-            color: #007acc;
-            text-decoration: none;
-            font-size: 13px;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s ease;
-        }
-
-        .get-key-link:hover {
-            color: #ffffff;
-            text-decoration: none;
-        }
-
-        /* 内容区域 */
-        .content-area {
-            display: none;
-        }
-
-        .content-area.active {
-            display: block;
-        }
-
-        /* 工作汇报控制栏 */
-        .report-controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 16px;
-            background: #252526;
-            border: 1px solid #3e3e42;
-            border-radius: 4px;
-            margin-bottom: 16px;
-        }
-
-        .refresh-btn {
-            background: #007acc;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            transition: background-color 0.2s;
-        }
-
-        .refresh-btn:hover {
-            background: #005a9e;
-        }
-
-        .refresh-btn:disabled {
-            background: #666;
-            cursor: not-allowed;
-        }
-
-        /* 状态文字显示 */
-        .refresh-status-text {
-            font-size: 12px;
-            color: #888;
-            margin-left: 16px;
-            flex: 1;
-            text-align: right;
-        }
-
-        .refresh-status-text.loading {
-            color: #3b82f6;
-        }
-
-        .refresh-status-text.success {
-            color: #22c55e;
-        }
-
-        .refresh-status-text.error {
-            color: #ef4444;
-        }
-
-        /* 工作汇报卡片 */
-        .report-card {
-            background: #2d2d30;
-            border: 1px solid #3e3e42;
-            border-radius: 4px;
-            margin-bottom: 16px;
-            overflow: hidden;
-        }
-
-        .card-header {
-            padding: 16px 20px;
-            background: #323233;
-            border-bottom: 1px solid #3e3e42;
-            color: #ffffff;
-        }
-
-        .card-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 4px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .card-subtitle {
-            font-size: 12px;
-            color: #969696;
-        }
-
-        .card-body {
-            padding: 16px 20px;
-        }
-
-        /* 反馈表单卡片 */
-        .feedback-card {
-            background: #2d2d30;
-            border: 1px solid #3e3e42;
-            border-radius: 4px;
-            margin-top: 24px;
-            overflow: hidden;
-        }
-
-        .feedback-header {
-            padding: 16px 20px;
-            background: #323233;
-            border-bottom: 1px solid #3e3e42;
-            color: #ffffff;
-        }
-
-        .feedback-title {
-            font-size: 16px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .feedback-body {
-            padding: 20px;
-        }
-
-        /* 表单元素 */
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-label {
-            display: block;
-            font-size: 12px;
-            color: #969696;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-
-        .form-textarea {
-            width: 100%;
-            min-height: 100px;
-            padding: 12px;
-            border: 1px solid #3e3e42;
-            border-radius: 4px;
-            background: #1e1e1e;
-            color: #cccccc;
-            font-family: inherit;
-            font-size: 13px;
-            resize: vertical;
-        }
-
-        .form-textarea:focus {
-            outline: none;
-            border-color: #007acc;
-        }
-
-        .form-textarea::placeholder {
-            color: #6a6a6a;
-        }
-
-        /* 图片预览区域 */
-        .image-preview-area {
-            margin-bottom: 16px;
-        }
-
-        .image-previews {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 8px;
-        }
-
-        .image-preview {
-            position: relative;
-            width: 60px;
-            height: 60px;
-            border-radius: 4px;
-            background: #1e1e1e;
-            border: 1px solid #3e3e42;
-            overflow: hidden;
-        }
-
-        .preview-img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .remove-btn {
-            position: absolute;
-            top: -6px;
-            right: -6px;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #e81123;
-            color: white;
-            border: none;
-            font-size: 12px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* 工具栏 */
-        .toolbar {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 16px;
-        }
-
-        .toolbar-btn {
-            padding: 6px 12px;
-            border: 1px solid #3e3e42;
-            border-radius: 4px;
-            background: #2d2d30;
-            color: #cccccc;
-            cursor: pointer;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .toolbar-btn:hover {
-            background: #3c3c3c;
-            border-color: #007acc;
-        }
-
-        /* 按钮组 */
-        .button-group {
-            display: flex;
-            gap: 12px;
-            justify-content: flex-end;
-        }
-
-        .btn {
-            padding: 8px 16px;
-            border-radius: 4px;
-            font-size: 13px;
-            cursor: pointer;
-            border: none;
-        }
-
-        .btn-secondary {
-            background: transparent;
-            color: #969696;
-            border: 1px solid #3e3e42;
-        }
-
-        .btn-secondary:hover {
-            background: #3c3c3c;
-        }
-
-        .btn-primary {
-            background: #007acc;
-            color: white;
-            border: 1px solid #007acc;
-        }
-
-        .btn-primary:hover {
-            background: #005a9e;
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        /* 状态消息 */
-        .status-message {
-            padding: 12px;
-            border-radius: 4px;
-            margin: 16px 0;
-            font-size: 13px;
-        }
-
-        .status-message.success {
-            background: #4ec9b0;
-            color: #1e1e1e;
-        }
-
-        .status-message.error {
-            background: #f14c4c;
-            color: white;
-        }
-
-        .status-message.warning {
-            background: #ff9800;
-            color: white;
-        }
-
-        .status-message.info {
-            background: #007acc;
-            color: white;
-        }
-
-        /* 超时倒计时显示 */
-        .timeout-countdown {
-            position: fixed;
-            top: 60px; /* 调整到连接状态下方 */
-            right: 20px;
-            background: rgba(0, 122, 204, 0.9);
-            color: white;
-            padding: 12px 16px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            z-index: 1000;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .timeout-countdown.warning {
-            background: rgba(255, 152, 0, 0.9);
-            animation: pulse 1s infinite;
-        }
-
-        .timeout-countdown.critical {
-            background: rgba(241, 76, 76, 0.9);
-            animation: pulse 0.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 0.8; }
-            50% { opacity: 1; }
-            100% { opacity: 0.8; }
-        }
-
-        /* 加载状态 - 简化为纯文字显示 */
-        .loading {
-            display: inline;
-            color: #007acc;
-            font-weight: 500;
-        }
-
-        /* 提交确认对话框样式 */
-        .dialog-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            animation: fadeIn 0.2s ease-out;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-            to {
-                opacity: 1;
-            }
-        }
-
-        .dialog-content {
-            background: #2d2d30;
-            border: 1px solid #3e3e42;
-            border-radius: 8px;
-            min-width: 400px;
-            max-width: 500px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-            animation: slideIn 0.2s ease-out;
-        }
-
-        @keyframes slideIn {
-            from {
-                transform: translateY(-20px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        /* 移动端适配 */
-        @media (max-width: 480px) {
-            .dialog-content {
-                min-width: 320px;
-                width: 95%;
-                margin: 20px;
-            }
-
-            .dialog-options {
-                flex-direction: column;
-            }
-        }
-
-        .dialog-header {
-            padding: 20px 24px 16px;
-            border-bottom: 1px solid #3e3e42;
-        }
-
-        .dialog-header h3 {
-            margin: 0;
-            color: #ffffff;
-            font-size: 16px;
-            font-weight: 600;
-        }
-
-        .dialog-body {
-            padding: 20px 24px;
-        }
-
-        .dialog-body p {
-            margin: 0 0 16px;
-            color: #cccccc;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-
-        .dialog-options {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .dialog-btn {
-            padding: 12px 16px;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .dialog-btn.primary {
-            background: #007acc;
-            color: white;
-        }
-
-        .dialog-btn.primary:hover {
-            background: #005a9e;
-        }
-
-        .dialog-btn.secondary {
-            background: #4ec9b0;
-            color: #1e1e1e;
-        }
-
-        .dialog-btn.secondary:hover {
-            background: #3ba896;
-        }
-
-        .dialog-footer {
-            padding: 16px 24px 20px;
-            border-top: 1px solid #3e3e42;
-            text-align: right;
-        }
-
-        .dialog-btn.cancel {
-            background: transparent;
-            color: #969696;
-            border: 1px solid #3e3e42;
-        }
-
-        .dialog-btn.cancel:hover {
-            background: #3c3c3c;
-            color: #cccccc;
-        }
-
+    <title>🎯 user-feedback MCP Tools - Enhanced</title>
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <!-- Socket.IO Client -->
+    <script src="/socket.io/socket.io.js"></script>
+    <link rel="stylesheet" href="style-enhanced.css">
+</head>
+<body>
+    <!-- 連接狀態指示器 -->
+    <div class="connection-status" id="connectionStatus">
+        <span class="status-dot"></span>
+        <span class="status-text">連接中...</span>
+    </div>
+
+    <!-- 主容器（三欄式佈局） -->
+    <div class="feedback-container">
+        <!-- 左側：AI 訊息顯示區 (30%) -->
+        <div class="panel ai-panel">
+            <div class="panel-header">
+                <h3 class="panel-title">
+                    <span class="icon">🤖</span>
+                    AI 工作匯報
+                </h3>
+            </div>
+            <div class="panel-content">
+                <div id="aiMessageDisplay" class="ai-message-display">
+                    <div class="placeholder">
+                        <span class="icon">⏳</span>
+                        <p>等待 AI 工作匯報...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 中間：使用者互動區 (40%) -->
+        <div class="panel user-panel">
+            <!-- 上方：文字回應輸入區 (60%) -->
+            <div class="input-section">
+                <div class="panel-header">
+                    <h3 class="panel-title">
+                        <span class="icon">💬</span>
+                        您的回應
+                    </h3>
+                    <button id="aiReplyBtn" class="btn btn-secondary" title="使用 AI 生成回應">
+                        <span class="icon">✨</span>
+                        AI 回覆
+                    </button>
+                </div>
+                <div class="panel-content">
+                    <textarea 
+                        id="feedbackText" 
+                        class="feedback-input" 
+                        placeholder="在此輸入您的回應...&#10;&#10;提示：&#10;- 按 Ctrl+Enter 快速提交&#10;- 可以留空直接提交（跳過）&#10;- 點擊「AI 回覆」按鈕生成建議回應"
+                    ></textarea>
+                    <div class="input-footer">
+                        <div class="char-count" id="charCount">0 字元</div>
+                        <div class="input-actions">
+                            <button id="submitBtn" class="btn btn-primary">
+                                <span class="icon">📤</span>
+                                提交回應
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 下方：圖片上傳/貼上區 (40%) -->
+            <div class="image-section">
+                <div class="panel-header">
+                    <h3 class="panel-title">
+                        <span class="icon">🖼️</span>
+                        圖片 <span id="imageCount" class="badge">0</span>
+                    </h3>
+                    <button id="clearImagesBtn" class="btn btn-ghost" title="清除所有圖片">
+                        <span class="icon">🗑️</span>
+                    </button>
+                </div>
+                <div class="panel-content">
+                    <div id="imageDropZone" class="image-drop-zone">
+                        <div class="drop-zone-content">
+                            <span class="icon">📁</span>
+                            <p>拖放圖片至此，或點擊選擇文件</p>
+                            <p class="hint">支援貼上圖片 (Ctrl+V)</p>
+                        </div>
+                        <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
+                    </div>
+                    <div id="imagePreviewContainer" class="image-preview-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右側：提示詞管理區 (30%) -->
+        <div class="panel prompt-panel">
+            <div class="panel-header">
+                <h3 class="panel-title">
+                    <span class="icon">📝</span>
+                    提示詞
+                </h3>
+                <button id="aiSettingsBtn" class="btn btn-ghost" title="AI 設定">
+                    <span class="icon">⚙️</span>
+                </button>
+            </div>
+            <div class="panel-content">
+                <!-- 搜尋框 -->
+                <div class="search-box">
+                    <input type="text" id="promptSearch" class="search-input" placeholder="搜尋提示詞...">
+                </div>
+
+                <!-- 提示詞列表 -->
+                <div id="promptList" class="prompt-list">
+                    <div class="placeholder">
+                        <span class="icon">📋</span>
+                        <p>尚無提示詞</p>
+                        <button id="addPromptBtn" class="btn btn-secondary btn-sm">新增提示詞</button>
+                    </div>
+                </div>
+
+                <!-- 新增提示詞按鈕 -->
+                <div class="panel-footer">
+                    <button id="addPromptBtnFooter" class="btn btn-primary btn-block">
+                        <span class="icon">➕</span>
+                        新增提示詞
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自動回覆警告提示 -->
+    <div id="autoReplyWarning" class="auto-reply-warning" style="display: none;">
+        <div class="warning-content">
+            <span class="icon">⏰</span>
+            <span id="warningText">系統將在 60 秒後自動生成回應</span>
+            <button id="cancelAutoReply" class="btn btn-ghost btn-sm">取消</button>
+        </div>
+    </div>
+
+    <!-- AI 設定彈窗 -->
+    <div id="aiSettingsModal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <span class="icon">⚙️</span>
+                    AI 設定
+                </h2>
+                <button class="modal-close" id="closeAiSettings">
+                    <span class="icon">✖️</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="aiSettingsForm">
+                    <div class="form-group">
+                        <label for="apiUrl">API URL</label>
+                        <input type="text" id="apiUrl" class="form-control" placeholder="https://generativelanguage.googleapis.com/v1beta">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="model">模型名稱</label>
+                        <input type="text" id="model" class="form-control" placeholder="gemini-2.0-flash-exp">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="apiKey">API Key</label>
+                        <div class="input-group">
+                            <input type="password" id="apiKey" class="form-control" placeholder="輸入您的 API Key">
+                            <button type="button" id="toggleApiKey" class="btn btn-ghost">
+                                <span class="icon">👁️</span>
+                            </button>
+                        </div>
+                        <small class="form-hint">API Key 將被加密儲存</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="systemPrompt">系統提示詞</label>
+                        <textarea id="systemPrompt" class="form-control" rows="6" placeholder="設定 AI 的行為和回應風格..."></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="temperature">Temperature</label>
+                            <input type="number" id="temperature" class="form-control" min="0" max="2" step="0.1" value="0.7">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="maxTokens">Max Tokens</label>
+                            <input type="number" id="maxTokens" class="form-control" min="100" max="4000" step="100" value="1000">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="testApiKey" class="btn btn-secondary">
+                    <span class="icon">🔍</span>
+                    測試連接
+                </button>
+                <button type="button" id="saveAiSettings" class="btn btn-primary">
+                    <span class="icon">💾</span>
+                    儲存設定
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新增/編輯提示詞彈窗 -->
+    <div id="promptModal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <span class="icon">📝</span>
+                    <span id="promptModalTitle">新增提示詞</span>
+                </h2>
+                <button class="modal-close" id="closePromptModal">
+                    <span class="icon">✖️</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="promptForm">
+                    <input type="hidden" id="promptId">
+                    <div class="form-group">
+                        <label for="promptTitle">標題</label>
+                        <input type="text" id="promptTitle" class="form-control" placeholder="提示詞標題" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="promptContent">內容</label>
+                        <textarea id="promptContent" class="form-control" rows="6" placeholder="提示詞內容..." required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="promptCategory">分類（選填）</label>
+                        <input type="text" id="promptCategory" class="form-control" placeholder="例如：問候、總結、建議">
+                    </div>
+
+                    <div class="form-check">
+                        <input type="checkbox" id="promptIsPinned" class="form-check-input">
+                        <label for="promptIsPinned" class="form-check-label">
+                            <span class="icon">📌</span>
+                            釘選此提示詞（啟動時自動載入）
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="cancelPrompt" class="btn btn-secondary">取消</button>
+                <button type="button" id="savePrompt" class="btn btn-primary">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 通知 -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- 載入中覆蓋層 -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p id="loadingText">處理中...</p>
+        </div>
+    </div>
+
+    <script src="app-enhanced.js"></script>
+</body>
+</html>
         /* 焦点样式 */
         .dialog-btn:focus {
             outline: 2px solid #007acc;
