@@ -429,10 +429,10 @@ async function generateAIReply() {
         finalReply = pinnedPromptsContent + "\n\n" + data.reply;
       }
 
-  document.getElementById("feedbackText").value = finalReply;
-  updateCharCount();
-  // 顯示簡單彈窗提示 AI 已完成回覆
-  showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
+      document.getElementById("feedbackText").value = finalReply;
+      updateCharCount();
+      // 顯示簡單彈窗提示 AI 已完成回覆
+      showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
     } else {
       showToast("error", "AI 回覆失敗", data.error);
     }
