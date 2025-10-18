@@ -1,0 +1,71 @@
+/**
+ * SQLite 資料庫管理模組
+ * 使用 better-sqlite3 進行資料持久化
+ */
+import Database from 'better-sqlite3';
+import type { Prompt, CreatePromptRequest, UpdatePromptRequest, AISettings, AISettingsRequest, UserPreferences } from '../types/index.js';
+/**
+ * 初始化資料庫
+ * 創建資料目錄和資料表
+ */
+export declare function initDatabase(): Database.Database;
+/**
+ * 關閉資料庫連接
+ */
+export declare function closeDatabase(): void;
+/**
+ * 獲取資料庫實例
+ */
+export declare function getDatabase(): Database.Database;
+/**
+ * 獲取所有提示詞
+ */
+export declare function getAllPrompts(): Prompt[];
+/**
+ * 根據 ID 獲取提示詞
+ */
+export declare function getPromptById(id: number): Prompt | undefined;
+/**
+ * 創建新提示詞
+ */
+export declare function createPrompt(data: CreatePromptRequest): Prompt;
+/**
+ * 更新提示詞
+ */
+export declare function updatePrompt(id: number, data: UpdatePromptRequest): Prompt;
+/**
+ * 刪除提示詞
+ */
+export declare function deletePrompt(id: number): boolean;
+/**
+ * 切換提示詞釘選狀態
+ */
+export declare function togglePromptPin(id: number): Prompt;
+/**
+ * 調整提示詞順序
+ */
+export declare function reorderPrompts(prompts: Array<{
+    id: number;
+    orderIndex: number;
+}>): void;
+/**
+ * 獲取釘選的提示詞（按順序）
+ */
+export declare function getPinnedPrompts(): Prompt[];
+/**
+ * 獲取 AI 設定
+ */
+export declare function getAISettings(): AISettings | undefined;
+/**
+ * 更新 AI 設定
+ */
+export declare function updateAISettings(data: AISettingsRequest): AISettings;
+/**
+ * 獲取使用者偏好設定
+ */
+export declare function getUserPreferences(): UserPreferences;
+/**
+ * 更新使用者偏好設定
+ */
+export declare function updateUserPreferences(data: Partial<Omit<UserPreferences, 'id' | 'createdAt' | 'updatedAt'>>): UserPreferences;
+//# sourceMappingURL=database.d.ts.map

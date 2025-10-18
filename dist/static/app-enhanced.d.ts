@@ -1,0 +1,62 @@
+declare function initSocketIO(): void;
+declare function updateConnectionStatus(connected: any): void;
+declare function updateConnectionStatus(status: any, text: any): void;
+declare function initEventListeners(): void;
+declare function loadInitialData(): Promise<void>;
+declare function loadPrompts(): Promise<void>;
+declare function loadAISettings(): Promise<void>;
+declare function loadPreferences(): Promise<void>;
+declare function autoLoadPinnedPrompts(): Promise<void>;
+declare function displayAIMessage(message: any): void;
+declare function handleUserActivity(): void;
+declare function updateCharCount(): void;
+declare function generateAIReply(): Promise<void>;
+declare function submitFeedback(): Promise<void>;
+declare function submitFeedback(feedbackText: any, shouldCloseAfterSubmit: any): void;
+declare function clearInputs(): void;
+declare function handleFileSelect(e: any): void;
+declare function handleFileDrop(files: any): void;
+declare function handlePaste(e: any): void;
+declare function readImageFile(file: any): void;
+declare function addImagePreview(dataUrl: any, index: any): void;
+declare function removeImage(index: any): void;
+declare function removeImage(index: any): void;
+declare function clearImages(): void;
+declare function updateImageCount(): void;
+declare function renderPrompts(searchTerm?: string): void;
+declare function filterPrompts(): void;
+declare function usePrompt(id: any): void;
+declare function togglePinPrompt(id: any): Promise<void>;
+declare function editPrompt(id: any): void;
+declare function deletePrompt(id: any): Promise<void>;
+declare function openPromptModal(): void;
+declare function closePromptModal(): void;
+declare function savePrompt(): Promise<void>;
+declare function openAISettingsModal(): void;
+declare function closeAISettingsModal(): void;
+declare function saveAISettings(): Promise<void>;
+declare function testAPIKey(): Promise<void>;
+declare function toggleAPIKeyVisibility(): void;
+declare function showAutoReplyWarning(seconds: any): void;
+declare function hideAutoReplyWarning(): void;
+declare function cancelAutoReply(): void;
+declare function showToast(type: any, title: any, message: any): void;
+declare function getToastIcon(type: any): "✅" | "❌" | "ℹ️" | "📢";
+declare function showLoadingOverlay(text?: string): void;
+declare function hideLoadingOverlay(): void;
+declare function escapeHtml(text: any): string;
+/**
+ * MCP Feedback Collector - Enhanced UI
+ * 前端 JavaScript 主檔案
+ */
+declare let socket: null;
+declare let sessionId: null;
+declare let workSummary: null;
+declare let currentImages: any[];
+declare let prompts: any[];
+declare let aiSettings: null;
+declare let preferences: null;
+declare let autoReplyWarningTimeout: null;
+declare let isEditingPrompt: boolean;
+declare let editingPromptId: null;
+//# sourceMappingURL=app-enhanced.d.ts.map

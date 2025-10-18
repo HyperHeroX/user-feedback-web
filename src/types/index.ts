@@ -89,7 +89,7 @@ export interface SocketEvents {
   // 连接管理
   connect: () => void;
   disconnect: () => void;
-  
+
   // 反馈收集
   start_feedback_session: (data: { sessionId: string; workSummary: string }) => void;
   get_work_summary: (data: { feedback_session_id: string }) => void;
@@ -172,4 +172,116 @@ export interface MCPLogMessage {
   level: MCPLogLevel;
   logger?: string;
   data: unknown;
+}
+
+// ============ Enhanced Feedback Interface Types ============
+
+// 提示詞類型
+export interface Prompt {
+  id: number;
+  title: string;
+  content: string;
+  isPinned: boolean;
+  orderIndex: number;
+  category?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 創建提示詞請求類型
+export interface CreatePromptRequest {
+  title: string;
+  content: string;
+  isPinned?: boolean;
+  category?: string;
+}
+
+// 更新提示詞請求類型
+export interface UpdatePromptRequest {
+  title?: string;
+  content?: string;
+  isPinned?: boolean;
+  orderIndex?: number;
+  category?: string;
+}
+
+// AI 設定類型
+export interface AISettings {
+  id: number;
+  apiUrl: string;
+  model: string;
+  apiKey: string; // 加密儲存
+  systemPrompt: string;
+  temperature?: number;
+  maxTokens?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// AI 設定請求類型（不包含 id 和時間戳）
+export interface AISettingsRequest {
+  apiUrl?: string;
+  model?: string;
+  apiKey?: string;
+  systemPrompt?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+// AI 設定響應類型（API Key 遮罩）
+export interface AISettingsResponse {
+  id: number;
+  apiUrl: string;
+  model: string;
+  apiKeyMasked: string; // 僅顯示最後4位
+  systemPrompt: string;
+  temperature?: number;
+  maxTokens?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// AI 回覆請求類型
+export interface AIReplyRequest {
+  aiMessage: string;
+  userContext?: string;
+}
+
+// AI 回覆響應類型
+export interface AIReplyResponse {
+  success: boolean;
+  reply?: string;
+  error?: string;
+}
+
+// 使用者偏好設定類型
+export interface UserPreferences {
+  id: number;
+  autoReplyTimeout: number; // 秒
+  enableAutoReply: boolean;
+  theme?: 'light' | 'dark' | 'auto';
+  createdAt: string;
+  updatedAt: string;
+}
+
+// WebSocket 自動回覆事件類型
+export interface AutoReplyWarningEvent {
+  remainingSeconds: number;
+}
+
+export interface AutoReplyTriggeredEvent {
+  reply: string;
+}
+
+export interface UserActivityEvent {
+  sessionId: string;
+  timestamp: number;
+}
+
+// 調整提示詞順序請求
+export interface ReorderPromptsRequest {
+  prompts: Array<{
+    id: number;
+    orderIndex: number;
+  }>;
 }

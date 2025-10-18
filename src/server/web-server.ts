@@ -10,7 +10,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Config, FeedbackData, MCPError, ConvertImagesRequest, ConvertImagesResponse } from '../types/index.js';
+import { Config, FeedbackData, MCPError, ConvertImagesRequest, ConvertImagesResponse, CreatePromptRequest, UpdatePromptRequest, AISettingsRequest, AIReplyRequest, ReorderPromptsRequest } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { PortManager } from '../utils/port-manager.js';
 import { ImageProcessor } from '../utils/image-processor.js';
@@ -18,6 +18,9 @@ import { ImageToTextService } from '../utils/image-to-text-service.js';
 import { performanceMonitor } from '../utils/performance-monitor.js';
 import { SessionStorage, SessionData } from '../utils/session-storage.js';
 import { VERSION } from '../index.js';
+import { initDatabase, getAllPrompts, getPromptById, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences } from '../utils/database.js';
+import { maskApiKey } from '../utils/crypto-helper.js';
+import { generateAIReply, validateAPIKey } from '../utils/ai-service.js';
 
 /**
  * Web服务器类
@@ -33,6 +36,8 @@ export class WebServer {
   private imageProcessor: ImageProcessor;
   private imageToTextService: ImageToTextService;
   private sessionStorage: SessionStorage;
+  private autoReplyTimers: Map<string, NodeJS.Timeout> = new Map();
+  private autoReplyWarningTimers: Map<string, NodeJS.Timeout> = new Map();
 
   constructor(config: Config) {
     this.config = config;
@@ -45,12 +50,20 @@ export class WebServer {
     this.imageToTextService = new ImageToTextService(config);
     this.sessionStorage = new SessionStorage();
 
+    // 初始化資料庫
+    try {
+      initDatabase();
+      logger.info('資料庫初始化成功');
+    } catch (error) {
+      logger.error('資料庫初始化失敗:', error);
+    }
+
     // 创建Express应用
     this.app = express();
-    
+
     // 创建HTTP服务器
     this.server = createServer(this.app);
-    
+
     // 创建Socket.IO服务器
     this.io = new SocketIOServer(this.server, {
       cors: {
@@ -130,20 +143,20 @@ export class WebServer {
     this.app.use(helmet({
       contentSecurityPolicy: false // 允许内联脚本
     }));
-    
+
     // 压缩中间件
     this.app.use(compression());
-    
+
     // CORS中间件
     this.app.use(cors({
       origin: this.config.corsOrigin,
       credentials: true
     }));
-    
+
     // JSON解析中间件
     this.app.use(express.json({ limit: '50mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-    
+
     // 请求日志和性能监控中间件
     this.app.use((req, res, next) => {
       const start = Date.now();
@@ -313,6 +326,341 @@ export class WebServer {
       }
     });
 
+    // ============ 提示詞管理 API ============
+
+    // 獲取所有提示詞
+    this.app.get('/api/prompts', (req, res) => {
+      try {
+        const prompts = getAllPrompts();
+        res.json({ success: true, prompts });
+      } catch (error) {
+        logger.error('獲取提示詞失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取提示詞失敗'
+        });
+      }
+    });
+
+    // 獲取釘選的提示詞
+    this.app.get('/api/prompts/pinned', (req, res) => {
+      try {
+        const prompts = getPinnedPrompts();
+        res.json({ success: true, prompts });
+      } catch (error) {
+        logger.error('獲取釘選提示詞失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取釘選提示詞失敗'
+        });
+      }
+    });
+
+    // 創建提示詞
+    this.app.post('/api/prompts', (req, res) => {
+      try {
+        const data: CreatePromptRequest = req.body;
+
+        if (!data.title || !data.content) {
+          res.status(400).json({
+            success: false,
+            error: '標題和內容為必填欄位'
+          });
+          return;
+        }
+
+        const prompt = createPrompt(data);
+        logger.info(`創建提示詞成功: ${prompt.id}`);
+        res.json({ success: true, prompt });
+      } catch (error) {
+        logger.error('創建提示詞失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '創建提示詞失敗'
+        });
+      }
+    });
+
+    // 更新提示詞
+    this.app.put('/api/prompts/:id', (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const data: UpdatePromptRequest = req.body;
+
+        if (isNaN(id)) {
+          res.status(400).json({
+            success: false,
+            error: '無效的提示詞 ID'
+          });
+          return;
+        }
+
+        const prompt = updatePrompt(id, data);
+        logger.info(`更新提示詞成功: ${id}`);
+        res.json({ success: true, prompt });
+      } catch (error) {
+        logger.error('更新提示詞失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '更新提示詞失敗'
+        });
+      }
+    });
+
+    // 刪除提示詞
+    this.app.delete('/api/prompts/:id', (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+
+        if (isNaN(id)) {
+          res.status(400).json({
+            success: false,
+            error: '無效的提示詞 ID'
+          });
+          return;
+        }
+
+        const deleted = deletePrompt(id);
+        if (deleted) {
+          logger.info(`刪除提示詞成功: ${id}`);
+          res.json({ success: true });
+        } else {
+          res.status(404).json({
+            success: false,
+            error: '提示詞不存在'
+          });
+        }
+      } catch (error) {
+        logger.error('刪除提示詞失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '刪除提示詞失敗'
+        });
+      }
+    });
+
+    // 切換釘選狀態
+    this.app.put('/api/prompts/:id/pin', (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+
+        if (isNaN(id)) {
+          res.status(400).json({
+            success: false,
+            error: '無效的提示詞 ID'
+          });
+          return;
+        }
+
+        const prompt = togglePromptPin(id);
+        logger.info(`切換提示詞釘選狀態: ${id}, 釘選=${prompt.isPinned}`);
+        res.json({ success: true, prompt });
+      } catch (error) {
+        logger.error('切換釘選狀態失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '切換釘選狀態失敗'
+        });
+      }
+    });
+
+    // 調整提示詞順序
+    this.app.put('/api/prompts/reorder', (req, res) => {
+      try {
+        const data: ReorderPromptsRequest = req.body;
+
+        if (!data.prompts || !Array.isArray(data.prompts)) {
+          res.status(400).json({
+            success: false,
+            error: '無效的排序資料'
+          });
+          return;
+        }
+
+        reorderPrompts(data.prompts);
+        logger.info(`調整提示詞順序成功，共 ${data.prompts.length} 個`);
+        res.json({ success: true });
+      } catch (error) {
+        logger.error('調整提示詞順序失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '調整提示詞順序失敗'
+        });
+      }
+    });
+
+    // ============ AI 設定 API ============
+
+    // 獲取 AI 設定
+    this.app.get('/api/ai-settings', (req, res) => {
+      try {
+        const settings = getAISettings();
+
+        if (!settings) {
+          res.json({
+            success: false,
+            error: 'AI 設定不存在'
+          });
+          return;
+        }
+
+        // 遮罩 API Key
+        const response = {
+          success: true,
+          settings: {
+            id: settings.id,
+            apiUrl: settings.apiUrl,
+            model: settings.model,
+            apiKeyMasked: maskApiKey(settings.apiKey),
+            systemPrompt: settings.systemPrompt,
+            temperature: settings.temperature,
+            maxTokens: settings.maxTokens,
+            createdAt: settings.createdAt,
+            updatedAt: settings.updatedAt
+          }
+        };
+
+        res.json(response);
+      } catch (error) {
+        logger.error('獲取 AI 設定失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取 AI 設定失敗'
+        });
+      }
+    });
+
+    // 更新 AI 設定
+    this.app.put('/api/ai-settings', (req, res) => {
+      try {
+        const data: AISettingsRequest = req.body;
+
+        const settings = updateAISettings(data);
+        logger.info('更新 AI 設定成功');
+
+        // 遮罩 API Key
+        const response = {
+          success: true,
+          settings: {
+            id: settings.id,
+            apiUrl: settings.apiUrl,
+            model: settings.model,
+            apiKeyMasked: maskApiKey(settings.apiKey),
+            systemPrompt: settings.systemPrompt,
+            temperature: settings.temperature,
+            maxTokens: settings.maxTokens,
+            createdAt: settings.createdAt,
+            updatedAt: settings.updatedAt
+          }
+        };
+
+        res.json(response);
+      } catch (error) {
+        logger.error('更新 AI 設定失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '更新 AI 設定失敗'
+        });
+      }
+    });
+
+    // 驗證 API Key
+    this.app.post('/api/ai-settings/validate', async (req, res) => {
+      try {
+        const { apiKey, model } = req.body;
+
+        if (!apiKey || !model) {
+          res.status(400).json({
+            success: false,
+            error: 'API Key 和模型為必填欄位'
+          });
+          return;
+        }
+
+        const result = await validateAPIKey(apiKey, model);
+
+        if (result.valid) {
+          logger.info('API Key 驗證成功');
+          res.json({ success: true, valid: true });
+        } else {
+          logger.warn('API Key 驗證失敗:', result.error);
+          res.json({ success: false, valid: false, error: result.error });
+        }
+      } catch (error) {
+        logger.error('驗證 API Key 失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '驗證失敗'
+        });
+      }
+    });
+
+    // ============ AI 回覆生成 API ============
+
+    // 生成 AI 回覆
+    this.app.post('/api/ai-reply', async (req, res) => {
+      try {
+        const data: AIReplyRequest = req.body;
+
+        if (!data.aiMessage) {
+          res.status(400).json({
+            success: false,
+            error: 'AI 訊息為必填欄位'
+          });
+          return;
+        }
+
+        logger.info('開始生成 AI 回覆');
+        const result = await generateAIReply(data);
+
+        if (result.success) {
+          logger.info('AI 回覆生成成功');
+        } else {
+          logger.warn('AI 回覆生成失敗:', result.error);
+        }
+
+        res.json(result);
+      } catch (error) {
+        logger.error('生成 AI 回覆失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '生成 AI 回覆失敗'
+        });
+      }
+    });
+
+    // ============ 使用者偏好設定 API ============
+
+    // 獲取使用者偏好設定
+    this.app.get('/api/preferences', (req, res) => {
+      try {
+        const preferences = getUserPreferences();
+        res.json({ success: true, preferences });
+      } catch (error) {
+        logger.error('獲取使用者偏好設定失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取使用者偏好設定失敗'
+        });
+      }
+    });
+
+    // 更新使用者偏好設定
+    this.app.put('/api/preferences', (req, res) => {
+      try {
+        const data = req.body;
+        const preferences = updateUserPreferences(data);
+        logger.info('更新使用者偏好設定成功');
+        res.json({ success: true, preferences });
+      } catch (error) {
+        logger.error('更新使用者偏好設定失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '更新使用者偏好設定失敗'
+        });
+      }
+    });
+
     // 错误处理中间件
     this.app.use((error: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
       logger.error('Express错误:', error);
@@ -428,7 +776,29 @@ export class WebServer {
           imageCount: data.images?.length || 0
         });
 
+        // 清除自動回覆計時器
+        this.clearAutoReplyTimers(data.sessionId);
+
         await this.handleFeedbackSubmission(socket, data);
+      });
+
+      // 使用者活動事件（重置計時器）
+      socket.on('user_activity', (data: { sessionId: string }) => {
+        logger.socket('user_activity', socket.id, { sessionId: data.sessionId });
+        this.resetAutoReplyTimer(socket, data.sessionId);
+      });
+
+      // 取消自動回覆
+      socket.on('cancel_auto_reply', (data: { sessionId: string }) => {
+        logger.socket('cancel_auto_reply', socket.id, { sessionId: data.sessionId });
+        this.clearAutoReplyTimers(data.sessionId);
+        socket.emit('auto_reply_cancelled', { sessionId: data.sessionId });
+      });
+
+      // 當會話分配時，啟動自動回覆計時器
+      socket.on('session_ready', (data: { sessionId: string; workSummary: string }) => {
+        logger.socket('session_ready', socket.id, { sessionId: data.sessionId });
+        this.startAutoReplyTimer(socket, data.sessionId, data.workSummary);
       });
 
       // 断开连接
@@ -507,6 +877,98 @@ export class WebServer {
       socket.emit('feedback_error', {
         error: '服务器处理错误，请稍后重试'
       });
+    }
+  }
+
+  /**
+   * 啟動自動回覆計時器
+   */
+  private startAutoReplyTimer(socket: any, sessionId: string, workSummary: string): void {
+    // 清除已存在的計時器
+    this.clearAutoReplyTimers(sessionId);
+
+    // 獲取使用者偏好設定
+    const preferences = getUserPreferences();
+
+    if (!preferences.enableAutoReply) {
+      logger.info(`會話 ${sessionId} 未啟用自動回覆`);
+      return;
+    }
+
+    const timeoutMs = preferences.autoReplyTimeout * 1000;
+    const warningMs = Math.max(timeoutMs - 60000, timeoutMs * 0.8); // 最後 60 秒或 80% 時間點
+
+    logger.info(`啟動自動回覆計時器: 會話 ${sessionId}, 超時 ${preferences.autoReplyTimeout} 秒`);
+
+    // 設置警告計時器
+    const warningTimer = setTimeout(() => {
+      const remainingSeconds = Math.round((timeoutMs - warningMs) / 1000);
+      logger.info(`發送自動回覆警告: 會話 ${sessionId}, 剩餘 ${remainingSeconds} 秒`);
+      socket.emit('auto_reply_warning', { remainingSeconds });
+    }, warningMs);
+
+    this.autoReplyWarningTimers.set(sessionId, warningTimer);
+
+    // 設置自動回覆計時器
+    const autoReplyTimer = setTimeout(async () => {
+      logger.info(`觸發自動回覆: 會話 ${sessionId}`);
+
+      try {
+        // 生成 AI 回覆
+        const result = await generateAIReply({
+          aiMessage: workSummary,
+          userContext: '使用者未在時間內回應，系統自動生成回覆'
+        });
+
+        if (result.success && result.reply) {
+          logger.info(`自動回覆生成成功: 會話 ${sessionId}`);
+          socket.emit('auto_reply_triggered', { reply: result.reply });
+        } else {
+          logger.error(`自動回覆生成失敗: 會話 ${sessionId}`, result.error);
+          socket.emit('auto_reply_error', { error: result.error || '自動回覆生成失敗' });
+        }
+      } catch (error) {
+        logger.error(`自動回覆發生錯誤: 會話 ${sessionId}`, error);
+        socket.emit('auto_reply_error', { error: '自動回覆發生錯誤' });
+      }
+
+      // 清除計時器
+      this.clearAutoReplyTimers(sessionId);
+    }, timeoutMs);
+
+    this.autoReplyTimers.set(sessionId, autoReplyTimer);
+  }
+
+  /**
+   * 重置自動回覆計時器
+   */
+  private resetAutoReplyTimer(socket: any, sessionId: string): void {
+    const session = this.sessionStorage.getSession(sessionId);
+    if (!session) {
+      logger.warn(`嘗試重置不存在的會話計時器: ${sessionId}`);
+      return;
+    }
+
+    logger.debug(`重置自動回覆計時器: 會話 ${sessionId}`);
+    this.startAutoReplyTimer(socket, sessionId, session.workSummary || '');
+  }
+
+  /**
+   * 清除自動回覆計時器
+   */
+  private clearAutoReplyTimers(sessionId: string): void {
+    const warningTimer = this.autoReplyWarningTimers.get(sessionId);
+    if (warningTimer) {
+      clearTimeout(warningTimer);
+      this.autoReplyWarningTimers.delete(sessionId);
+      logger.debug(`清除警告計時器: 會話 ${sessionId}`);
+    }
+
+    const autoReplyTimer = this.autoReplyTimers.get(sessionId);
+    if (autoReplyTimer) {
+      clearTimeout(autoReplyTimer);
+      this.autoReplyTimers.delete(sessionId);
+      logger.debug(`清除自動回覆計時器: 會話 ${sessionId}`);
     }
   }
 
@@ -706,11 +1168,16 @@ export class WebServer {
         this.io.close();
       }
 
-      // 4. 清理会话数据
+      // 4. 清理所有自動回覆計時器
+      for (const sessionId of this.autoReplyTimers.keys()) {
+        this.clearAutoReplyTimers(sessionId);
+      }
+
+      // 5. 清理会话数据
       this.sessionStorage.clear();
       this.sessionStorage.stopCleanupTimer();
 
-      // 5. 等待所有异步操作完成
+      // 6. 等待所有异步操作完成
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       this.isServerRunning = false;
