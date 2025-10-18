@@ -128,3 +128,6 @@ typescript-sdk-main/
 *.tmp.md
 development-*.html
 *-temp.md
+
+# data files
+data/

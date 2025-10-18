@@ -8,13 +8,17 @@
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
     <!-- Socket.IO Client -->
     <script src="/socket.io/socket.io.js"></script>
-    <link rel="stylesheet" href="style-enhanced.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- 連接狀態指示器 -->
+    <!-- 連接狀態指示器 + 自動回覆計時器 -->
     <div class="connection-status" id="connectionStatus">
         <span class="status-dot"></span>
         <span class="status-text">連接中...</span>
+        <!-- 自動回覆計時器（與連接指示器一起） -->
+        <div id="auto-reply-timer" class="auto-reply-timer">
+            ⏱️ <span id="auto-reply-seconds">--</span>s
+        </div>
     </div>
 
     <!-- 主容器（三欄式佈局） -->
@@ -52,6 +56,10 @@
                         <span class="icon">✨</span>
                         AI 回覆
                     </button>
+                    <button id="submitBtn" class="btn btn-primary" title="提交您的回應" style="margin-left:8px;">
+                        <span class="icon">📤</span>
+                        提交回應
+                    </button>
                 </div>
                 <div class="panel-content">
                     <textarea 
@@ -61,12 +69,6 @@
                     ></textarea>
                     <div class="input-footer">
                         <div class="char-count" id="charCount">0 字元</div>
-                        <div class="input-actions">
-                            <button id="submitBtn" class="btn btn-primary">
-                                <span class="icon">📤</span>
-                                提交回應
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -201,6 +203,10 @@
                     <span class="icon">🔍</span>
                     測試連接
                 </button>
+                <button type="button" id="editPromptsFromSettings" class="btn btn-secondary">
+                    <span class="icon">📝</span>
+                    編輯提示詞
+                </button>
                 <button type="button" id="saveAiSettings" class="btn btn-primary">
                     <span class="icon">💾</span>
                     儲存設定
@@ -267,7 +273,48 @@
         </div>
     </div>
 
-    <script src="app-enhanced.js"></script>
+    <!-- 通用彈窗（用於提示/警示） -->
+    <div id="alertModal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <span class="icon">⚠️</span>
+                    <span id="alertModalTitle">提醒</span>
+                </h2>
+            </div>
+            <div class="modal-body">
+                <p id="alertModalBody">訊息內容</p>
+            </div>
+            <div class="modal-footer">
+                <button id="alertModalOk" class="btn btn-primary">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 自動回覆確認模態框 -->
+    <div id="autoReplyConfirmModal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <span class="icon">⏱️</span>
+                    <span>自動回覆確認</span>
+                </h2>
+                <button class="modal-close" id="closeAutoReplyConfirm"></button>
+            </div>
+            <div class="modal-body">
+                <p>AI 將在 <strong><span id="autoReplyCountdown">10</span> 秒</strong>後自動發送回覆</p>
+                <div id="autoReplyPreview" class="reply-preview" style="margin-top: 12px; padding: 8px; background: #f5f5f5; border-radius: 4px; max-height: 150px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelAutoReplyConfirm" class="btn btn-secondary">取消</button>
+                <button id="confirmAutoReplySubmit" class="btn btn-primary">確認提交</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
 </body>
 </html>
         /* 焦点样式 */

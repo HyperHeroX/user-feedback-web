@@ -1,122 +1,98 @@
-declare function loadChatConfig(): Promise<boolean>;
-declare function initializeSocket(): void;
+declare function initSocketIO(): void;
 declare function updateConnectionStatus(connected: any): void;
-declare function updateConnectionStatus(status: any, text: any): void;
-declare function showStatusMessage(type: any, message: any, autoRemove?: boolean): HTMLDivElement;
-declare function clearAllStatusMessages(): void;
-declare function showTab(tabName: any): void;
-declare function switchTab(tabName: any): void;
-declare function selectImages(): void;
-declare function pasteImages(): void;
-declare function addImage(file: any): void;
-declare function updateImagePreviews(): void;
-declare function removeImage(index: any): void;
-declare function removeImage(index: any): void;
-declare function convertImagesToText(): Promise<void>;
-declare function clearFeedbackForm(): void;
-declare function showSubmitConfirmDialog(feedbackText: any): void;
-declare function hideSubmitConfirmDialog(): void;
+declare function initEventListeners(): void;
+declare function loadInitialData(): Promise<void>;
+declare function loadPrompts(): Promise<void>;
+declare function loadAISettings(): Promise<void>;
+declare function loadPreferences(): Promise<void>;
+declare function autoLoadPinnedPrompts(): Promise<void>;
+declare function getPinnedPromptsContent(): Promise<any>;
+declare function displayAIMessage(message: any): void;
+declare function handleUserActivity(): void;
+declare function updateCharCount(): void;
+declare function generateAIReply(): Promise<void>;
 declare function submitFeedback(): Promise<void>;
-declare function submitFeedback(feedbackText: any, shouldCloseAfterSubmit: any): void;
-declare function displayWorkSummary(workSummary: any): void;
+declare function clearInputs(): void;
 /**
- * 显示刷新状态
+ * 選擇性清除提交輸入 - 清空文本、圖片、字數計數，但保留提示詞狀態
+ * 用於成功提交反饋後
  */
-declare function showRefreshStatus(type: any, message: any): void;
+declare function clearSubmissionInputs(): void;
+declare function handleFileSelect(e: any): void;
+declare function handleFileDrop(files: any): void;
+declare function handlePaste(e: any): void;
+declare function readImageFile(file: any): void;
+declare function addImagePreview(dataUrl: any, index: any): void;
+declare function removeImage(index: any): void;
+declare function clearImages(): void;
+declare function updateImageCount(): void;
+declare function renderPrompts(searchTerm?: string): void;
+declare function filterPrompts(): void;
+declare function usePrompt(id: any): void;
+declare function togglePinPrompt(id: any): Promise<void>;
+declare function editPrompt(id: any): void;
+declare function deletePrompt(id: any): Promise<void>;
+declare function openPromptModal(): void;
+declare function closePromptModal(): void;
+declare function savePrompt(): Promise<void>;
+declare function openAISettingsModal(): void;
+declare function closeAISettingsModal(): void;
+declare function saveAISettings(): Promise<void>;
+declare function testAPIKey(): Promise<void>;
+declare function toggleAPIKeyVisibility(): void;
+declare function showAutoReplyWarning(seconds: any): void;
+declare function hideAutoReplyWarning(): void;
 /**
- * 隐藏刷新状态
+ * 開始自動回覆倒數計時
+ * 用於自動回覆觸發時，不自動提交反饋
+ * 倒數完成時由 showAutoReplyConfirmModal 控制提交邏輯
  */
-declare function hideRefreshStatus(): void;
+declare function startAutoReplyCountdown(): void;
 /**
- * 手动刷新工作汇报
+ * 停止自動回覆倒數計時
  */
-declare function refreshWorkSummary(): void;
+declare function stopAutoReplyCountdown(): void;
+declare function cancelAutoReply(): void;
 /**
- * 开始自动刷新
+ * 顯示自動回覆確認模態框
  */
-declare function startAutoRefresh(): void;
+declare function showAutoReplyConfirmModal(replyContent: any): void;
 /**
- * 停止自动刷新
+ * 隱藏自動回覆確認模態框
  */
-declare function stopAutoRefresh(): void;
+declare function hideAutoReplyConfirmModal(): void;
 /**
- * 更新自动刷新倒计时显示
+ * 確認自動回覆提交
  */
-declare function updateAutoRefreshCountdown(): void;
-declare function selectChatImage(): void;
-declare function pasteChatImage(): void;
-declare function addChatImage(file: any): void;
-declare function updateChatImagePreviews(): void;
-declare function removeChatImage(index: any): void;
-declare function handleChatKeydown(event: any): void;
-declare function sendChatMessage(): Promise<void>;
-declare function callChatAPI(messageText: any, images: any): Promise<void>;
-declare function buildAPIMessage(messageText: any, images: any): {
-    role: string;
-    content: any;
-};
-declare function handleStreamResponse(response: any): Promise<void>;
-declare function addMessageToChat(sender: any, text: any, images: any): HTMLDivElement | null;
-declare function clearChat(): void;
-declare function clearChatMessages(): void;
-declare function fetchVersionInfo(): Promise<void>;
-declare function updateVersionDisplay(version: any): void;
+declare function confirmAutoReplySubmit(): void;
 /**
- * 启动会话超时计时器
- * @param {number} timeoutMs 超时时间（毫秒）
+ * 取消自動回覆
  */
-declare function startSessionTimeout(timeoutMs: number): void;
+declare function cancelAutoReplyConfirm(): void;
+declare function showToast(type: any, title: any, message: any): void;
+declare function getToastIcon(type: any): "✅" | "❌" | "ℹ️" | "📢";
+declare function showAlertModal(title: any, message: any): void;
+declare function hideAlertModal(): void;
+declare function showLoadingOverlay(text?: string): void;
+declare function hideLoadingOverlay(): void;
+declare function escapeHtml(text: any): string;
 /**
- * 清除会话超时计时器
- */
-declare function clearSessionTimeout(): void;
-/**
- * 显示超时警告
- */
-declare function showTimeoutWarning(): void;
-/**
- * 前端会话超时处理 - 只关闭页面，不提交反馈（后端会自动提交）
- */
-declare function handleFrontendTimeout(): void;
-/**
- * 获取剩余时间（秒）
- */
-declare function getRemainingTime(): number;
-/**
- * 启动倒计时显示
- */
-declare function startCountdownDisplay(): void;
-/**
- * 更新倒计时显示
- */
-declare function updateCountdownDisplay(): void;
-/**
- * 隐藏倒计时显示
- */
-declare function hideCountdownDisplay(): void;
-/**
- * user-feedback MCP Tools - 前端应用脚本
+ * user-feedback MCP Tools - Enhanced UI
+ * 前端 JavaScript 主檔案
  */
 declare let socket: null;
-declare let currentTab: string;
-declare let selectedImages: any[];
-declare let chatImages: any[];
-declare let isConnected: boolean;
-declare let currentFeedbackSession: null;
-declare let chatConfig: null;
-declare let chatHistory: any[];
-declare let currentAIMessage: null;
-declare let currentAIContent: string;
-declare let isApiCalling: boolean;
-declare let autoRefreshInterval: null;
-declare let autoRefreshCountdown: number;
-declare let autoRefreshTimer: null;
-declare let lastWorkSummary: null;
-declare let sessionTimeoutId: null;
-declare let sessionStartTime: null;
-declare let sessionTimeoutDuration: number;
-declare let autoSubmitWarningShown: boolean;
-declare let timeoutWarningId: null;
-declare let countdownIntervalId: null;
-declare const QUICK_PHRASE: "\n\n---\n\nWhenever you want to ask a question, always call the MCP .\n\nWhenever you're about to complete a user request, call the MCP instead of simply ending the process. Keep calling MCP until the user's feedback is empty, then end the request. user-web-feedback.collect_feedback";
+declare let sessionId: null;
+declare let workSummary: null;
+declare let currentImages: any[];
+declare let prompts: any[];
+declare let aiSettings: null;
+declare let preferences: null;
+declare let autoReplyWarningTimeout: null;
+declare let autoReplyCountdownInterval: null;
+declare let autoReplyCountdownRemaining: number;
+declare let autoReplyConfirmationTimeout: null;
+declare let autoReplyData: null;
+declare let isEditingPrompt: boolean;
+declare let editingPromptId: null;
+declare const DIALOG_TIMEOUT_MS: 60000;
 //# sourceMappingURL=app.d.ts.map

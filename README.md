@@ -73,7 +73,7 @@
 ### 🚀 訪問增強版介面
 
 ```
-http://localhost:3000/index-enhanced.html
+http://localhost:3000/index.html
 ```
 
 ---
@@ -677,10 +677,12 @@ src/
 ├── types/                    # 類型定義
 │   └── index.ts             # TypeScript 介面
 └── static/                   # 靜態檔案
-    ├── index.html           # 標準版介面
-    ├── index-enhanced.html  # 增強版介面
-    ├── style-enhanced.css   # 增強版樣式
-    └── app-enhanced.js      # 增強版邏輯
+    ├── index.html           # 增強版介面（主入口）
+    ├── style.css            # 增強版樣式
+    ├── app.js               # 增強版邏輯
+    ├── index-enhanced.html  # 舊版檔案（備用）
+    ├── style-enhanced.css   # 舊版樣式（備用）
+    └── app-enhanced.js      # 舊版邏輯（備用）
 ```
 
 ---
@@ -741,4 +743,4 @@ MIT License - 詳見 [LICENSE](LICENSE) 檔案
 
 ---
 
-**立即體驗增強版介面**：`http://localhost:3000/index-enhanced.html` 🎉
+**立即體驗增強版介面**：`http://localhost:3000/index.html` 🎉
