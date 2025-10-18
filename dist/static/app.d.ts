@@ -130,5 +130,5 @@ declare let autoReplyTimerInterval: null;
 declare let autoReplyTimerRemaining: number;
 declare let closeCountdownInterval: null;
 declare let DIALOG_TIMEOUT_SECONDS: number;
-declare const AUTO_REPLY_TIMER_SECONDS: 300;
+declare let AUTO_REPLY_TIMER_SECONDS: number;
 //# sourceMappingURL=app.d.ts.map

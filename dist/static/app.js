@@ -28,9 +28,9 @@ let closeCountdownInterval = null; // 用於關閉頁面倒數計時
 // 用於關閉頁面倒數計時
 let DIALOG_TIMEOUT_SECONDS = 60; // 預設值 60 秒，將從伺服器讀取
 
-// 自動回應倒數時間（秒），默認 300 秒
+// 自動回應倒數時間（秒），從 AI 設定讀取，默認 300 秒
 // 當達到 0 秒時自動啟動 AI 回應
-const AUTO_REPLY_TIMER_SECONDS = 300; // 5 分鐘
+let AUTO_REPLY_TIMER_SECONDS = 300; // 預設值 300 秒（5 分鐘），將從 AI 設定讀取
 
 // ============ 初始化 ============
 
@@ -423,6 +423,12 @@ async function loadAISettings() {
 
     if (data.success) {
       aiSettings = data.settings;
+      
+      // 讀取自動回覆計時器秒數設定
+      if (aiSettings.autoReplyTimerSeconds !== undefined) {
+        AUTO_REPLY_TIMER_SECONDS = aiSettings.autoReplyTimerSeconds;
+        console.log(`從 AI 設定讀取自動回覆時間: ${AUTO_REPLY_TIMER_SECONDS}s`);
+      }
     }
   } catch (error) {
     console.error("載入 AI 設定失敗:", error);
@@ -1028,6 +1034,8 @@ function openAISettingsModal() {
     document.getElementById("temperature").value =
       aiSettings.temperature || 0.7;
     document.getElementById("maxTokens").value = aiSettings.maxTokens || 1000;
+    document.getElementById("autoReplyTimerSeconds").value = 
+      aiSettings.autoReplyTimerSeconds || 300;
   }
 
   document.getElementById("aiSettingsModal").classList.add("show");
@@ -1044,6 +1052,7 @@ async function saveAISettings() {
   const systemPrompt = document.getElementById("systemPrompt").value.trim();
   const temperature = parseFloat(document.getElementById("temperature").value);
   const maxTokens = parseInt(document.getElementById("maxTokens").value);
+  const autoReplyTimerSeconds = parseInt(document.getElementById("autoReplyTimerSeconds").value);
 
   const settingsData = {
     apiUrl: apiUrl || undefined,
@@ -1052,6 +1061,7 @@ async function saveAISettings() {
     systemPrompt: systemPrompt || undefined,
     temperature,
     maxTokens,
+    autoReplyTimerSeconds,
   };
 
   try {
@@ -1065,6 +1075,12 @@ async function saveAISettings() {
 
     if (data.success) {
       aiSettings = data.settings;
+      
+      // 更新自動回覆計時器秒數
+      if (aiSettings.autoReplyTimerSeconds !== undefined) {
+        AUTO_REPLY_TIMER_SECONDS = aiSettings.autoReplyTimerSeconds;
+        console.log(`自動回覆時間已更新為: ${AUTO_REPLY_TIMER_SECONDS}s`);
+      }
       closeAISettingsModal();
       showToast("success", "成功", "AI 設定已儲存");
     } else {
@@ -1224,7 +1240,7 @@ function startAutoReplyTimer() {
  */
 async function triggerAutoAIReply() {
   console.log("觸發自動 AI 回應...");
-  
+
   // 隱藏計時器
   const timerEl = document.getElementById("auto-reply-timer");
   if (timerEl) {
@@ -1244,7 +1260,7 @@ async function triggerAutoAIReply() {
   try {
     // 呼叫 AI 回覆 API
     const userContext = document.getElementById("feedbackText").value;
-    
+
     const response = await fetch("/api/ai-reply", {
       method: "POST",
       headers: {
