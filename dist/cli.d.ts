@@ -2,5 +2,5 @@
 /**
  * user-feedback MCP Tools - CLI入口
  */
-export { };
+export {};
 //# sourceMappingURL=cli.d.ts.map
