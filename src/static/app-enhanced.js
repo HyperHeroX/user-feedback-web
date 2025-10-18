@@ -79,6 +79,8 @@ function initSocketIO() {
   // 反饋提交事件
   socket.on("feedback_submitted", (data) => {
     console.log("反饋已提交:", data);
+    // 隱藏任何正在顯示的提醒彈窗
+    hideAlertModal();
     showToast("success", "成功", "反饋已成功提交");
 
     // 清空輸入
@@ -94,8 +96,9 @@ function initSocketIO() {
 
   socket.on("feedback_error", (data) => {
     console.error("反饋錯誤:", data);
+    // 隱藏提醒彈窗（若有）並顯示錯誤
+    hideAlertModal();
     showToast("error", "錯誤", data.error);
-    hideLoadingOverlay();
   });
 
   // 自動回覆事件
@@ -121,7 +124,8 @@ function initSocketIO() {
     document.getElementById("feedbackText").value = finalReply;
     updateCharCount();
 
-    showToast("info", "AI 自動回覆", "系統已自動生成回應，請檢查後提交");
+    // 使用彈窗提示 AI 回覆已完成
+    showAlertModal("AI 已完成回覆", "系統已自動生成回應，請檢查後提交。");
   });
 
   socket.on("auto_reply_error", (data) => {
@@ -235,6 +239,12 @@ function initEventListeners() {
   document
     .getElementById("toggleApiKey")
     .addEventListener("click", toggleAPIKeyVisibility);
+
+  // 通用提醒彈窗確定按鈕
+  const alertOkBtn = document.getElementById("alertModalOk");
+  if (alertOkBtn) {
+    alertOkBtn.addEventListener("click", hideAlertModal);
+  }
 
   document
     .getElementById("closePromptModal")
@@ -419,9 +429,10 @@ async function generateAIReply() {
         finalReply = pinnedPromptsContent + "\n\n" + data.reply;
       }
 
-      document.getElementById("feedbackText").value = finalReply;
-      updateCharCount();
-      showToast("success", "AI 回覆已生成", "請檢查並修改後提交");
+  document.getElementById("feedbackText").value = finalReply;
+  updateCharCount();
+  // 顯示簡單彈窗提示 AI 已完成回覆
+  showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
     } else {
       showToast("error", "AI 回覆失敗", data.error);
     }
@@ -448,7 +459,8 @@ async function submitFeedback() {
     return;
   }
 
-  showLoadingOverlay("正在提交反饋...");
+  // 使用彈窗提示而不要出現遮罩
+  showAlertModal("提交中", "正在提交反饋，請稍候...");
 
   const feedbackData = {
     sessionId: sessionId,
@@ -915,14 +927,26 @@ function showAutoReplyWarning(seconds) {
   warningText.textContent = `系統將在 ${seconds} 秒後自動生成回應`;
   warningEl.style.display = "block";
 
+  // 同時顯示在 AI 回覆按鈕左側的倒數元素（更醒目）
+  const countdownEl = document.getElementById("ai-reply-countdown");
+  if (countdownEl) {
+    countdownEl.style.display = "block";
+    countdownEl.textContent = `${seconds}s`;
+  }
+
   // 每秒更新倒數
   let remaining = seconds;
   autoReplyWarningTimeout = setInterval(() => {
     remaining--;
     if (remaining > 0) {
       warningText.textContent = `系統將在 ${remaining} 秒後自動生成回應`;
+      if (countdownEl) countdownEl.textContent = `${remaining}s`;
     } else {
+      // 倒數結束時隱藏提示與倒數
       clearInterval(autoReplyWarningTimeout);
+      autoReplyWarningTimeout = null;
+      warningEl.style.display = "none";
+      if (countdownEl) countdownEl.style.display = "none";
     }
   }, 1000);
 }
@@ -930,6 +954,10 @@ function showAutoReplyWarning(seconds) {
 function hideAutoReplyWarning() {
   const warningEl = document.getElementById("autoReplyWarning");
   warningEl.style.display = "none";
+
+  // 隱藏旁邊的倒數顯示
+  const countdownEl = document.getElementById("ai-reply-countdown");
+  if (countdownEl) countdownEl.style.display = "none";
 
   if (autoReplyWarningTimeout) {
     clearInterval(autoReplyWarningTimeout);
@@ -979,6 +1007,25 @@ function getToastIcon(type) {
     default:
       return "📢";
   }
+}
+
+// 顯示通用提醒彈窗
+function showAlertModal(title, message) {
+  const modal = document.getElementById("alertModal");
+  if (!modal) return;
+  const titleEl = document.getElementById("alertModalTitle");
+  const bodyEl = document.getElementById("alertModalBody");
+
+  if (titleEl) titleEl.textContent = title;
+  if (bodyEl) bodyEl.textContent = message;
+
+  modal.classList.add("show");
+}
+
+function hideAlertModal() {
+  const modal = document.getElementById("alertModal");
+  if (!modal) return;
+  modal.classList.remove("show");
 }
 
 function showLoadingOverlay(text = "處理中...") {

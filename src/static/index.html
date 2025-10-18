@@ -46,6 +46,8 @@
                         <span class="icon">💬</span>
                         您的回應
                     </h3>
+                    <!-- 倒數計時器（在 AI 回覆按鈕左側顯示） -->
+                    <div id="ai-reply-countdown" class="ai-reply-countdown" style="display:none; margin-right:8px; align-self:center; color:#ffcc00; font-weight:600;"></div>
                     <button id="aiReplyBtn" class="btn btn-secondary" title="使用 AI 生成回應">
                         <span class="icon">✨</span>
                         AI 回覆
@@ -262,6 +264,25 @@
         <div class="loading-spinner">
             <div class="spinner"></div>
             <p id="loadingText">處理中...</p>
+        </div>
+    </div>
+
+    <!-- 通用彈窗（用於提示/警示） -->
+    <div id="alertModal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <span class="icon">⚠️</span>
+                    <span id="alertModalTitle">提醒</span>
+                </h2>
+            </div>
+            <div class="modal-body">
+                <p id="alertModalBody">訊息內容</p>
+            </div>
+            <div class="modal-footer">
+                <button id="alertModalOk" class="btn btn-primary">確定</button>
+            </div>
         </div>
     </div>
 

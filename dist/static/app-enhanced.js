@@ -915,14 +915,26 @@ function showAutoReplyWarning(seconds) {
   warningText.textContent = `系統將在 ${seconds} 秒後自動生成回應`;
   warningEl.style.display = "block";
 
+  // 同時顯示在 AI 回覆按鈕左側的倒數元素（更醒目）
+  const countdownEl = document.getElementById("ai-reply-countdown");
+  if (countdownEl) {
+    countdownEl.style.display = "block";
+    countdownEl.textContent = `${seconds}s`;
+  }
+
   // 每秒更新倒數
   let remaining = seconds;
   autoReplyWarningTimeout = setInterval(() => {
     remaining--;
     if (remaining > 0) {
       warningText.textContent = `系統將在 ${remaining} 秒後自動生成回應`;
+      if (countdownEl) countdownEl.textContent = `${remaining}s`;
     } else {
+      // 倒數結束時隱藏提示與倒數
       clearInterval(autoReplyWarningTimeout);
+      autoReplyWarningTimeout = null;
+      warningEl.style.display = "none";
+      if (countdownEl) countdownEl.style.display = "none";
     }
   }, 1000);
 }
@@ -930,6 +942,10 @@ function showAutoReplyWarning(seconds) {
 function hideAutoReplyWarning() {
   const warningEl = document.getElementById("autoReplyWarning");
   warningEl.style.display = "none";
+
+  // 隱藏旁邊的倒數顯示
+  const countdownEl = document.getElementById("ai-reply-countdown");
+  if (countdownEl) countdownEl.style.display = "none";
 
   if (autoReplyWarningTimeout) {
     clearInterval(autoReplyWarningTimeout);
