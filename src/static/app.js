@@ -15,14 +15,22 @@ let preferences = null;
 let autoReplyWarningTimeout = null;
 let autoReplyCountdownInterval = null;
 let autoReplyCountdownRemaining = 0;
-let autoReplyConfirmationTimeout = null;  // 用於自動回覆確認倒數
-let autoReplyData = null;  // 儲存待確認的自動回覆資料
+let autoReplyConfirmationTimeout = null; // 用於自動回覆確認倒數
+let autoReplyData = null; // 儲存待確認的自動回覆資料
 let isEditingPrompt = false;
 let editingPromptId = null;
+let dialogTimeoutInterval = null; // 用於 MCP_DIALOG_TIMEOUT 倒數計時
+let autoReplyTimerInterval = null; // 用於自動回應倒數計時（300 秒）
+let autoReplyTimerRemaining = 0; // 300 秒計時器的剩餘秒數
+let closeCountdownInterval = null; // 用於關閉頁面倒數計時
 
-// 對話超時時間（毫秒），可從環境變數設定，默認 60 秒
-// 用於自動回覆倒數計時
-const DIALOG_TIMEOUT_MS = 60000;  // MCP_DIALOG_TIMEOUT (default: 60000ms = 60s)
+// 對話超時時間（秒），從伺服器環境變數讀取，默認 60 秒
+// 用於關閉頁面倒數計時
+let DIALOG_TIMEOUT_SECONDS = 60; // 預設值 60 秒，將從伺服器讀取
+
+// 自動回應倒數時間（秒），默認 300 秒
+// 當達到 0 秒時自動啟動 AI 回應
+const AUTO_REPLY_TIMER_SECONDS = 300; // 5 分鐘
 
 // ============ 初始化 ============
 
@@ -94,10 +102,36 @@ function initSocketIO() {
     // 選擇性清除提交輸入（保留提示詞）
     clearSubmissionInputs();
 
-    // 3 秒後自動關閉頁面
-    setTimeout(() => {
-      window.close();
-    }, 3000);
+    // 停止原有的關閉倒數計時器
+    if (closeCountdownInterval) {
+      clearInterval(closeCountdownInterval);
+      closeCountdownInterval = null;
+    }
+
+    // 3 秒後關閉頁面
+    const countdownEl = document.getElementById("close-cd");
+    if (countdownEl) {
+      let remaining = 3;
+      countdownEl.style.display = "inline-flex";
+      countdownEl.textContent = remaining;
+
+      closeCountdownInterval = setInterval(() => {
+        remaining--;
+        if (remaining > 0) {
+          countdownEl.textContent = remaining;
+        } else {
+          clearInterval(closeCountdownInterval);
+          closeCountdownInterval = null;
+          console.log("提交成功，3秒後關閉頁面");
+          window.close();
+        }
+      }, 1000);
+    } else {
+      // 如果找不到倒數元素，直接 3 秒後關閉
+      setTimeout(() => {
+        window.close();
+      }, 3000);
+    }
   });
 
   socket.on("feedback_error", (data) => {
@@ -114,7 +148,7 @@ function initSocketIO() {
   });
 
   socket.on("auto_reply_triggered", async (data) => {
-    console.log("自動回覆已觸發:", data);
+    console.log("伺服器自動回覆已觸發:", data);
     hideAutoReplyWarning();
 
     // 獲取釘選提示詞
@@ -126,10 +160,11 @@ function initSocketIO() {
       finalReply = pinnedPromptsContent + "\n\n" + data.reply;
     }
 
-    // 儲存回覆資料待確認
-    autoReplyData = finalReply;
+    // 將回覆內容填入文字框
+    document.getElementById("feedbackText").value = finalReply;
+    updateCharCount();
 
-    // 顯示確認模態框
+    // 顯示確認模態框（10 秒倒數）
     showAutoReplyConfirmModal(finalReply);
   });
 
@@ -152,11 +187,13 @@ function updateConnectionStatus(connected) {
   if (connected) {
     statusEl.classList.add("connected");
     statusEl.classList.remove("disconnected");
+    statusEl.style.visibility = "visible";
     statusText.textContent = "已連接";
   } else {
     statusEl.classList.remove("connected");
     statusEl.classList.add("disconnected");
-    statusText.textContent = "已斷開";
+    statusEl.style.visibility = "visible";
+    statusText.textContent = "連接中...";
   }
 }
 
@@ -229,7 +266,9 @@ function initEventListeners() {
     .addEventListener("click", () => openPromptModal());
 
   // AI 設定中的編輯提示詞按鈕
-  const editPromptsFromSettings = document.getElementById("editPromptsFromSettings");
+  const editPromptsFromSettings = document.getElementById(
+    "editPromptsFromSettings"
+  );
   if (editPromptsFromSettings) {
     editPromptsFromSettings.addEventListener("click", () => {
       openPromptModal();
@@ -273,17 +312,23 @@ function initEventListeners() {
     .addEventListener("click", cancelAutoReply);
 
   // 自動回覆確認模態框
-  const closeAutoReplyConfirmBtn = document.getElementById("closeAutoReplyConfirm");
+  const closeAutoReplyConfirmBtn = document.getElementById(
+    "closeAutoReplyConfirm"
+  );
   if (closeAutoReplyConfirmBtn) {
     closeAutoReplyConfirmBtn.addEventListener("click", cancelAutoReplyConfirm);
   }
 
-  const cancelAutoReplyConfirmBtn = document.getElementById("cancelAutoReplyConfirm");
+  const cancelAutoReplyConfirmBtn = document.getElementById(
+    "cancelAutoReplyConfirm"
+  );
   if (cancelAutoReplyConfirmBtn) {
     cancelAutoReplyConfirmBtn.addEventListener("click", cancelAutoReplyConfirm);
   }
 
-  const confirmAutoReplySubmitBtn = document.getElementById("confirmAutoReplySubmit");
+  const confirmAutoReplySubmitBtn = document.getElementById(
+    "confirmAutoReplySubmit"
+  );
   if (confirmAutoReplySubmitBtn) {
     confirmAutoReplySubmitBtn.addEventListener("click", confirmAutoReplySubmit);
   }
@@ -312,6 +357,12 @@ function initEventListeners() {
 
 async function loadInitialData() {
   try {
+    // 首先從伺服器讀取配置，包括 MCP_DIALOG_TIMEOUT
+    await loadServerConfig();
+
+    // 啟動關閉頁面倒數計時
+    startCloseCountdown();
+
     // 載入提示詞
     await loadPrompts();
 
@@ -324,12 +375,30 @@ async function loadInitialData() {
     // 自動載入釘選提示詞
     await autoLoadPinnedPrompts();
 
-    // 頁面載入完成後，啟動計時器提醒使用者等待時間限制
-    // 計時器將顯示 DIALOG_TIMEOUT_MS (預設 60 秒) 的倒數
-    startAutoReplyCountdown();
+    // 頁面載入完成後，啟動 300 秒計時器
+    // 當倒數到 0 時自動啟動 AI 回應
+    startAutoReplyTimer();
   } catch (error) {
     console.error("載入初始資料失敗:", error);
     showToast("error", "載入失敗", "無法載入初始資料");
+  }
+}
+
+async function loadServerConfig() {
+  try {
+    const response = await fetch("/api/config");
+    const data = await response.json();
+
+    if (data.dialog_timeout) {
+      // 伺服器返回的是秒，直接使用
+      DIALOG_TIMEOUT_SECONDS = data.dialog_timeout;
+      console.log(
+        `從伺服器讀取 MCP_DIALOG_TIMEOUT: ${DIALOG_TIMEOUT_SECONDS}s`
+      );
+    }
+  } catch (error) {
+    console.error("載入伺服器配置失敗，使用預設值:", error);
+    // 使用預設值 60 秒
   }
 }
 
@@ -474,6 +543,9 @@ async function generateAIReply() {
 
       document.getElementById("feedbackText").value = finalReply;
       updateCharCount();
+
+      // 倒數計時器已在頁面載入時啟動，無需額外處理
+
       // 顯示簡單彈窗提示 AI 已完成回覆
       showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
     } else {
@@ -513,6 +585,9 @@ async function submitFeedback() {
     shouldCloseAfterSubmit: false,
   };
 
+  // 停止所有計時器
+  stopAllTimers();
+
   socket.emit("submit_feedback", feedbackData);
 }
 
@@ -530,12 +605,87 @@ function clearSubmissionInputs() {
   // 清除反饋文本
   document.getElementById("feedbackText").value = "";
   updateCharCount();
-  
+
   // 清除圖片
   clearImages();
-  
+
+  // 停止所有計時器
+  stopAllTimers();
+
   // 保留: 提示詞狀態、AI 設置、偏好設置
   // 這些全局變數不會被清除
+}
+
+/**
+ * 停止所有計時器
+ */
+function stopAllTimers() {
+  // 停止對話超時計時器
+  if (dialogTimeoutInterval) {
+    clearInterval(dialogTimeoutInterval);
+    dialogTimeoutInterval = null;
+  }
+
+  // 停止關閉頁面倒數計時器
+  if (closeCountdownInterval) {
+    clearInterval(closeCountdownInterval);
+    closeCountdownInterval = null;
+  }
+  const countdownEl = document.getElementById("close-cd");
+  if (countdownEl) {
+    countdownEl.style.display = "none";
+  }
+
+  // 停止自動回應計時器
+  if (autoReplyTimerInterval) {
+    clearInterval(autoReplyTimerInterval);
+    autoReplyTimerInterval = null;
+  }
+  const timerEl = document.getElementById("auto-reply-timer");
+  if (timerEl) {
+    timerEl.classList.remove("active");
+  }
+
+  // 停止自動回覆確認計時器
+  if (autoReplyConfirmationTimeout) {
+    clearInterval(autoReplyConfirmationTimeout);
+    autoReplyConfirmationTimeout = null;
+  }
+}
+
+/**
+ * 開始關閉頁面倒數計時
+ * 從 MCP_DIALOG_TIMEOUT 取得秒數，倒數到 0 時自動關閉頁面
+ */
+function startCloseCountdown() {
+  const countdownEl = document.getElementById("close-cd");
+  if (!countdownEl) {
+    console.warn("關閉倒數計時器元素 (close-cd) 未找到");
+    return;
+  }
+
+  // 停止之前的計時器（如果存在）
+  if (closeCountdownInterval) {
+    clearInterval(closeCountdownInterval);
+  }
+
+  let remaining = DIALOG_TIMEOUT_SECONDS;
+  countdownEl.style.display = "inline-flex";
+  countdownEl.textContent = remaining;
+
+  console.log(`開始關閉頁面倒數計時: ${remaining} 秒`);
+
+  closeCountdownInterval = setInterval(() => {
+    remaining--;
+    countdownEl.textContent = remaining;
+
+    if (remaining <= 0) {
+      clearInterval(closeCountdownInterval);
+      closeCountdownInterval = null;
+      console.log("倒數結束，關閉頁面");
+      window.close();
+    }
+  }, 1000);
 }
 
 // ============ 圖片處理 ============
@@ -986,26 +1136,17 @@ function showAutoReplyWarning(seconds) {
   warningText.textContent = `系統將在 ${seconds} 秒後自動生成回應`;
   warningEl.style.display = "block";
 
-  // 同時顯示在 AI 回覆按鈕左側的倒數元素（更醒目）
-  const countdownEl = document.getElementById("ai-reply-countdown");
-  if (countdownEl) {
-    countdownEl.style.display = "block";
-    countdownEl.textContent = `${seconds}s`;
-  }
-
   // 每秒更新倒數
   let remaining = seconds;
   autoReplyWarningTimeout = setInterval(() => {
     remaining--;
     if (remaining > 0) {
       warningText.textContent = `系統將在 ${remaining} 秒後自動生成回應`;
-      if (countdownEl) countdownEl.textContent = `${remaining}s`;
     } else {
-      // 倒數結束時隱藏提示與倒數
+      // 倒數結束時隱藏提示
       clearInterval(autoReplyWarningTimeout);
       autoReplyWarningTimeout = null;
       warningEl.style.display = "none";
-      if (countdownEl) countdownEl.style.display = "none";
     }
   }, 1000);
 }
@@ -1014,13 +1155,135 @@ function hideAutoReplyWarning() {
   const warningEl = document.getElementById("autoReplyWarning");
   warningEl.style.display = "none";
 
-  // 隱藏旁邊的倒數顯示
-  const countdownEl = document.getElementById("ai-reply-countdown");
-  if (countdownEl) countdownEl.style.display = "none";
-
   if (autoReplyWarningTimeout) {
     clearInterval(autoReplyWarningTimeout);
     autoReplyWarningTimeout = null;
+  }
+}
+
+/**
+ * [已廢棄] 原本用於 AI 回覆對話超時計時
+ * 現在由 startCloseCountdown() 統一處理頁面關閉倒數
+ */
+function startDialogTimeout() {
+  // 此函數已被 startCloseCountdown() 替代
+  console.log("startDialogTimeout() 已廢棄，使用 startCloseCountdown()");
+}
+
+/**
+ * 開始自動回應倒數計時（300 秒）
+ * 顯示在 auto-reply-timer 容器中（中間下方）
+ * 當倒數到 0 秒時自動啟動 AI 回應
+ */
+function startAutoReplyTimer() {
+  const timerEl = document.getElementById("auto-reply-timer");
+  const secondsEl = document.getElementById("auto-reply-seconds");
+
+  if (!timerEl || !secondsEl) {
+    console.warn("自動回應計時器元素未找到");
+    return;
+  }
+
+  // 初始化計時器（300 秒）
+  autoReplyTimerRemaining = AUTO_REPLY_TIMER_SECONDS;
+
+  // 顯示計時器
+  timerEl.classList.add("active");
+
+  // 清空先前的計時器
+  if (autoReplyTimerInterval) {
+    clearInterval(autoReplyTimerInterval);
+  }
+
+  // 更新倒數文本
+  const updateCountdown = () => {
+    if (autoReplyTimerRemaining > 0) {
+      secondsEl.textContent = autoReplyTimerRemaining;
+      autoReplyTimerRemaining--;
+    } else {
+      // 倒數完成，自動啟動 AI 回應
+      clearInterval(autoReplyTimerInterval);
+      console.log("自動回應時間已到，啟動 AI 回應");
+      // TODO: 觸發自動 AI 回應邏輯
+      triggerAutoAIReply();
+    }
+  };
+
+  // 立即顯示第一個倒數值
+  secondsEl.textContent = autoReplyTimerRemaining;
+  autoReplyTimerRemaining--;
+
+  // 每秒更新一次
+  autoReplyTimerInterval = setInterval(updateCountdown, 1000);
+}
+
+/**
+ * 觸發自動 AI 回應
+ * 倒數到 0 秒時調用此函數
+ * 流程：呼叫 AI 回覆 → 取得內容 → 彈出 10 秒確認視窗 → 10 秒後提交
+ */
+async function triggerAutoAIReply() {
+  console.log("觸發自動 AI 回應...");
+
+  // 隱藏計時器
+  const timerEl = document.getElementById("auto-reply-timer");
+  if (timerEl) {
+    timerEl.classList.remove("active");
+  }
+
+  // 檢查是否有 workSummary
+  if (!workSummary) {
+    console.error("無法取得 AI 訊息");
+    showToast("error", "錯誤", "無法取得 AI 訊息，自動回覆失敗");
+    return;
+  }
+
+  // 顯示載入中
+  showLoadingOverlay("正在自動生成 AI 回覆...");
+
+  try {
+    // 呼叫 AI 回覆 API
+    const userContext = document.getElementById("feedbackText").value;
+
+    const response = await fetch("/api/ai-reply", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        aiMessage: workSummary,
+        userContext: userContext,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // 取得釘選提示詞
+      const pinnedPromptsContent = await getPinnedPromptsContent();
+
+      // 組合回覆：釘選提示詞 + AI 生成的回覆
+      let finalReply = data.reply;
+      if (pinnedPromptsContent) {
+        finalReply = pinnedPromptsContent + "\n\n" + data.reply;
+      }
+
+      // 將回覆內容填入文字框
+      document.getElementById("feedbackText").value = finalReply;
+      updateCharCount();
+
+      hideLoadingOverlay();
+
+      // 彈出 10 秒確認視窗
+      showAutoReplyConfirmModal(finalReply);
+    } else {
+      hideLoadingOverlay();
+      showToast("error", "AI 回覆失敗", data.error);
+    }
+  } catch (error) {
+    console.error("自動生成 AI 回覆失敗:", error);
+    hideLoadingOverlay();
+    showToast("error", "錯誤", "無法自動生成 AI 回覆");
   }
 }
 
@@ -1044,7 +1307,7 @@ function startAutoReplyCountdown() {
   autoReplyCountdownRemaining = totalSeconds;
 
   // 顯示計時器 (使用 CSS class 而非 inline style)
-  timerEl.classList.add('active');
+  timerEl.classList.add("active");
 
   // 清空先前的計時器
   if (autoReplyCountdownInterval) {
@@ -1059,7 +1322,7 @@ function startAutoReplyCountdown() {
     } else {
       // 倒數完成
       clearInterval(autoReplyCountdownInterval);
-      timerEl.classList.remove('active');
+      timerEl.classList.remove("active");
       console.log("倒數計時完成");
     }
   };
@@ -1080,11 +1343,7 @@ function stopAutoReplyCountdown() {
     clearInterval(autoReplyCountdownInterval);
     autoReplyCountdownInterval = null;
   }
-  
-  const timerEl = document.getElementById("ai-reply-countdown");
-  if (timerEl) {
-    timerEl.style.display = "none";
-  }
+  // 注意: close-cd 是獨立的頁面關閉倒數，不在此處理
 }
 
 function cancelAutoReply() {
@@ -1097,11 +1356,15 @@ function cancelAutoReply() {
 /**
  * 顯示自動回覆確認模態框
  */
+/**
+ * 顯示自動回覆確認模態框
+ * 彈出 10 秒確認視窗，超過 10 秒後自動提交
+ */
 function showAutoReplyConfirmModal(replyContent) {
   const modal = document.getElementById("autoReplyConfirmModal");
   const preview = document.getElementById("autoReplyPreview");
   const countdown = document.getElementById("autoReplyCountdown");
-  
+
   if (!modal) {
     console.warn("自動回覆確認模態框未找到");
     return;
@@ -1109,28 +1372,32 @@ function showAutoReplyConfirmModal(replyContent) {
 
   // 顯示預覽內容
   preview.textContent = replyContent;
-  
+
   // 顯示模態框
   modal.style.display = "flex";
-  
-  // 計時器已在頁面載入時啟動
-  // 這裡只需要更新模態框中的倒數顯示
-  const totalSeconds = Math.ceil(DIALOG_TIMEOUT_MS / 1000);
+
+  // 儲存回覆內容
+  autoReplyData = replyContent;
+
+  // 10 秒倒數
+  const totalSeconds = 10;
   countdown.textContent = totalSeconds;
-  
+
   // 開始倒數 (用於模態框中的顯示)
   let remainingSeconds = totalSeconds;
   if (autoReplyConfirmationTimeout) {
     clearInterval(autoReplyConfirmationTimeout);
   }
-  
+
   autoReplyConfirmationTimeout = setInterval(() => {
     remainingSeconds--;
     countdown.textContent = remainingSeconds;
-    
+
     if (remainingSeconds <= 0) {
       clearInterval(autoReplyConfirmationTimeout);
-      // 自動確認並提交
+      autoReplyConfirmationTimeout = null;
+      // 10 秒到達，自動確認並提交
+      console.log("10 秒倒數結束，自動提交回應");
       confirmAutoReplySubmit();
     }
   }, 1000);
@@ -1144,7 +1411,7 @@ function hideAutoReplyConfirmModal() {
   if (modal) {
     modal.style.display = "none";
   }
-  
+
   if (autoReplyConfirmationTimeout) {
     clearInterval(autoReplyConfirmationTimeout);
     autoReplyConfirmationTimeout = null;
@@ -1156,15 +1423,15 @@ function hideAutoReplyConfirmModal() {
  */
 function confirmAutoReplySubmit() {
   hideAutoReplyConfirmModal();
-  
+
   if (autoReplyData) {
     // 填入回覆內容
     document.getElementById("feedbackText").value = autoReplyData;
     updateCharCount();
-    
+
     // 清除資料
     autoReplyData = null;
-    
+
     // 提交反饋
     console.log("確認自動回覆，提交反饋");
     submitFeedback();

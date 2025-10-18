@@ -204,6 +204,7 @@ export class WebServer {
         model: this.config.defaultModel || 'gpt-4o-mini',
         enable_chat: this.config.enableChat !== false, // 默认启用
         max_file_size: this.config.maxFileSize,
+        dialog_timeout: this.config.dialogTimeout, // MCP_DIALOG_TIMEOUT (毫秒)
         temperature: 0.7,
         max_tokens: 2000
       };
@@ -212,7 +213,8 @@ export class WebServer {
         hasApiKey: !!chatConfig.api_key,
         apiBaseUrl: chatConfig.api_base_url,
         model: chatConfig.model,
-        enableChat: chatConfig.enable_chat
+        enableChat: chatConfig.enable_chat,
+        dialogTimeout: chatConfig.dialog_timeout
       });
 
       res.json(chatConfig);

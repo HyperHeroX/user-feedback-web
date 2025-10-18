@@ -54,7 +54,8 @@ body {
 .connection-status {
     position: fixed;
     bottom: 16px;
-    right: 16px;
+    left: 50%;
+    transform: translateX(-50%);
     padding: var(--spacing-sm) var(--spacing-md);
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -257,7 +258,7 @@ body {
 
 .feedback-input {
     width: 100%;
-    height: 100%;
+    height: 88%;
     padding: var(--spacing-md);
     background: var(--bg-tertiary);
     color: var(--text-primary);
@@ -297,33 +298,30 @@ body {
 }
 
 /* 自動回覆倒數計時器（在 AI 回覆按鈕左邊） */
-.ai-reply-countdown {
+.close-cd {
     display: inline-flex;
     align-items: center;
-    gap: var(--spacing-sm);
+    justify-content: center;
     padding: var(--spacing-sm) var(--spacing-md);
-    background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+    background: linear-gradient(135deg, #ff5555 0%, #ff3333 100%);
     color: #ffffff;
     border-radius: var(--radius-md);
-    font-size: 13px;
-    font-weight: 600;
-    min-width: 100px;
-    justify-content: center;
-    animation: timerPulse 1s ease-in-out infinite;
+    font-size: 18px;
+    font-weight: 700;
+    min-width: 45px;
+    height: 35px;
+    animation: closeCountdownPulse 0.5s ease-in-out infinite;
+    box-shadow: 0 2px 8px rgba(255, 85, 85, 0.4);
 }
 
-.ai-reply-countdown::before {
-    content: "⏱️";
-    font-size: 14px;
-    animation: timerRotate 2s linear infinite;
-}
-
-@keyframes timerPulse {
+@keyframes closeCountdownPulse {
     0%, 100% {
+        transform: scale(1);
         opacity: 1;
     }
     50% {
-        opacity: 0.7;
+        transform: scale(1.1);
+        opacity: 0.9;
     }
 }
 
@@ -357,6 +355,7 @@ body {
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
+    height: 80%;
 }
 
 .image-drop-zone:hover {

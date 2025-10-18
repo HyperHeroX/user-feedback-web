@@ -49,7 +49,7 @@ export function createDefaultConfig() {
         apiBaseUrl: getEnvVar('MCP_API_BASE_URL', 'https://api.ssopen.top'),
         defaultModel: getEnvVar('MCP_DEFAULT_MODEL', 'gpt-4o-mini'),
         webPort: getEnvNumber('MCP_WEB_PORT', 5000),
-        dialogTimeout: getEnvNumber('MCP_DIALOG_TIMEOUT', 60000),
+        dialogTimeout: getEnvNumber('MCP_DIALOG_TIMEOUT', 60), // 改為秒，預設 60 秒
         enableChat: getEnvBoolean('MCP_ENABLE_CHAT', true),
         corsOrigin: getEnvVar('MCP_CORS_ORIGIN', '*'),
         maxFileSize: getEnvNumber('MCP_MAX_FILE_SIZE', 10485760), // 10MB
