@@ -104,12 +104,21 @@ function initSocketIO() {
     showAutoReplyWarning(data.remainingSeconds);
   });
 
-  socket.on("auto_reply_triggered", (data) => {
+  socket.on("auto_reply_triggered", async (data) => {
     console.log("自動回覆已觸發:", data);
     hideAutoReplyWarning();
 
+    // 獲取釘選提示詞
+    const pinnedPromptsContent = await getPinnedPromptsContent();
+
+    // 組合回覆：釘選提示詞 + AI 生成的回覆
+    let finalReply = data.reply;
+    if (pinnedPromptsContent) {
+      finalReply = pinnedPromptsContent + "\n\n" + data.reply;
+    }
+
     // 填入 AI 生成的回覆
-    document.getElementById("feedbackText").value = data.reply;
+    document.getElementById("feedbackText").value = finalReply;
     updateCharCount();
 
     showToast("info", "AI 自動回覆", "系統已自動生成回應，請檢查後提交");
@@ -332,6 +341,22 @@ async function autoLoadPinnedPrompts() {
   }
 }
 
+// 獲取釘選提示詞內容
+async function getPinnedPromptsContent() {
+  try {
+    const response = await fetch("/api/prompts/pinned");
+    const data = await response.json();
+
+    if (data.success && data.prompts.length > 0) {
+      return data.prompts.map((p) => p.content).join("\n\n");
+    }
+    return "";
+  } catch (error) {
+    console.error("獲取釘選提示詞失敗:", error);
+    return "";
+  }
+}
+
 // ============ AI 訊息顯示 ============
 
 function displayAIMessage(message) {
@@ -385,7 +410,16 @@ async function generateAIReply() {
     const data = await response.json();
 
     if (data.success) {
-      document.getElementById("feedbackText").value = data.reply;
+      // 獲取釘選提示詞
+      const pinnedPromptsContent = await getPinnedPromptsContent();
+
+      // 組合回覆：釘選提示詞 + AI 生成的回覆
+      let finalReply = data.reply;
+      if (pinnedPromptsContent) {
+        finalReply = pinnedPromptsContent + "\n\n" + data.reply;
+      }
+
+      document.getElementById("feedbackText").value = finalReply;
       updateCharCount();
       showToast("success", "AI 回覆已生成", "請檢查並修改後提交");
     } else {

@@ -7,6 +7,7 @@ declare function loadPrompts(): Promise<void>;
 declare function loadAISettings(): Promise<void>;
 declare function loadPreferences(): Promise<void>;
 declare function autoLoadPinnedPrompts(): Promise<void>;
+declare function getPinnedPromptsContent(): Promise<any>;
 declare function displayAIMessage(message: any): void;
 declare function handleUserActivity(): void;
 declare function updateCharCount(): void;
