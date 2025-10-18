@@ -110,7 +110,7 @@ function initSocketIO() {
 
     // 獲取釘選提示詞
     const pinnedPromptsContent = await getPinnedPromptsContent();
-    
+
     // 組合回覆：釘選提示詞 + AI 生成的回覆
     let finalReply = data.reply;
     if (pinnedPromptsContent) {
@@ -412,13 +412,13 @@ async function generateAIReply() {
     if (data.success) {
       // 獲取釘選提示詞
       const pinnedPromptsContent = await getPinnedPromptsContent();
-      
+
       // 組合回覆：釘選提示詞 + AI 生成的回覆
       let finalReply = data.reply;
       if (pinnedPromptsContent) {
         finalReply = pinnedPromptsContent + "\n\n" + data.reply;
       }
-      
+
       document.getElementById("feedbackText").value = finalReply;
       updateCharCount();
       showToast("success", "AI 回覆已生成", "請檢查並修改後提交");
