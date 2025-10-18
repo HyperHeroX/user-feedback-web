@@ -66,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **修复内容**:
 - **显式添加依赖**: 在 package.json 中明确添加 `engine.io` 和 `engine.io-parser`
 - **依赖传递问题**: 解决 socket.io 间接依赖在 NPM 包中缺失的问题
-- **安装稳定性**: 确保 `npx mcp-feedback-collector` 能正常运行
+- **安装稳定性**: 确保 `npx user-web-feedback` 能正常运行
 
 **技术细节**:
 - 添加 `engine.io@^6.6.4` 到 dependencies
@@ -76,7 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **影响**:
 - ✅ 修复 NPM 包安装后的运行错误
 - ✅ 提升用户安装和使用成功率
-- ✅ 确保 `npx -y mcp-feedback-collector@latest` 正常工作
+- ✅ 确保 `npx -y user-web-feedback@latest` 正常工作
 
 ## [2.1.0] - 2025-01-09
 
@@ -276,7 +276,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 链接
 
-- [项目主页](https://github.com/sanshao85/mcp-feedback-collector-web)
-- [NPM包](https://www.npmjs.com/package/mcp-feedback-collector)
-- [问题反馈](https://github.com/sanshao85/mcp-feedback-collector-web/issues)
+- [项目主页](https://github.com/sanshao85/user-web-feedback-web)
+- [NPM包](https://www.npmjs.com/package/user-web-feedback)
+- [问题反馈](https://github.com/sanshao85/user-web-feedback-web/issues)
 - [发布说明](RELEASE_NOTES.md)

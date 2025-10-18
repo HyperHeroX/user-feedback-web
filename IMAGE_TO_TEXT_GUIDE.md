@@ -34,9 +34,9 @@ MCP_DEFAULT_MODEL="grok-3"  # 需要支持视觉功能的模型
 ```json
 {
   "mcpServers": {
-    "mcp-feedback-collector": {
+    "user-web-feedback": {
       "command": "npx",
-      "args": ["-y", "mcp-feedback-collector@latest"],
+      "args": ["-y", "user-web-feedback@latest"],
       "env": {
         "MCP_API_KEY": "your_api_key_here",
         "MCP_API_BASE_URL": "https://api.ssopen.top",
@@ -189,11 +189,11 @@ MCP_DEFAULT_MODEL="grok-3"  # 需要支持视觉功能的模型
 
 ```bash
 # 检查配置
-npx mcp-feedback-collector config
+npx user-web-feedback config
 
 # 查看详细日志
 export LOG_LEVEL=debug
-npx mcp-feedback-collector
+npx user-web-feedback
 
 # 测试API连接
 curl -X POST http://localhost:5000/api/convert-images \

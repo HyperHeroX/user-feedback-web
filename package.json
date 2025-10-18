@@ -1,10 +1,10 @@
 {
-  "name": "mcp-feedback-collector",
+  "name": "user-web-feedback",
   "version": "2.1.3",
   "description": "基于Node.js的MCP反馈收集器 - 支持AI工作汇报和用户反馈收集",
   "main": "dist/index.js",
   "bin": {
-    "mcp-feedback-collector": "dist/cli.js"
+    "user-web-feedback": "dist/cli.js"
   },
   "type": "module",
   "engines": {
@@ -24,11 +24,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sanshao85/mcp-feedback-collector-web.git"
+    "url": "git+https://github.com/sanshao85/user-web-feedback-web.git"
   },
-  "homepage": "https://github.com/sanshao85/mcp-feedback-collector-web#readme",
+  "homepage": "https://github.com/sanshao85/user-web-feedback-web#readme",
   "bugs": {
-    "url": "https://github.com/sanshao85/mcp-feedback-collector-web/issues"
+    "url": "https://github.com/sanshao85/user-web-feedback-web/issues"
   },
   "scripts": {
     "build": "tsc && npm run copy-static",

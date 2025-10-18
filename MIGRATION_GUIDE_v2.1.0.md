@@ -23,7 +23,7 @@ MCP Feedback Collector v2.1.0 进行了重大改进，将图片处理库从 Shar
 ### 1. 备份现有项目（可选）
 ```bash
 # 如果是从源码安装
-cp -r mcp-feedback-collector-web mcp-feedback-collector-web-backup
+cp -r user-web-feedback-web user-web-feedback-web-backup
 ```
 
 ### 2. 更新到 v2.1.0
@@ -31,14 +31,14 @@ cp -r mcp-feedback-collector-web mcp-feedback-collector-web-backup
 #### 方式A: NPX 用户（推荐）
 ```bash
 # 无需任何操作，NPX 会自动使用最新版本
-npx mcp-feedback-collector@latest
+npx user-web-feedback@latest
 ```
 
 #### 方式B: 全局安装用户
 ```bash
 # 更新全局安装
-npm uninstall -g mcp-feedback-collector
-npm install -g mcp-feedback-collector@latest
+npm uninstall -g user-web-feedback
+npm install -g user-web-feedback@latest
 ```
 
 #### 方式C: 源码用户
@@ -59,18 +59,18 @@ npm run build
 ### 3. 验证安装
 ```bash
 # 检查版本
-mcp-feedback-collector --version
+user-web-feedback --version
 # 应该显示: 2.1.0
 
 # 健康检查
-mcp-feedback-collector health
+user-web-feedback health
 # 应该显示: ✅ 配置验证通过
 ```
 
 ### 4. 测试图片功能
 ```bash
 # 启动测试
-mcp-feedback-collector test-feedback -m "测试 v2.1.0 图片功能"
+user-web-feedback test-feedback -m "测试 v2.1.0 图片功能"
 
 # 在浏览器中上传图片，验证处理功能正常
 ```
@@ -110,7 +110,7 @@ mcp-feedback-collector test-feedback -m "测试 v2.1.0 图片功能"
 ### 3. 内存使用
 - **内存占用**: 略有增加
 - **建议配置**: 服务器内存 ≥ 512MB
-- **监控方法**: 使用 `mcp-feedback-collector metrics`
+- **监控方法**: 使用 `user-web-feedback metrics`
 
 ## 🐛 故障排除
 
@@ -137,7 +137,7 @@ npm install
 #### 3. 性能问题
 ```bash
 # 监控性能
-mcp-feedback-collector metrics
+user-web-feedback metrics
 
 # 如果处理缓慢，考虑：
 # - 减小图片尺寸
@@ -150,10 +150,10 @@ mcp-feedback-collector metrics
 
 ```bash
 # NPX 用户
-npx mcp-feedback-collector@2.0.9
+npx user-web-feedback@2.0.9
 
 # 全局安装用户
-npm install -g mcp-feedback-collector@2.0.9
+npm install -g user-web-feedback@2.0.9
 
 # 源码用户
 git checkout v2.0.9
@@ -212,7 +212,7 @@ npm run build
 
 1. **查看文档**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 2. **检查日志**: 启用 debug 模式查看详细日志
-3. **性能监控**: 使用 `mcp-feedback-collector metrics`
+3. **性能监控**: 使用 `user-web-feedback metrics`
 4. **GitHub Issues**: 报告问题和获取支持
 
 ## 🎉 总结

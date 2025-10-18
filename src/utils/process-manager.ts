@@ -50,7 +50,7 @@ export class ProcessManager {
       // 使用netstat查找端口占用
       const { stdout } = await execAsync(`netstat -ano | findstr :${port}`);
       const lines = stdout.trim().split('\n');
-      
+
       for (const line of lines) {
         const parts = line.trim().split(/\s+/);
         if (parts.length >= 5 && parts[1] && parts[1].includes(`:${port}`)) {
@@ -89,7 +89,7 @@ export class ProcessManager {
     } catch (error) {
       logger.debug('Windows端口进程查询失败:', error);
     }
-    
+
     return null;
   }
 
@@ -101,7 +101,7 @@ export class ProcessManager {
       // 使用lsof查找端口占用
       const { stdout } = await execAsync(`lsof -i :${port} -t`);
       const pids = stdout.trim().split('\n').filter(pid => pid);
-      
+
       if (pids.length > 0 && pids[0]) {
         const pid = parseInt(pids[0], 10);
         if (!isNaN(pid)) {
@@ -113,7 +113,7 @@ export class ProcessManager {
               const parts = lines[0].trim().split(/\s+/);
               const name = parts[0] || 'Unknown';
               const command = lines[0] || 'Unknown';
-              
+
               return {
                 pid,
                 name,
@@ -124,7 +124,7 @@ export class ProcessManager {
           } catch (error) {
             logger.debug(`获取PID ${pid} 详细信息失败:`, error);
           }
-          
+
           return {
             pid,
             name: 'Unknown',
@@ -136,7 +136,7 @@ export class ProcessManager {
     } catch (error) {
       logger.debug('Unix端口进程查询失败:', error);
     }
-    
+
     return null;
   }
 
@@ -192,12 +192,12 @@ export class ProcessManager {
   isOwnProcess(processInfo: ProcessInfo): boolean {
     const ownProcessNames = [
       'node',
-      'mcp-feedback-collector',
+      'user-web-feedback',
       'tsx'
     ];
 
     const ownKeywords = [
-      'mcp-feedback-collector',
+      'user-web-feedback',
       'cli.js',
       'cli.ts',
       'dist/cli.js',
@@ -240,7 +240,7 @@ export class ProcessManager {
       'node',
       'npm',
       'npx',
-      'mcp-feedback-collector',
+      'user-web-feedback',
       'tsx'
     ];
 

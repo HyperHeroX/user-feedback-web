@@ -139,9 +139,9 @@ class Logger {
 
       // 写入日志文件头
       const header = `=== MCP Feedback Collector Debug Log ===\n` +
-                    `Start Time: ${new Date().toISOString()}\n` +
-                    `Log Level: ${this.currentLevel}\n` +
-                    `==========================================\n\n`;
+        `Start Time: ${new Date().toISOString()}\n` +
+        `Log Level: ${this.currentLevel}\n` +
+        `==========================================\n\n`;
 
       fs.writeFileSync(this.logFile, header);
 
@@ -180,7 +180,7 @@ class Logger {
 
     const mcpMessage: MCPLogMessage = {
       level,
-      logger: 'mcp-feedback-collector',
+      logger: 'user-web-feedback',
       data: data !== undefined ? data : message
     };
 
@@ -302,7 +302,7 @@ class Logger {
     const parts = [method.toUpperCase(), url];
     if (statusCode !== undefined) parts.push(`${statusCode}`);
     if (duration !== undefined) parts.push(`${duration}ms`);
-    
+
     this.info(`HTTP ${parts.join(' ')}`);
   }
 
@@ -312,7 +312,7 @@ class Logger {
   socket(event: string, sessionId?: string, data?: unknown): void {
     const parts = ['WebSocket', event];
     if (sessionId) parts.push(`session:${sessionId}`);
-    
+
     this.debug(parts.join(' '), data);
   }
 

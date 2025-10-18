@@ -112,8 +112,8 @@ npm run test:websocket
 
 ### 本地部署
 ```bash
-npm install -g mcp-feedback-collector
-mcp-feedback-collector
+npm install -g user-web-feedback
+user-web-feedback
 ```
 
 ### 服务器部署
@@ -122,8 +122,8 @@ mcp-feedback-collector
 pm2 start npm --name "mcp-feedback" -- start
 
 # 使用Docker
-docker build -t mcp-feedback-collector .
-docker run -p 5000:5000 mcp-feedback-collector
+docker build -t user-web-feedback .
+docker run -p 5000:5000 user-web-feedback
 ```
 
 ### 环境变量配置

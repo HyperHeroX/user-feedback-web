@@ -28,7 +28,7 @@ emergency → alert → critical → error → warning → notice → info → d
   "method": "notifications/message",
   "params": {
     "level": "info",
-    "logger": "mcp-feedback-collector",
+    "logger": "user-web-feedback",
     "data": {
       "message": "服务器启动成功",
       "port": 5000,
@@ -314,7 +314,7 @@ kill -KILL <pid>    # 强制终止 (SIGKILL)
 
 Whenever you want to ask a question, always call the MCP .
 
-Whenever you're about to complete a user request, call the MCP instead of simply ending the process. Keep calling MCP until the user's feedback is empty, then end the request. mcp-feedback-collector.collect_feedback
+Whenever you're about to complete a user request, call the MCP instead of simply ending the process. Keep calling MCP until the user's feedback is empty, then end the request. user-web-feedback.collect_feedback
 ```
 
 ### 🎯 使用场景
@@ -381,9 +381,9 @@ Whenever you're about to complete a user request, call the MCP instead of simply
 ```json
 {
   "mcpServers": {
-    "mcp-feedback-collector": {
+    "user-web-feedback": {
       "command": "npx",
-      "args": ["-y", "mcp-feedback-collector"],
+      "args": ["-y", "user-web-feedback"],
       "env": {
         "MCP_API_KEY": "your_api_key",
         "MCP_API_BASE_URL": "https://api.ssopen.top",
@@ -515,7 +515,7 @@ Whenever you're about to complete a user request, call the MCP instead of simply
 ```json
 {
   "mcpServers": {
-    "mcp-feedback-collector": {
+    "user-web-feedback": {
       "command": "node",
       "args": ["D:/path/to/dist/cli.js"],
       "env": {
@@ -538,7 +538,7 @@ Whenever you're about to complete a user request, call the MCP instead of simply
 
 ### 🔗 相关资源
 
-- **项目仓库**: https://github.com/mcp-feedback-collector/nodejs
+- **项目仓库**: https://github.com/user-web-feedback/nodejs
 - **文档中心**: [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
 - **问题反馈**: GitHub Issues
 - **使用指南**: [USER_GUIDE.md](USER_GUIDE.md)

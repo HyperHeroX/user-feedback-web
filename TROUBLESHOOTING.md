@@ -33,14 +33,14 @@
    npm run build
 
    # 测试功能
-   mcp-feedback-collector test-feedback
+   user-web-feedback test-feedback
    ```
 
 **推荐的MCP配置**:
 ```json
 {
   "mcpServers": {
-    "mcp-feedback-collector": {
+    "user-web-feedback": {
       "command": "node",
       "args": ["D:/path/to/project/dist/cli.js"],
       "env": {
@@ -109,7 +109,7 @@ node D:/path/to/project/dist/cli.js
 
 ### 3. MCP服务器显示红色但功能正常
 
-**症状**: 在Claude Desktop的MCP Servers面板中，mcp-feedback-collector显示为红色状态，但工具调用功能正常工作。
+**症状**: 在Claude Desktop的MCP Servers面板中，user-web-feedback显示为红色状态，但工具调用功能正常工作。
 
 **现象描述**:
 - MCP服务器在Claude Desktop中显示红色指示器
@@ -170,7 +170,7 @@ echo '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}' | node dist/cli.js
 ```json
 {
   "mcpServers": {
-    "mcp-feedback-collector": {
+    "user-web-feedback": {
       "command": "node",
       "args": ["D:/path/to/project/dist/cli.js"],
       "env": {
@@ -389,9 +389,9 @@ npm start test-mcp
 ```json
 {
   "mcpServers": {
-    "mcp-feedback-collector": {
+    "user-web-feedback": {
       "command": "npx",
-      "args": ["mcp-feedback-collector"],
+      "args": ["user-web-feedback"],
       "env": {
         "MCP_API_KEY": "your_api_key_here",
         "LOG_LEVEL": "debug"
@@ -528,7 +528,7 @@ npm start -- --debug > debug.log 2>&1
 
 ### 3. 联系方式
 
-- **GitHub Issues**: [项目仓库](https://github.com/mcp-feedback-collector/nodejs/issues)
+- **GitHub Issues**: [项目仓库](https://github.com/user-web-feedback/nodejs/issues)
 - **文档**: [README.md](README.md)
 - **更新日志**: [CHANGELOG.md](CHANGELOG.md)
 
@@ -541,7 +541,7 @@ npm start -- --debug > debug.log 2>&1
 find logs/ -name "*.log" -mtime +7 -delete
 
 # 限制日志文件大小
-logrotate /etc/logrotate.d/mcp-feedback-collector
+logrotate /etc/logrotate.d/user-web-feedback
 ```
 
 ### 2. 依赖更新

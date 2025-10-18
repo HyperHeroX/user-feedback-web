@@ -15,8 +15,8 @@ import { VERSION } from './index.js';
 // 在最开始检测MCP模式并设置日志级别
 // 改进的MCP模式检测：检查多个条件
 const isMCPMode = !process.stdin.isTTY ||
-                  process.env['NODE_ENV'] === 'mcp' ||
-                  process.argv.includes('--mcp-mode');
+  process.env['NODE_ENV'] === 'mcp' ||
+  process.argv.includes('--mcp-mode');
 
 if (isMCPMode) {
   logger.disableColors();
@@ -64,16 +64,16 @@ async function startMCPServer(options: {
       logger.setLevel('debug');
       logger.debug('🐛 调试模式已启用，日志将保存到文件');
     }
-    
+
     // 显示配置信息
     if (logger.getLevel() === 'debug') {
       displayConfig(config);
       console.log('');
     }
-    
+
     // 创建并启动MCP服务器
     const server = new MCPServer(config);
-    
+
     if (options.web) {
       // 仅Web模式
       logger.info('启动Web模式...');
@@ -83,9 +83,9 @@ async function startMCPServer(options: {
       logger.info('启动MCP服务器...');
       await server.start();
     }
-    
+
     // 注意：优雅关闭处理已在WebServer中实现，这里不需要重复处理
-    
+
   } catch (error) {
     if (error instanceof MCPError) {
       logger.error(`MCP错误 [${error.code}]: ${error.message}`);
@@ -113,12 +113,12 @@ async function healthCheck(): Promise<void> {
     console.log(`API密钥: ${config.apiKey ? '已配置' : '未配置'}`);
     console.log(`Web端口: ${config.webPort}`);
     console.log(`超时时间: ${config.dialogTimeout}秒`);
-    
+
     // TODO: 添加更多健康检查项
     // - 端口可用性检查
     // - API连接测试
     // - 依赖项检查
-    
+
   } catch (error) {
     if (error instanceof MCPError) {
       console.error(`配置错误 [${error.code}]: ${error.message}`);
@@ -131,7 +131,7 @@ async function healthCheck(): Promise<void> {
 
 // 配置CLI命令
 program
-  .name('mcp-feedback-collector')
+  .name('user-web-feedback')
   .description('基于Node.js的MCP反馈收集器')
   .version(VERSION);
 

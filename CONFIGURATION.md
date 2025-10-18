@@ -30,7 +30,7 @@
 ```json
 {
   "mcpServers": {
-    "mcp-feedback-collector": {
+    "user-web-feedback": {
       "command": "node",
       "args": ["D:/path/to/dist/cli.js"],
       "env": {
@@ -51,9 +51,9 @@
 ```json
 {
   "mcpServers": {
-    "mcp-feedback-collector": {
+    "user-web-feedback": {
       "command": "npx",
-      "args": ["mcp-feedback-collector"],
+      "args": ["user-web-feedback"],
       "env": {
         "MCP_API_KEY": "your_api_key_here",
         "MCP_API_BASE_URL": "https://api.ssopen.top",
@@ -182,19 +182,19 @@ collect_feedback("工作汇报内容")
 ### 检查当前配置
 
 ```bash
-npx mcp-feedback-collector config
+npx user-web-feedback config
 ```
 
 ### 健康检查
 
 ```bash
-npx mcp-feedback-collector health
+npx user-web-feedback health
 ```
 
 ### 测试配置
 
 ```bash
-npx mcp-feedback-collector test-feedback --timeout 120
+npx user-web-feedback test-feedback --timeout 120
 ```
 
 ## ⚠️ 注意事项
@@ -211,10 +211,10 @@ npx mcp-feedback-collector test-feedback --timeout 120
 
 ```bash
 # 检查配置语法
-npx mcp-feedback-collector config
+npx user-web-feedback config
 
 # 查看详细错误信息
-LOG_LEVEL=debug npx mcp-feedback-collector start
+LOG_LEVEL=debug npx user-web-feedback start
 ```
 
 ### 超时问题

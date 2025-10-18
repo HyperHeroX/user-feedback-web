@@ -53,7 +53,7 @@ capabilities: {
   "method": "notifications/message",
   "params": {
     "level": "info",
-    "logger": "mcp-feedback-collector",
+    "logger": "user-web-feedback",
     "data": {
       "message": "服务器启动成功",
       "port": 5000,
@@ -109,10 +109,10 @@ capabilities: {
 ### 简单升级
 ```bash
 # NPM全局安装
-npm install -g mcp-feedback-collector@2.1.3
+npm install -g user-web-feedback@2.1.3
 
 # 或使用npx
-npx mcp-feedback-collector@2.1.3
+npx user-web-feedback@2.1.3
 ```
 
 ### 开发环境
@@ -134,8 +134,8 @@ npm start health
 
 ## 🔗 相关链接
 
-- **GitHub仓库**: https://github.com/sanshao85/mcp-feedback-collector-web
-- **NPM包**: https://www.npmjs.com/package/mcp-feedback-collector
+- **GitHub仓库**: https://github.com/sanshao85/user-web-feedback-web
+- **NPM包**: https://www.npmjs.com/package/user-web-feedback
 - **文档中心**: [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
 - **问题反馈**: GitHub Issues
 

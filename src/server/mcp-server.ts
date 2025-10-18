@@ -24,7 +24,7 @@ export class MCPServer {
 
     // 创建MCP服务器实例
     this.mcpServer = new McpServer({
-      name: 'mcp-feedback-collector',
+      name: 'user-web-feedback',
       version: '2.1.3'
     }, {
       capabilities: {
@@ -341,7 +341,7 @@ export class MCPServer {
 
       this.isRunning = true;
       logger.info('MCP服务器启动成功');
-      
+
     } catch (error) {
       logger.error('MCP服务器启动失败:', error);
       throw new MCPError(
@@ -358,16 +358,16 @@ export class MCPServer {
   async startWebOnly(): Promise<void> {
     try {
       logger.info('正在启动Web模式...');
-      
+
       // 仅启动Web服务器
       await this.webServer.start();
-      
+
       this.isRunning = true;
       logger.info('Web服务器启动成功');
-      
+
       // 保持进程运行
       process.stdin.resume();
-      
+
     } catch (error) {
       logger.error('Web服务器启动失败:', error);
       throw new MCPError(
@@ -388,18 +388,18 @@ export class MCPServer {
 
     try {
       logger.info('正在停止服务器...');
-      
+
       // 停止Web服务器
       await this.webServer.stop();
-      
+
       // 关闭MCP服务器
       if (this.mcpServer) {
         await this.mcpServer.close();
       }
-      
+
       this.isRunning = false;
       logger.info('服务器已停止');
-      
+
     } catch (error) {
       logger.error('停止服务器时出错:', error);
       throw new MCPError(

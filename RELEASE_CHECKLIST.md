@@ -106,8 +106,8 @@ git push origin v2.1.3
 ## 🎯 发布后任务
 
 ### 1. 验证发布
-- [ ] 验证NPM包可正常安装: `npm install -g mcp-feedback-collector@2.1.3`
-- [ ] 验证基础功能: `npx mcp-feedback-collector health`
+- [ ] 验证NPM包可正常安装: `npm install -g user-web-feedback@2.1.3`
+- [ ] 验证基础功能: `npx user-web-feedback health`
 - [ ] 验证MCP模式: 在Cursor中测试
 
 ### 2. 社区通知

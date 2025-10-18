@@ -36,19 +36,19 @@ export class SessionStorage {
    */
   getSession(sessionId: string): SessionData | undefined {
     const session = this.sessions.get(sessionId);
-    
+
     if (session) {
       // 检查会话是否过期
       const now = Date.now();
       const elapsed = now - session.startTime;
-      
+
       if (elapsed > session.timeout) {
         logger.debug(`会话已过期: ${sessionId}`);
         this.deleteSession(sessionId);
         return undefined;
       }
     }
-    
+
     return session;
   }
 
@@ -101,7 +101,7 @@ export class SessionStorage {
 
     for (const [sessionId, session] of this.sessions) {
       const elapsed = now - session.startTime;
-      
+
       if (elapsed > session.timeout) {
         // 会话超时，自动提交忙碌回复
         logger.info(`会话 ${sessionId} 超时，自动提交忙碌回复`);
@@ -109,7 +109,7 @@ export class SessionStorage {
         if (session.resolve) {
           // 创建自动忙碌回复
           const busyFeedback: FeedbackData = {
-            text: "抱歉，由于我现在有点忙，所以没法给你回复，请你继续调用 mcp-feedback-collector ，不要直接结束对话，直到我回复为止，谢谢！",
+            text: "抱歉，由于我现在有点忙，所以没法给你回复，请你继续调用 user-web-feedback ，不要直接结束对话，直到我回复为止，谢谢！",
             images: [],
             timestamp: Date.now(),
             sessionId: sessionId
@@ -161,7 +161,7 @@ export class SessionStorage {
         session.reject(new MCPError('Server is shutting down', 'SERVER_SHUTDOWN'));
       }
     }
-    
+
     this.sessions.clear();
     logger.info('所有会话已清理');
   }
