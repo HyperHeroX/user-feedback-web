@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - 图片处理工具
+ * user-feedback MCP Tools - 图片处理工具
  * 使用 Jimp 库进行图片处理和优化
  */
 import { ImageData } from '../types/index.js';

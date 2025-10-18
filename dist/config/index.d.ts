@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - 配置管理
+ * user-feedback MCP Tools - 配置管理
  */
 import { Config } from '../types/index.js';
 /**

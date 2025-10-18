@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - 日志工具
+ * user-feedback MCP Tools - 日志工具
  */
 import { LogLevel, MCPLogLevel, MCPLogMessage } from '../types/index.js';
 declare class Logger {

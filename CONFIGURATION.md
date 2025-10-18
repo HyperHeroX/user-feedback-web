@@ -1,4 +1,4 @@
-# MCP Feedback Collector 配置指南
+# user-feedback MCP Tools 配置指南
 
 ## 📋 环境变量配置
 

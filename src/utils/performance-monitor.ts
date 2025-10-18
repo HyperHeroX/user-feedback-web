@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - 性能监控工具
+ * user-feedback MCP Tools - 性能监控工具
  */
 
 import { logger } from './logger.js';
@@ -15,16 +15,16 @@ export interface PerformanceMetrics {
     external: number;
     rss: number;
   };
-  
+
   // CPU使用
   cpuUsage: {
     user: number;
     system: number;
   };
-  
+
   // 运行时间
   uptime: number;
-  
+
   // 请求统计
   requestStats: {
     total: number;
@@ -32,7 +32,7 @@ export interface PerformanceMetrics {
     failed: number;
     averageResponseTime: number;
   };
-  
+
   // WebSocket连接
   websocketStats: {
     activeConnections: number;
@@ -40,7 +40,7 @@ export interface PerformanceMetrics {
     messagesReceived: number;
     messagesSent: number;
   };
-  
+
   // 会话统计
   sessionStats: {
     activeSessions: number;
@@ -61,14 +61,14 @@ export class PerformanceMonitor {
     failed: 0,
     responseTimes: [] as number[]
   };
-  
+
   private websocketStats = {
     activeConnections: 0,
     totalConnections: 0,
     messagesReceived: 0,
     messagesSent: 0
   };
-  
+
   private sessionStats = {
     activeSessions: 0,
     totalSessions: 0,
@@ -86,13 +86,13 @@ export class PerformanceMonitor {
   recordRequest(responseTime: number, success: boolean): void {
     this.requestStats.total++;
     this.requestStats.responseTimes.push(responseTime);
-    
+
     if (success) {
       this.requestStats.successful++;
     } else {
       this.requestStats.failed++;
     }
-    
+
     // 保持最近1000个响应时间记录
     if (this.requestStats.responseTimes.length > 1000) {
       this.requestStats.responseTimes = this.requestStats.responseTimes.slice(-1000);
@@ -155,7 +155,7 @@ export class PerformanceMonitor {
   getMetrics(): PerformanceMetrics {
     const memoryUsage = process.memoryUsage();
     const cpuUsage = process.cpuUsage();
-    
+
     return {
       memoryUsage: {
         heapUsed: memoryUsage.heapUsed,
@@ -186,7 +186,7 @@ export class PerformanceMonitor {
     if (this.requestStats.responseTimes.length === 0) {
       return 0;
     }
-    
+
     const sum = this.requestStats.responseTimes.reduce((a, b) => a + b, 0);
     return sum / this.requestStats.responseTimes.length;
   }
@@ -196,7 +196,7 @@ export class PerformanceMonitor {
    */
   getFormattedReport(): string {
     const metrics = this.getMetrics();
-    
+
     return `
 📊 性能监控报告
 ================
@@ -235,26 +235,26 @@ export class PerformanceMonitor {
   checkPerformanceWarnings(): string[] {
     const metrics = this.getMetrics();
     const warnings: string[] = [];
-    
+
     // 内存使用警告
     const heapUsedMB = metrics.memoryUsage.heapUsed / 1024 / 1024;
     if (heapUsedMB > 200) {
       warnings.push(`内存使用过高: ${heapUsedMB.toFixed(2)} MB`);
     }
-    
+
     // 响应时间警告
     if (metrics.requestStats.averageResponseTime > 2000) {
       warnings.push(`平均响应时间过长: ${metrics.requestStats.averageResponseTime.toFixed(2)} ms`);
     }
-    
+
     // 失败率警告
-    const failureRate = metrics.requestStats.total > 0 
-      ? (metrics.requestStats.failed / metrics.requestStats.total) * 100 
+    const failureRate = metrics.requestStats.total > 0
+      ? (metrics.requestStats.failed / metrics.requestStats.total) * 100
       : 0;
     if (failureRate > 5) {
       warnings.push(`请求失败率过高: ${failureRate.toFixed(2)}%`);
     }
-    
+
     // 会话超时警告
     const timeoutRate = metrics.sessionStats.totalSessions > 0
       ? (metrics.sessionStats.timeoutSessions / metrics.sessionStats.totalSessions) * 100
@@ -262,7 +262,7 @@ export class PerformanceMonitor {
     if (timeoutRate > 20) {
       warnings.push(`会话超时率过高: ${timeoutRate.toFixed(2)}%`);
     }
-    
+
     return warnings;
   }
 
@@ -272,11 +272,11 @@ export class PerformanceMonitor {
   startPeriodicMonitoring(intervalMs: number = 60000): NodeJS.Timeout {
     return setInterval(() => {
       const warnings = this.checkPerformanceWarnings();
-      
+
       if (warnings.length > 0) {
         logger.warn('性能警告:', warnings);
       }
-      
+
       // 记录性能指标到日志
       const metrics = this.getMetrics();
       logger.debug('性能指标:', {

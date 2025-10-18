@@ -1,4 +1,4 @@
-# 📋 MCP Feedback Collector - 版本发布说明
+# 📋 user-feedback MCP Tools - 版本发布说明
 
 ## 🚀 v2.1.3 (2025-06-12)
 
@@ -373,7 +373,7 @@ Whenever you're about to complete a user request, call the MCP instead of simply
 
 ### 🎯 使用场景
 此版本特别适合：
-- 在远程服务器上部署MCP Feedback Collector
+- 在远程服务器上部署user-feedback MCP Tools
 - 需要通过端口转发或反向代理访问的环境
 - 多用户或团队协作环境
 

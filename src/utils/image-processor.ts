@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - 图片处理工具
+ * user-feedback MCP Tools - 图片处理工具
  * 使用 Jimp 库进行图片处理和优化
  */
 
@@ -44,7 +44,7 @@ export class ImageProcessor {
     // 检查MIME类型
     const validMimeTypes = [
       'image/jpeg',
-      'image/jpg', 
+      'image/jpg',
       'image/png',
       'image/gif',
       'image/webp',
@@ -213,11 +213,11 @@ export class ImageProcessor {
 
       // 获取图片详细信息
       const info = await this.getImageInfoFromBase64(imageData.data);
-      
+
       // 检查图片尺寸
       if (info.width > this.maxWidth || info.height > this.maxHeight) {
         logger.info(`图片尺寸过大 (${info.width}x${info.height})，正在压缩...`);
-        
+
         const compressedData = await this.compressImage(imageData.data, {
           maxWidth: this.maxWidth,
           maxHeight: this.maxHeight,
@@ -225,7 +225,7 @@ export class ImageProcessor {
         });
 
         const compressedInfo = await this.getImageInfoFromBase64(compressedData);
-        
+
         return {
           ...imageData,
           data: compressedData,
@@ -239,7 +239,7 @@ export class ImageProcessor {
       if (error instanceof MCPError) {
         throw error;
       }
-      
+
       logger.error('图片验证和处理失败:', error);
       throw new MCPError(
         'Failed to validate and process image',
@@ -254,7 +254,7 @@ export class ImageProcessor {
    */
   async processImages(images: ImageData[]): Promise<ImageData[]> {
     const results: ImageData[] = [];
-    
+
     for (let i = 0; i < images.length; i++) {
       try {
         logger.debug(`处理图片 ${i + 1}/${images.length}: ${images[i]?.name}`);
@@ -266,7 +266,7 @@ export class ImageProcessor {
         throw error;
       }
     }
-    
+
     logger.info(`成功处理 ${results.length}/${images.length} 张图片`);
     return results;
   }
@@ -318,7 +318,7 @@ export class ImageProcessor {
 
     for (const image of images) {
       stats.totalSize += image.size;
-      
+
       const format = image.type.split('/')[1] || 'unknown';
       stats.formats[format] = (stats.formats[format] || 0) + 1;
     }

@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - 配置管理
+ * user-feedback MCP Tools - 配置管理
  */
 
 import { config as dotenvConfig } from 'dotenv';
@@ -137,7 +137,7 @@ export function getConfig(): Config {
  * 显示配置信息（隐藏敏感信息）
  */
 export function displayConfig(config: Config): void {
-  console.log('MCP Feedback Collector Configuration:');
+  console.log('user-feedback MCP Tools Configuration:');
   console.log(`  API Base URL: ${config.apiBaseUrl}`);
   console.log(`  Default Model: ${config.defaultModel}`);
   console.log(`  Web Port: ${config.webPort}`);

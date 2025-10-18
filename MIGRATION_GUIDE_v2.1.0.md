@@ -2,7 +2,7 @@
 
 ## 🎯 概述
 
-MCP Feedback Collector v2.1.0 进行了重大改进，将图片处理库从 Sharp 替换为 Jimp，解决了 Sharp 原生模块安装困难的问题。
+user-feedback MCP Tools v2.1.0 进行了重大改进，将图片处理库从 Sharp 替换为 Jimp，解决了 Sharp 原生模块安装困难的问题。
 
 ## 🚨 重要变更
 

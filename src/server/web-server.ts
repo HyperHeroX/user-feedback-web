@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - Web服务器实现
+ * user-feedback MCP Tools - Web服务器实现
  */
 
 import express from 'express';

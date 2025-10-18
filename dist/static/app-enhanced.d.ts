@@ -46,7 +46,7 @@ declare function showLoadingOverlay(text?: string): void;
 declare function hideLoadingOverlay(): void;
 declare function escapeHtml(text: any): string;
 /**
- * MCP Feedback Collector - Enhanced UI
+ * user-feedback MCP Tools - Enhanced UI
  * 前端 JavaScript 主檔案
  */
 declare let socket: null;

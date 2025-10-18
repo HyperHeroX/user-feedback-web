@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - 类型定义
+ * user-feedback MCP Tools - 类型定义
  */
 
 // 基础配置类型

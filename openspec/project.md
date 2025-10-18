@@ -1,7 +1,7 @@
 # Project Context
 
 ## Purpose
-**MCP Feedback Collector** (user-web-feedback) is a modern Node.js-based feedback collection system that supports AI work reporting and user feedback collection through the Model Context Protocol (MCP). The project provides a real-time web interface for users to submit feedback with text and images, which AI assistants can request and process.
+**user-feedback MCP Tools** (user-web-feedback) is a modern Node.js-based feedback collection system that supports AI work reporting and user feedback collection through the Model Context Protocol (MCP). The project provides a real-time web interface for users to submit feedback with text and images, which AI assistants can request and process.
 
 **Key Goals:**
 - Provide seamless integration with MCP-compatible AI clients (Claude Desktop, Cursor IDE)

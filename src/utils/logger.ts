@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - 日志工具
+ * user-feedback MCP Tools - 日志工具
  */
 
 import fs from 'fs';
@@ -138,7 +138,7 @@ class Logger {
       this.fileLoggingEnabled = true;
 
       // 写入日志文件头
-      const header = `=== MCP Feedback Collector Debug Log ===\n` +
+      const header = `=== user-feedback MCP Tools Debug Log ===\n` +
         `Start Time: ${new Date().toISOString()}\n` +
         `Log Level: ${this.currentLevel}\n` +
         `==========================================\n\n`;

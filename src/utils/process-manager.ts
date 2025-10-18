@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - 增强的跨平台进程管理工具
+ * user-feedback MCP Tools - 增强的跨平台进程管理工具
  */
 
 import { exec } from 'child_process';

@@ -1,4 +1,4 @@
-# 🚀 MCP Feedback Collector v2.1.3 发布总结
+# 🚀 user-feedback MCP Tools v2.1.3 发布总结
 
 ## 📋 版本信息
 - **版本号**: v2.1.3

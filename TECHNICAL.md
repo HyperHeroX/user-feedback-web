@@ -10,7 +10,7 @@
           │                      │                      │
           ▼                      ▼                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    MCP Feedback Collector                      │
+│                    user-feedback MCP Tools                      │
 ├─────────────────┬─────────────────┬─────────────────────────────┤
 │   CLI Module    │   Web Server    │      MCP Server             │
 │   - 启动管理     │   - HTTP API    │      - Tool Registration    │

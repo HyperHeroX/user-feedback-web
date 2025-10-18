@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - 端口管理工具
+ * user-feedback MCP Tools - 端口管理工具
  */
 
 import { createServer } from 'net';
@@ -210,7 +210,7 @@ export class PortManager {
    */
   async getPortInfo(port: number): Promise<PortInfo> {
     const available = await this.isPortAvailable(port);
-    
+
     return {
       port,
       available,
@@ -224,12 +224,12 @@ export class PortManager {
    */
   async getPortRangeStatus(): Promise<PortInfo[]> {
     const results: PortInfo[] = [];
-    
+
     for (let port = this.PORT_RANGE_START; port <= this.PORT_RANGE_END; port++) {
       const info = await this.getPortInfo(port);
       results.push(info);
     }
-    
+
     return results;
   }
 
@@ -238,12 +238,12 @@ export class PortManager {
    */
   async cleanupZombieProcesses(): Promise<void> {
     logger.info('开始清理僵尸进程...');
-    
+
     try {
       // TODO: 实现跨平台的进程清理
       // Windows: tasklist, taskkill
       // Unix/Linux: ps, kill
-      
+
       logger.info('僵尸进程清理完成');
     } catch (error) {
       logger.warn('清理僵尸进程时出错:', error);
@@ -369,16 +369,16 @@ export class PortManager {
    */
   async forceReleasePort(port: number): Promise<void> {
     logger.warn(`强制释放端口: ${port}`);
-    
+
     try {
       // TODO: 实现跨平台的进程杀死
       // 1. 找到占用端口的进程PID
       // 2. 杀死该进程
       // 3. 等待端口释放
-      
+
       await this.waitForPortRelease(port, 3000);
       logger.info(`端口 ${port} 强制释放成功`);
-      
+
     } catch (error) {
       logger.error(`强制释放端口 ${port} 失败:`, error);
       throw new MCPError(

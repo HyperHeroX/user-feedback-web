@@ -2,7 +2,7 @@
 
 ## 📖 概述
 
-Enhanced Feedback Interface 是 MCP Feedback Collector 的新一代使用者界面，提供更強大的功能和更好的使用體驗。
+Enhanced Feedback Interface 是 user-feedback MCP Tools 的新一代使用者界面，提供更強大的功能和更好的使用體驗。
 
 ## ✨ 主要特性
 

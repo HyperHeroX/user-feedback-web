@@ -1,4 +1,4 @@
-# 🔧 MCP Feedback Collector - 故障排除指南
+# 🔧 user-feedback MCP Tools - 故障排除指南
 
 ## 📋 常见问题
 

@@ -1,4 +1,4 @@
-# 📖 MCP Feedback Collector - 用户使用指南
+# 📖 user-feedback MCP Tools - 用户使用指南
 
 ## 🚀 快速开始
 

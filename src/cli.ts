@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * MCP Feedback Collector - CLI入口
+ * user-feedback MCP Tools - CLI入口
  */
 
 import { program } from 'commander';
@@ -27,7 +27,7 @@ if (isMCPMode) {
  * 显示欢迎信息
  */
 function showWelcome(): void {
-  console.log('MCP Feedback Collector v' + VERSION);
+  console.log('user-feedback MCP Tools v' + VERSION);
   console.log('基于Node.js的现代化反馈收集器\n');
 }
 

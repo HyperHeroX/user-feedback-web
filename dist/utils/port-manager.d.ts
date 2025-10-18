@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - 端口管理工具
+ * user-feedback MCP Tools - 端口管理工具
  */
 import { PortInfo } from '../types/index.js';
 /**

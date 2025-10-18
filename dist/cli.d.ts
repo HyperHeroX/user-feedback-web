@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * MCP Feedback Collector - CLI入口
+ * user-feedback MCP Tools - CLI入口
  */
-export {};
+export { };
 //# sourceMappingURL=cli.d.ts.map

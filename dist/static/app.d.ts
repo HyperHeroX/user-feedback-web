@@ -95,7 +95,7 @@ declare function updateCountdownDisplay(): void;
  */
 declare function hideCountdownDisplay(): void;
 /**
- * MCP Feedback Collector - 前端应用脚本
+ * user-feedback MCP Tools - 前端应用脚本
  */
 declare let socket: null;
 declare let currentTab: string;

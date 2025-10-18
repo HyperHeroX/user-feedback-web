@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - 性能监控工具
+ * user-feedback MCP Tools - 性能监控工具
  */
 /**
  * 性能指标接口

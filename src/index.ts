@@ -1,5 +1,5 @@
 /**
- * MCP Feedback Collector - 主入口文件
+ * user-feedback MCP Tools - 主入口文件
  */
 
 // 导出主要类和函数
