@@ -1,0 +1,23 @@
+# Docker Compose 配置文件
+
+version: '3.8'
+
+services:
+  user-feedback-web:
+    build: .
+    container_name: user-feedback-web
+    ports:
+      - "3000:3000"      # Web 介面
+      - "5555:5555"      # MCP 伺服器埠
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+    volumes:
+      - ./data:/app/data  # 持久化數據
+    restart: unless-stopped
+    networks:
+      - user-feedback-network
+
+networks:
+  user-feedback-network:
+    driver: bridge
