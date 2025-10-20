@@ -5,8 +5,9 @@
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 
 基於 Node.js 的現代化 MCP 反饋收集器，支援 AI 工作匯報和使用者反饋收集。
-
 ---
+** 這是 Fork 自三少科技的專案 ** (https://github.com/sanshao85/mcp-feedback-collector-web)
+感謝三少科技的無私奉獻
 
 ## 🆕 增強版反饋介面
 
@@ -68,7 +69,7 @@
 
 ### 📖 詳細文檔
 
-完整的使用說明請參閱：[增強版反饋介面指南](./ENHANCED_FEEDBACK_GUIDE.md)
+完整的使用說明請參閱：[增強版反饋介面指南](.docs/ENHANCED_FEEDBACK_GUIDE.md)
 
 ### 🚀 訪問增強版介面
 
@@ -318,7 +319,7 @@ Whenever you're about to complete a user request, call the MCP instead of simply
 - ✅ **響應式設計**：支援各種螢幕尺寸
 - ✅ **即時連接狀態**：WebSocket 狀態顯示（底部中央）
 
-詳細說明：[增強版反饋介面指南](./ENHANCED_FEEDBACK_GUIDE.md)
+詳細說明：[增強版反饋介面指南](.docs/ENHANCED_FEEDBACK_GUIDE.md)
 
 ### 📋 MCP 標準日誌功能
 
@@ -586,23 +587,23 @@ export MCP_API_KEY="your_key_here"
 npx user-web-feedback
 ```
 
-詳細的故障排除指南請參考：[TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+詳細的故障排除指南請參考：[TROUBLESHOOTING.md](.docs/TROUBLESHOOTING.md)
 
 ---
 
 ## 📚 完整文檔
 
-本專案提供了完整的文檔體系，請參考 [📚 文檔索引](DOCUMENTATION_INDEX.md) 查找您需要的資訊：
+本專案提供了完整的文檔體系，請參考 [📚 文檔索引](.docs/DOCUMENTATION_INDEX.md) 查找您需要的資訊：
 
-- **使用者指南**：[USER_GUIDE.md](USER_GUIDE.md) - 詳細使用說明
-- **增強版指南**：[ENHANCED_FEEDBACK_GUIDE.md](ENHANCED_FEEDBACK_GUIDE.md) - 增強版介面專用指南
-- **配置指南**：[CONFIGURATION.md](CONFIGURATION.md) - 環境變數配置
-- **技術文檔**：[ARCHITECTURE.md](ARCHITECTURE.md) - 系統架構設計
-- **故障排除**：[TROUBLESHOOTING.md](TROUBLESHOOTING.md) - 問題解決方案
-- **版本說明**：[RELEASE_NOTES.md](RELEASE_NOTES.md) - 版本更新記錄
-- **開發文檔**：[DEVELOPMENT.md](DEVELOPMENT.md) - 開發環境搭建和貢獻指南
-- **技術文檔**：[TECHNICAL.md](TECHNICAL.md) - 系統架構和技術細節
-- **更新日誌**：[CHANGELOG.md](CHANGELOG.md) - 版本變更歷史
+- **使用者指南**：[USER_GUIDE.md](.docs/USER_GUIDE.md) - 詳細使用說明
+- **增強版指南**：[ENHANCED_FEEDBACK_GUIDE.md](.docs/ENHANCED_FEEDBACK_GUIDE.md) - 增強版介面專用指南
+- **配置指南**：[CONFIGURATION.md](.docs/CONFIGURATION.md) - 環境變數配置
+- **技術文檔**：[ARCHITECTURE.md](.docs/ARCHITECTURE.md) - 系統架構設計
+- **故障排除**：[TROUBLESHOOTING.md](.docs/TROUBLESHOOTING.md) - 問題解決方案
+- **版本說明**：[RELEASE_NOTES.md](.docs/RELEASE_NOTES.md) - 版本更新記錄
+- **開發文檔**：[DEVELOPMENT.md](.docs/DEVELOPMENT.md) - 開發環境搭建和貢獻指南
+- **技術文檔**：[TECHNICAL.md](.docs/TECHNICAL.md) - 系統架構和技術細節
+- **更新日誌**：[CHANGELOG.md](.docs/CHANGELOG.md) - 版本變更歷史
 
 ---
 
@@ -718,8 +719,8 @@ MIT License - 詳見 [LICENSE](LICENSE) 檔案
 
 ## 🔗 相關連結
 
-- **專案主頁**：[GitHub Repository](https://github.com/sanshao85/user-web-feedback-web)
-- **NPM 套件**：[user-web-feedback](https://www.npmjs.com/package/user-web-feedback)
+- **原始專案主頁**：[GitHub Repository](hhttps://github.com/sanshao85/mcp-feedback-collector-web)
+- **原始NPM 套件**：[user-web-feedback](https://www.npmjs.com/package/mcp-feedback-collector-web)
 - **Model Context Protocol**：[官方網站](https://modelcontextprotocol.io)
 - **MCP 規範**：[技術規範](https://spec.modelcontextprotocol.io)
 - **Claude Desktop**：[下載地址](https://claude.ai/desktop)
@@ -734,12 +735,12 @@ MIT License - 詳見 [LICENSE](LICENSE) 檔案
 
 ## 🚀 快速導航
 
-- 🆕 [增強版介面指南](./ENHANCED_FEEDBACK_GUIDE.md) - **最新功能**
-- 📖 [使用者指南](./USER_GUIDE.md) - 標準版使用說明
-- 🔧 [配置指南](./CONFIGURATION.md) - 環境變數設定
-- 🐛 [故障排除](./TROUBLESHOOTING.md) - 常見問題解答
-- 🏗️ [技術架構](./ARCHITECTURE.md) - 系統設計文檔
-- 📝 [更新日誌](./CHANGELOG.md) - 版本變更歷史
+- 🆕 [增強版介面指南](.docs//ENHANCED_FEEDBACK_GUIDE.md) - **最新功能**
+- 📖 [使用者指南](.docs/USER_GUIDE.md) - 標準版使用說明
+- 🔧 [配置指南](.docs/CONFIGURATION.md) - 環境變數設定
+- 🐛 [故障排除](.docs/TROUBLESHOOTING.md) - 常見問題解答
+- 🏗️ [技術架構](.docs/ARCHITECTURE.md) - 系統設計文檔
+- 📝 [更新日誌](.docs/CHANGELOG.md) - 版本變更歷史
 
 ---
 
