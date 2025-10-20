@@ -125,7 +125,48 @@ function initSocketIO() {
           clearInterval(closeCountdownInterval);
           closeCountdownInterval = null;
           console.log("提交成功，3秒後關閉頁面");
-          window.close();
+          
+          // 嘗試關閉頁面
+          try {
+            // 首先嘗試 window.close()
+            window.close();
+            // 如果 window.close() 成功，後續代碼不會執行
+          } catch (error) {
+            console.warn('無法使用 window.close() 關閉頁面:', error);
+          }
+          
+          // 備用方案：如果 window.close() 失敗，等待 1 秒後嘗試其他方式
+          setTimeout(() => {
+            // 隱藏主容器，顯示完成訊息
+            const container = document.querySelector('.feedback-container');
+            if (container) {
+              container.style.display = 'none';
+            }
+            
+            // 顯示完成訊息
+            const body = document.body;
+            const completedMsg = document.createElement('div');
+            completedMsg.style.cssText = `
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              height: 100vh;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+              text-align: center;
+              padding: 20px;
+            `;
+            completedMsg.innerHTML = `
+              <div style="font-size: 48px; margin-bottom: 20px;">✅</div>
+              <h2 style="margin: 0 0 10px 0; font-size: 24px;">感謝您的回應！</h2>
+              <p style="margin: 0; font-size: 14px; opacity: 0.9;">您的反饋已成功提交</p>
+              <p style="margin: 10px 0 0 0; font-size: 12px; opacity: 0.7;">此視窗可以安全關閉</p>
+            `;
+            body.innerHTML = '';
+            body.appendChild(completedMsg);
+          }, 1000);
         }
       }, 1000);
     } else {
