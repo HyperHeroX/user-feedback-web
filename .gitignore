@@ -133,3 +133,4 @@ development-*.html
 data/
 
 .playwright-mcp/
+openspec/
