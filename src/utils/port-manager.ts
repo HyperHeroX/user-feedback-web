@@ -12,7 +12,7 @@ import { processManager } from './process-manager.js';
  */
 export class PortManager {
   private readonly PORT_RANGE_START = 5000;
-  private readonly PORT_RANGE_END = 5019;
+  private readonly PORT_RANGE_END = 5099;
   private readonly MAX_RETRIES = 20;
 
   /**

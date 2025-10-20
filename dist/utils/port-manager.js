@@ -10,7 +10,7 @@ import { processManager } from './process-manager.js';
  */
 export class PortManager {
     PORT_RANGE_START = 5000;
-    PORT_RANGE_END = 5019;
+    PORT_RANGE_END = 5099;
     MAX_RETRIES = 20;
     /**
      * 检查端口是否可用（增强版本）

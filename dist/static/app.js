@@ -119,9 +119,9 @@ function initSocketIO() {
 
       closeCountdownInterval = setInterval(() => {
         remaining--;
-        if (remaining > 0) {
-          countdownEl.textContent = remaining;
-        } else {
+        countdownEl.textContent = remaining;
+        
+        if (remaining <= 0) {
           clearInterval(closeCountdownInterval);
           closeCountdownInterval = null;
           console.log("提交成功，3秒後關閉頁面");

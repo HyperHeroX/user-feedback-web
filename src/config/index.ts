@@ -56,7 +56,7 @@ export function createDefaultConfig(): Config {
     apiKey: process.env['MCP_API_KEY'],
     apiBaseUrl: getEnvVar('MCP_API_BASE_URL', 'https://api.ssopen.top'),
     defaultModel: getEnvVar('MCP_DEFAULT_MODEL', 'gpt-4o-mini'),
-    webPort: getEnvNumber('MCP_WEB_PORT', 5000),
+    webPort: getEnvNumber('MCP_WEB_PORT', 5050),
     dialogTimeout: getEnvNumber('MCP_DIALOG_TIMEOUT', 60), // 改為秒，預設 60 秒
     enableChat: getEnvBoolean('MCP_ENABLE_CHAT', true),
     corsOrigin: getEnvVar('MCP_CORS_ORIGIN', '*'),
