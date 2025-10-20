@@ -131,3 +131,5 @@ development-*.html
 
 # data files
 data/
+
+.playwright-mcp/
