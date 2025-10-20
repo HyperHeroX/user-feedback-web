@@ -22,6 +22,8 @@ let editingPromptId = null;
 let dialogTimeoutInterval = null; // 用於 MCP_DIALOG_TIMEOUT 倒數計時
 let autoReplyTimerInterval = null; // 用於自動回應倒數計時（300 秒）
 let autoReplyTimerRemaining = 0; // 300 秒計時器的剩餘秒數
+let autoReplyTimerPaused = false; // 是否已暫停
+let autoReplyPausedByFocus = false; // 是否由於 textarea focus 導致暫停
 let closeCountdownInterval = null; // 用於關閉頁面倒數計時
 
 // 對話超時時間（秒），從伺服器環境變數讀取，默認 60 秒
@@ -204,6 +206,14 @@ function initEventListeners() {
   const feedbackText = document.getElementById("feedbackText");
   feedbackText.addEventListener("input", handleUserActivity);
   feedbackText.addEventListener("input", updateCharCount);
+  // 當使用者將焦點放在文字框時，暫停自動回覆倒數，直到使用者點擊 auto-reply-timer 後才繼續
+  feedbackText.addEventListener("focus", () => {
+    // 只有在計時器正在運作且尚未暫停的情況下執行
+    if (autoReplyTimerInterval && !autoReplyTimerPaused) {
+      pauseAutoReplyTimer(true);
+      showToast("info", "計時器已暫停", "已因聚焦文字輸入而暫停自動回覆倒數，點擊計時器以繼續。");
+    }
+  });
 
   // Ctrl+Enter 提交
   feedbackText.addEventListener("keydown", (e) => {
@@ -310,6 +320,23 @@ function initEventListeners() {
   document
     .getElementById("cancelAutoReply")
     .addEventListener("click", cancelAutoReply);
+
+  // 點擊自動回覆計時區塊可切換暫停/繼續（若被 focus 暫停，點擊會恢復）
+  const autoReplyTimerEl = document.getElementById("auto-reply-timer");
+  if (autoReplyTimerEl) {
+    autoReplyTimerEl.style.cursor = "pointer";
+    autoReplyTimerEl.addEventListener("click", (e) => {
+      // 防止其他點擊行為
+      e.stopPropagation();
+      if (autoReplyTimerPaused) {
+        resumeAutoReplyTimer();
+        showToast("info", "計時器已繼續", "自動回覆倒數已恢復。");
+      } else {
+        pauseAutoReplyTimer(false);
+        showToast("info", "計時器已暫停", "已手動暫停自動回覆倒數，點擊可繼續。");
+      }
+    });
+  }
 
   // 自動回覆確認模態框
   const closeAutoReplyConfirmBtn = document.getElementById(
@@ -1211,26 +1238,55 @@ function startAutoReplyTimer() {
     clearInterval(autoReplyTimerInterval);
   }
 
-  // 更新倒數文本
+  // 更新倒數文本（尊重暫停狀態）
   const updateCountdown = () => {
+    if (autoReplyTimerPaused) {
+      // 當暫停時，只更新樣式/顯示但不遞減
+      secondsEl.textContent = autoReplyTimerRemaining;
+      return;
+    }
+
     if (autoReplyTimerRemaining > 0) {
       secondsEl.textContent = autoReplyTimerRemaining;
       autoReplyTimerRemaining--;
     } else {
       // 倒數完成，自動啟動 AI 回應
       clearInterval(autoReplyTimerInterval);
+      autoReplyTimerInterval = null;
       console.log("自動回應時間已到，啟動 AI 回應");
-      // TODO: 觸發自動 AI 回應邏輯
       triggerAutoAIReply();
     }
   };
 
   // 立即顯示第一個倒數值
   secondsEl.textContent = autoReplyTimerRemaining;
-  autoReplyTimerRemaining--;
+  // 如果計時器未暫停，先遞減一次
+  if (!autoReplyTimerPaused) autoReplyTimerRemaining--;
 
   // 每秒更新一次
   autoReplyTimerInterval = setInterval(updateCountdown, 1000);
+}
+
+/**
+ * 暫停自動回覆計時器
+ * @param {boolean} byFocus - 是否由焦點事件引起的暫停
+ */
+function pauseAutoReplyTimer(byFocus = false) {
+  autoReplyTimerPaused = true;
+  if (byFocus) autoReplyPausedByFocus = true;
+  const timerEl = document.getElementById("auto-reply-timer");
+  if (timerEl) timerEl.classList.add("paused");
+}
+
+/**
+ * 恢復自動回覆計時器
+ */
+function resumeAutoReplyTimer() {
+  // 只有在被 focus 暫停但使用者點擊過計時器時才恢復
+  autoReplyTimerPaused = false;
+  autoReplyPausedByFocus = false;
+  const timerEl = document.getElementById("auto-reply-timer");
+  if (timerEl) timerEl.classList.remove("paused");
 }
 
 /**

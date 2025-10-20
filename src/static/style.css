@@ -82,6 +82,13 @@ body {
     display: inline-flex;
 }
 
+/* 暫停狀態視覺化 */
+.auto-reply-timer.paused {
+    opacity: 0.6;
+    color: #bbbbbb;
+    animation: none; /* 停止脈動動畫 */
+}
+
 .status-dot {
     width: 8px;
     height: 8px;

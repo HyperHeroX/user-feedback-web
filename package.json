@@ -32,7 +32,7 @@
   },
   "scripts": {
     "build": "tsc && npm run copy-static",
-    "copy-static": "node -e \"const fs=require('fs'); const path=require('path'); if(fs.existsSync('src/static')){fs.cpSync('src/static', 'dist/static', {recursive: true})}\"",
+    "copy-static": "node ./scripts/copy-static.cjs",
     "dev": "tsx watch --clear-screen=false src/cli.ts",
     "start": "node dist/cli.js",
     "test": "jest",
