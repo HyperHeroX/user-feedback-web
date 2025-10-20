@@ -84,8 +84,9 @@ Then:
 - The `clearSubmissionInputs()` function SHALL preserve prompt state, AI settings, and the active Socket.IO connection.
 - The `clearSubmissionInputs()` function SHALL complete without throwing errors.
 
+## ADDED Requirements
 
-## MODIFIED Requirements
+
 
 ### Requirement: Update `feedback_submitted` Socket.IO Event Handler
 

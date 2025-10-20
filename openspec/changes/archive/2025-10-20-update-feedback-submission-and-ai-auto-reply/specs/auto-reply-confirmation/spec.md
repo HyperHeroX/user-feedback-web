@@ -105,9 +105,9 @@ Then:
 - The system SHALL store the countdown start time.
 - The system SHALL make the modal and timer functions access this stored data.
 
-## MODIFIED Requirements
+## ADDED Requirements
 
-### Requirement (MODIFIED): Update `auto_reply_triggered` Socket.IO Event Handler
+### Requirement: Update `auto_reply_triggered` Socket.IO Event Handler
 
 The `auto_reply_triggered` Socket.IO event handler SHALL store pending reply data and trigger the confirmation modal instead of immediately applying the reply to the UI.
 
@@ -128,7 +128,7 @@ Then:
 - The event handler SHALL initialize a 10-second countdown timer.
 - The event handler SHALL make Confirm and Cancel buttons functional.
 
-### Requirement (MODIFIED): Handle Auto-Reply Modal Lifecycle
+### Requirement: Handle Auto-Reply Modal Lifecycle
 
 The auto-reply confirmation modal lifecycle SHALL reliably manage timers, user interactions, and state transitions to avoid leaks and inconsistent UI state.
 

@@ -97,7 +97,7 @@ Then:
 - The page SHALL remain responsive.
 - Modal stacking SHALL be handled gracefully.
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Enhance AI Settings Modal Footer
 

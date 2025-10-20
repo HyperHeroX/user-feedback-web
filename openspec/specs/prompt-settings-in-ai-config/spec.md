@@ -1,12 +1,27 @@
-# Specification: Prompt Settings in AI Configuration
+# prompt-settings-in-ai-config Specification
 
-## Capability: prompt-settings-in-ai-config
+## Purpose
+TBD - created by archiving change update-feedback-submission-and-ai-auto-reply. Update Purpose after archive.
+## Requirements
+### Requirement: Enhance AI Settings Modal Footer
 
-### Overview
+The AI Settings modal footer SHALL include Test, Edit Prompts, and Save controls arranged consistently.
 
-This specification defines the addition of a prompt management button within the AI Settings modal, allowing users to edit prompts without leaving the settings interface.
+#### Scenario: AI Settings modal layout update
 
-## ADDED Requirements
+Given:
+
+- AI Settings modal is rendered in HTML
+
+When:
+
+- Modal footer section is defined
+
+Then:
+
+- The footer SHALL include: "測試連接" (Test Connection), "編輯提示詞" (Edit Prompts), "儲存設定" (Save Settings).
+- The buttons SHALL be laid out horizontally with consistent spacing.
+- All buttons SHALL be visually aligned and of the same height.
 
 ### Requirement: Add Prompt Settings Button in AI Configuration Modal
 
@@ -97,42 +112,3 @@ Then:
 - The page SHALL remain responsive.
 - Modal stacking SHALL be handled gracefully.
 
-## MODIFIED Requirements
-
-### Requirement: Enhance AI Settings Modal Footer
-
-The AI Settings modal footer SHALL include Test, Edit Prompts, and Save controls arranged consistently.
-
-#### Scenario: AI Settings modal layout update
-
-Given:
-
-- AI Settings modal is rendered in HTML
-
-When:
-
-- Modal footer section is defined
-
-Then:
-
-- The footer SHALL include: "測試連接" (Test Connection), "編輯提示詞" (Edit Prompts), "儲存設定" (Save Settings).
-- The buttons SHALL be laid out horizontally with consistent spacing.
-- All buttons SHALL be visually aligned and of the same height.
-
-## Implementation Notes
-
-- Button click handler should call `openPromptModal()` (existing function)
-- No new modal component needed; reuse existing `promptModal`
-- Prompt modal should close normally after user action
-- Modal overlay behavior should be managed properly to avoid stacking issues
-- Consider using CSS `z-index` to manage layering if needed
-- Button order in footer: left-to-right preference is: Test → Edit Prompts → Save
-
-## Test Scenarios
-
-1. **Button Presence**: Verify button exists in AI Settings footer
-2. **Button Click**: Click button opens prompt modal
-3. **Prompt Operations**: Create/edit/delete prompts from this entry point
-4. **Modal Return**: Closing prompt modal shows AI Settings again
-5. **No Data Loss**: Changes in prompt modal are persisted
-6. **Modal Layering**: No visual overlapping or z-index issues

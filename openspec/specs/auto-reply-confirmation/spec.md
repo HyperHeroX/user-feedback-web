@@ -1,13 +1,51 @@
-# Specification: Auto-Reply Confirmation Timeout
+# auto-reply-confirmation Specification
 
-## Capability: auto-reply-confirmation
+## Purpose
+TBD - created by archiving change update-feedback-submission-and-ai-auto-reply. Update Purpose after archive.
+## Requirements
+### Requirement: Update `auto_reply_triggered` Socket.IO Event Handler
 
-### Overview
+The `auto_reply_triggered` Socket.IO event handler SHALL store pending reply data and trigger the confirmation modal instead of immediately applying the reply to the UI.
 
-This specification defines the behavior for displaying a confirmation prompt before auto-submitting AI-generated replies, including a 10-second countdown timer.
+#### Scenario: Server sends auto-reply data
 
-## ADDED Requirements
+Given:
 
+- `auto_reply_triggered` event received with `{ reply, remainingSeconds, ... }`
+
+When:
+
+- Event handler processes the reply
+
+Then:
+
+- The event handler SHALL store the reply in `autoReplyData`.
+- The event handler SHALL show the confirmation modal instead of directly filling the textarea.
+- The event handler SHALL initialize a 10-second countdown timer.
+- The event handler SHALL make Confirm and Cancel buttons functional.
+
+### Requirement: Handle Auto-Reply Modal Lifecycle
+
+The auto-reply confirmation modal lifecycle SHALL reliably manage timers, user interactions, and state transitions to avoid leaks and inconsistent UI state.
+
+#### Scenario: Modal countdown and user interactions
+
+Given:
+
+- Confirmation modal is open with countdown
+
+When:
+
+- Countdown completes (reaches 0), OR
+- User clicks Confirm, OR
+- User clicks Cancel, OR
+- User presses Escape
+
+Then:
+
+- The system SHALL handle each case appropriately (auto-submit vs. cancel requirements).
+- The system SHALL clean up timers to prevent memory leaks.
+- The system SHALL update modal state consistently.
 
 ### Requirement: Display 10-Second Confirmation Modal on Auto-Reply
 
@@ -35,7 +73,6 @@ Then:
 - The modal SHALL display a "取消" (Cancel) button.
 - The user SHALL be able to interact with the page while the modal is displayed.
 
-
 ### Requirement: Auto-Submit on Timeout or User Confirmation
 
 The system SHALL auto-submit the reply when the countdown reaches zero or the user confirms explicitly.
@@ -61,7 +98,6 @@ Then:
 - The system SHALL apply `feedback-submission-reset` behavior on successful submission.
 - The system SHALL apply a 3-second auto-close on success.
 
-
 ### Requirement: Cancel Auto-Reply Confirmation
 
 The system SHALL cancel auto-reply submission and preserve page state when the user cancels confirmation.
@@ -84,7 +120,6 @@ Then:
 - The system SHALL keep the page open.
 - The system SHALL leave the page in a ready state for manual reply.
 
-
 ### Requirement: Store Pending Auto-Reply Data
 
 The system SHALL store pending auto-reply data (content and countdown) until actioned by the user.
@@ -105,65 +140,3 @@ Then:
 - The system SHALL store the countdown start time.
 - The system SHALL make the modal and timer functions access this stored data.
 
-## MODIFIED Requirements
-
-### Requirement (MODIFIED): Update `auto_reply_triggered` Socket.IO Event Handler
-
-The `auto_reply_triggered` Socket.IO event handler SHALL store pending reply data and trigger the confirmation modal instead of immediately applying the reply to the UI.
-
-#### Scenario: Server sends auto-reply data
-
-Given:
-
-- `auto_reply_triggered` event received with `{ reply, remainingSeconds, ... }`
-
-When:
-
-- Event handler processes the reply
-
-Then:
-
-- The event handler SHALL store the reply in `autoReplyData`.
-- The event handler SHALL show the confirmation modal instead of directly filling the textarea.
-- The event handler SHALL initialize a 10-second countdown timer.
-- The event handler SHALL make Confirm and Cancel buttons functional.
-
-### Requirement (MODIFIED): Handle Auto-Reply Modal Lifecycle
-
-The auto-reply confirmation modal lifecycle SHALL reliably manage timers, user interactions, and state transitions to avoid leaks and inconsistent UI state.
-
-#### Scenario: Modal countdown and user interactions
-
-Given:
-
-- Confirmation modal is open with countdown
-
-When:
-
-- Countdown completes (reaches 0), OR
-- User clicks Confirm, OR
-- User clicks Cancel, OR
-- User presses Escape
-
-Then:
-
-- The system SHALL handle each case appropriately (auto-submit vs. cancel requirements).
-- The system SHALL clean up timers to prevent memory leaks.
-- The system SHALL update modal state consistently.
-
-## Implementation Notes
-
-- Countdown timer should be accurate to nearest second (visual feedback is primary)
-- Use `setInterval()` for timer, ensure cleanup on modal close
-- Reuse existing modal infrastructure
-- No API contract changes
-- Message text should be in Traditional Chinese (zh-TW)
-- Modal should be non-blocking (user can still interact with page)
-
-## Test Scenarios
-
-1. **Happy Path**: Auto-reply triggered → Modal shows → User confirms → Submit → Reset → Close
-2. **Timeout Path**: Auto-reply triggered → Modal shows → Countdown to 0 → Auto-submit
-3. **Cancel Path**: Auto-reply triggered → Modal shows → User clicks cancel → Modal closes
-4. **Escape Key**: Auto-reply triggered → Modal shows → User presses Escape → Modal closes
-5. **Timer Accuracy**: Verify countdown is exactly 10 seconds
