@@ -496,9 +496,12 @@ export class WebServer {
             }
             catch (error) {
                 logger.error('更新 AI 設定失敗:', error);
+                // 包含詳細錯誤資訊，供前端顯示（注意：在公開環境請審慎處理 stack 資訊）
                 res.status(500).json({
                     success: false,
-                    error: error instanceof Error ? error.message : '更新 AI 設定失敗'
+                    error: error instanceof Error ? error.message : '更新 AI 設定失敗',
+                    details: error instanceof Error ? error.details || null : null,
+                    stack: error instanceof Error ? error.stack : undefined
                 });
             }
         });
@@ -588,7 +591,9 @@ export class WebServer {
                 logger.error('更新使用者偏好設定失敗:', error);
                 res.status(500).json({
                     success: false,
-                    error: error instanceof Error ? error.message : '更新使用者偏好設定失敗'
+                    error: error instanceof Error ? error.message : '更新使用者偏好設定失敗',
+                    details: error instanceof Error ? error.details || null : null,
+                    stack: error instanceof Error ? error.stack : undefined
                 });
             }
         });

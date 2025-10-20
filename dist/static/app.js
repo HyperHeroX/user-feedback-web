@@ -140,7 +140,7 @@ function initSocketIO() {
     console.error("反饋錯誤:", data);
     // 隱藏提醒彈窗（若有）並顯示錯誤
     hideAlertModal();
-    showToast("error", "錯誤", data.error);
+  showToast("error", "錯誤", formatApiError(data));
   });
 
   // 自動回覆事件
@@ -173,7 +173,7 @@ function initSocketIO() {
   socket.on("auto_reply_error", (data) => {
     console.error("自動回覆錯誤:", data);
     hideAutoReplyWarning();
-    showToast("error", "自動回覆失敗", data.error);
+  showToast("error", "自動回覆失敗", formatApiError(data));
   });
 
   socket.on("auto_reply_cancelled", () => {
@@ -932,7 +932,7 @@ async function togglePinPrompt(id) {
         data.prompt.isPinned ? "已釘選提示詞" : "已取消釘選"
       );
     } else {
-      showToast("error", "錯誤", data.error);
+    showToast("error", "錯誤", formatApiError(data));
     }
   } catch (error) {
     console.error("切換釘選狀態失敗:", error);
@@ -971,7 +971,7 @@ async function deletePrompt(id) {
       await loadPrompts();
       showToast("success", "成功", "提示詞已刪除");
     } else {
-      showToast("error", "錯誤", data.error);
+  showToast("error", "錯誤", formatApiError(data));
     }
   } catch (error) {
     console.error("刪除提示詞失敗:", error);
@@ -1042,7 +1042,7 @@ async function savePrompt() {
         isEditingPrompt ? "提示詞已更新" : "提示詞已創建"
       );
     } else {
-      showToast("error", "錯誤", data.error);
+  showToast("error", "錯誤", formatApiError(data));
     }
   } catch (error) {
     console.error("保存提示詞失敗:", error);
@@ -1098,9 +1098,18 @@ async function saveAISettings() {
       body: JSON.stringify(settingsData),
     });
 
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch (e) {
+      // 不是 JSON 回應，讀取純文字
+      const text = await response.text();
+      console.error('非 JSON 回應:', text);
+      showToast('error', '錯誤', `儲存失敗：${text}`);
+      return;
+    }
 
-    if (data.success) {
+    if (data && data.success) {
       aiSettings = data.settings;
       
       // 更新自動回覆計時器秒數
@@ -1111,11 +1120,29 @@ async function saveAISettings() {
       closeAISettingsModal();
       showToast("success", "成功", "AI 設定已儲存");
     } else {
-      showToast("error", "錯誤", data.error);
+      // 儘可能顯示詳細錯誤資訊
+      const detailParts = [];
+      if (data.error) detailParts.push(data.error);
+      if (data.details) detailParts.push(typeof data.details === 'string' ? data.details : JSON.stringify(data.details));
+      if (data.stack) detailParts.push(data.stack);
+      const message = detailParts.join(' \n ');
+      console.error('儲存 AI 設定失敗:', data);
+      showToast("error", "錯誤", message || '儲存 AI 設定失敗');
     }
   } catch (error) {
     console.error("儲存 AI 設定失敗:", error);
-    showToast("error", "錯誤", "儲存失敗");
+    // 如果有 response 物件，可嘗試讀取更多內容
+    if (error && error.response) {
+      try {
+        const text = await error.response.text();
+        showToast('error', '錯誤', `儲存失敗：${text}`);
+        return;
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    showToast("error", "錯誤", error instanceof Error ? error.message : '儲存失敗');
   }
 }
 
@@ -1553,6 +1580,21 @@ function getToastIcon(type) {
       return "ℹ️";
     default:
       return "📢";
+  }
+}
+
+// 將 API 回傳的錯誤物件格式化為字串（包含 details 與 stack）
+function formatApiError(data) {
+  if (!data) return '未知錯誤';
+  if (typeof data === 'string') return data;
+  try {
+    const parts = [];
+    if (data.error) parts.push(data.error);
+    if (data.details) parts.push(typeof data.details === 'string' ? data.details : JSON.stringify(data.details));
+    if (data.stack) parts.push(data.stack);
+    return parts.join('\n') || JSON.stringify(data);
+  } catch (e) {
+    return String(data);
   }
 }
 

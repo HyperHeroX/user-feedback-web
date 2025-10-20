@@ -440,11 +440,17 @@ export function updateAISettings(data: AISettingsRequest): AISettings {
             updates.push('updated_at = CURRENT_TIMESTAMP');
             values.push(existing.id);
 
-            db.prepare(`
+            try {
+                db.prepare(`
         UPDATE ai_settings
         SET ${updates.join(', ')}
         WHERE id = ?
       `).run(...values);
+            } catch (err) {
+                // 包裝並重新拋出具備細節的錯誤
+                const error = err instanceof Error ? err : new Error(String(err));
+                throw new Error(`Failed to update AI settings: ${error.message}\n${error.stack || ''}`);
+            }
         }
     } else {
         // 創建新設定
