@@ -24,6 +24,12 @@ export interface Config {
   // 新增：图片转文字功能配置
   enableImageToText?: boolean | undefined;   // 启用图片转文字功能
   imageToTextPrompt?: string | undefined;    // 图片转文字提示词
+  // 新增：持续对话模式配置
+  continuationModeEnabled?: boolean | undefined;      // 全局启用/停用持续模式
+  continuationActivityTimeout?: number | undefined;   // 活动超时时间(毫秒)
+  continuationAbsoluteTimeout?: number | undefined;   // 绝对超时时间(毫秒)
+  maxConversationHistory?: number | undefined;        // 最大对话历史记录数
+  maxConcurrentContinuations?: number | undefined;    // 最大并发持续会话数
 }
 
 // 反馈数据类型
@@ -54,6 +60,8 @@ export interface WorkSummary {
 // MCP工具函数参数类型
 export interface CollectFeedbackParams {
   work_summary: string;
+  continuation_mode?: boolean | undefined;  // 是否启用持续对话模式
+  session_token?: string | undefined;        // 用于恢复现有会话
 }
 
 // MCP内容类型 - 符合MCP协议标准
@@ -82,6 +90,8 @@ export interface CollectFeedbackResult {
   [x: string]: unknown;
   content: MCPContent[];
   isError?: boolean;
+  session_token?: string;           // 会话token,用于后续调用
+  continuation_status?: 'awaiting' | 'ended'; // 持续状态
 }
 
 // WebSocket事件类型
@@ -95,8 +105,14 @@ export interface SocketEvents {
   get_work_summary: (data: { feedback_session_id: string }) => void;
   submit_feedback: (data: FeedbackData) => void;
   feedback_submitted: (data: { success: boolean; message?: string }) => void;
+  feedback_received_continue: (data: { success: boolean; message: string; status: string }) => void;
   feedback_error: (data: { error: string }) => void;
   work_summary_data: (data: { work_summary: string }) => void;
+  
+  // 持续对话模式
+  end_session: (data: { sessionId: string }) => void;
+  session_ended: (data: { sessionId: string; reason: 'completed' | 'timeout' | 'user_ended' }) => void;
+  ai_response: (data: { sessionId: string; summary: string; timestamp: number }) => void;
 }
 
 // 服务器状态类型
@@ -115,6 +131,23 @@ export interface Session {
   startTime: number;
   timeout: number;
   status: 'active' | 'completed' | 'timeout' | 'error';
+}
+
+// 会话状态枚举
+export enum SessionStatus {
+  CREATED = 'created',
+  ACTIVE = 'active',
+  AWAITING_CONTINUATION = 'awaiting_continuation',
+  COMPLETED = 'completed',
+  EXPIRED = 'expired'
+}
+
+// 对话轮次类型
+export interface ConversationTurn {
+  timestamp: number;
+  type: 'ai_summary' | 'user_feedback' | 'ai_response';
+  content: string;
+  images?: ImageData[] | undefined;
 }
 
 // 错误类型

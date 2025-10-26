@@ -84,11 +84,132 @@ http://localhost:3000/index.html
 - 🚀 **一鍵啟動**：使用 `npx user-web-feedback` 直接運行
 - 🎨 **現代界面**：VS Code 深色主題風格的 Web 界面
 - 🔧 **MCP 整合**：完整支援 Model Context Protocol
-- 💬 **AI 對話功能**：整合 AI 助手，支援文字和圖片對話
-- 🖼️ **圖片支援**：完整的圖片上傳、處理和顯示功能
-- 📄 **圖片轉文字**：AI 智能圖片描述，提升客戶端兼容性
-- 🌐 **跨平台**：支援 Windows、macOS、Linux
-- ⚡ **高效能**：解決了 Python 版本的穩定性問題
+- 💬 **AI 對話功能**：整合 AI 助手,支援文字和圖片對話
+- 🖼️ **圖片支援**:完整的圖片上傳、處理和顯示功能
+- 📄 **圖片轉文字**:AI 智能圖片描述,提升客戶端兼容性
+- 🌐 **跨平台**:支援 Windows、macOS、Linux
+- ⚡ **高效能**:解決了 Python 版本的穩定性問題
+- 🔄 **持續對話模式** *(v2.2.0)*:支援多輪對話和迭代式開發
+- ⏳ **非同步等待**:MCP Client 會等待用戶提交反饋,工具執行期間保持連線狀態
+
+---
+
+## ⏳ MCP 工具執行機制
+
+### 工具如何等待用戶反饋
+
+當 AI 調用 `collect_feedback` 工具時:
+
+1. **工具立即回應 "執行中"** - MCP Client 知道工具正在運行
+2. **發送進度通知** - 通過 MCP 日誌通知告知 "⏳ 等待用戶反饋中..."
+3. **阻塞等待** - Promise 保持 pending 狀態,直到用戶提交反饋
+4. **返回結果** - 用戶提交後,工具才返回反饋內容給 AI
+
+### 為什麼 AI 不會認為工具已結束？
+
+- ✅ **MCP 協議支援長時間運行的工具** - 工具可以等待任意時長
+- ✅ **進度通知機制** - 定期發送狀態更新,告知 Client 工具仍在執行
+- ✅ **超時保護** - 默認 300 秒（5分鐘）超時,可通過 `MCP_DIALOG_TIMEOUT` 配置
+
+### 超時設置建議
+
+```bash
+# 推薦配置（5分鐘）- 給用戶足夠時間輸入反饋
+MCP_DIALOG_TIMEOUT="300"
+
+# 快速測試（30秒）
+MCP_DIALOG_TIMEOUT="30"
+
+# 複雜反饋（10分鐘）
+MCP_DIALOG_TIMEOUT="600"
+```
+
+---
+
+## 🔄 持續對話模式 (Continuation Mode)
+
+> 📌 **v2.2.0 新功能** - 允許 AI 與使用者進行多輪對話,無需每次都重新開啟會話
+
+### 核心概念
+
+持續對話模式支援兩種工作方式:
+
+- **單次模式 (Single-Shot)** - 預設模式:收到反饋後立即返回並結束會話
+- **持續模式 (Continuation)** - 新增模式:收到反饋後保持會話活躍,等待 AI 繼續互動
+
+### 使用場景
+
+✅ **多輪需求收集**: 逐步澄清使用者需求  
+✅ **迭代式開發**: 展示進度,收集反饋,持續改進  
+✅ **複雜任務分解**: 將大任務分解為多個步驟,逐步確認  
+
+### 配置方法
+
+在 Claude Desktop 的 `claude_desktop_config.json` 中啟用:
+
+```json
+{
+  "mcpServers": {
+    "user-web-feedback": {
+      "command": "npx",
+      "args": ["-y", "user-web-feedback@latest"],
+      "env": {
+        "MCP_CONTINUATION_MODE_ENABLED": "true",
+        "MCP_CONTINUATION_ACTIVITY_TIMEOUT": "600000",
+        "MCP_CONTINUATION_ABSOLUTE_TIMEOUT": "3600000",
+        "MCP_MAX_CONVERSATION_HISTORY": "50"
+      }
+    }
+  }
+}
+```
+
+### 配置參數說明
+
+| 參數 | 預設值 | 說明 |
+|------|--------|------|
+| `MCP_CONTINUATION_MODE_ENABLED` | `false` | 是否啟用持續對話模式 |
+| `MCP_CONTINUATION_ACTIVITY_TIMEOUT` | `600000` (10分鐘) | 無活動自動終止時間 (毫秒) |
+| `MCP_CONTINUATION_ABSOLUTE_TIMEOUT` | `3600000` (1小時) | 會話最長存活時間 (毫秒) |
+| `MCP_MAX_CONVERSATION_HISTORY` | `50` | 保留的最大對話記錄數 |
+
+### MCP 工具調用示例
+
+```typescript
+// 第一次調用 - 開始持續會話
+const result1 = await mcp.call_tool("collect_feedback", {
+  work_summary: "我完成了登入頁面的初始設計,請查看",
+  continuation_mode: true  // 啟用持續模式
+});
+
+// 收到用戶反饋: "介面太複雜,希望更簡潔"
+// 返回 session_token 用於後續對話
+
+// 第二次調用 - 繼續同一會話
+const result2 = await mcp.call_tool("collect_feedback", {
+  work_summary: "已調整為極簡風格,移除了多餘元素,請再次確認",
+  continuation_mode: true,
+  session_token: result1.session_token  // 使用之前的 token
+});
+
+// 繼續對話直到完成...
+```
+
+### 會話生命週期
+
+1. **創建**: 第一次調用時設置 `continuation_mode: true`
+2. **活躍**: 使用 `session_token` 繼續對話,每次互動重置活動計時器
+3. **結束**: 
+   - 使用者點擊「結束對話」按鈕
+   - 達到無活動超時 (預設 10 分鐘)
+   - 達到絕對超時 (預設 1 小時)
+   - AI 選擇不提供 session_token (開始新會話)
+
+### 向後兼容性
+
+✅ 完全向後兼容 - 不提供 `continuation_mode` 參數時自動使用單次模式  
+✅ 現有 AI 代理無需修改即可正常運作  
+✅ 可以在同一系統中混合使用兩種模式  
 
 ---
 
@@ -125,7 +246,7 @@ MCP_DEFAULT_MODEL="grok-3"
 
 # Web 服務器配置
 MCP_WEB_PORT="5000"
-MCP_DIALOG_TIMEOUT="60000"  # 反饋收集超時時間（秒），範圍：10-60000
+MCP_DIALOG_TIMEOUT="300"  # 反饋收集超時時間（秒），推薦 300 秒（5分鐘）
 
 # 功能開關
 MCP_ENABLE_CHAT="true"

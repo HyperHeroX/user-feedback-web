@@ -82,6 +82,14 @@ function initSocketIO() {
     // 顯示 AI 訊息
     displayAIMessage(workSummary);
 
+    // 如果是持續對話模式,顯示結束對話按鈕
+    if (data.continuation_mode) {
+      const endSessionBtn = document.getElementById("endSessionBtn");
+      if (endSessionBtn) {
+        endSessionBtn.style.display = "inline-flex";
+      }
+    }
+
     // 啟動自動回覆計時器
     socket.emit("session_ready", {
       sessionId: sessionId,
@@ -221,6 +229,68 @@ function initSocketIO() {
     console.log("自動回覆已取消");
     hideAutoReplyWarning();
   });
+
+  // 持續對話模式事件
+  socket.on("feedback_received_continue", (data) => {
+    console.log("反饋已收到(持續模式):", data);
+    hideAlertModal();
+    showToast("success", "已收到", "您的反饋已收到,AI 正在處理...");
+    
+    // 清除輸入框,準備下一輪對話
+    clearSubmissionInputs();
+    
+    // 重置倒數計時器
+    resetAutoReplyTimer();
+  });
+
+  socket.on("ai_response", (data) => {
+    console.log("AI 回應:", data);
+    
+    // 顯示 AI 的新回應
+    if (data.response) {
+      displayAIMessage(data.response);
+    }
+    
+    // 顯示提示訊息
+    showToast("info", "AI 回應", "AI 已回應,請查看並繼續對話或提交反饋");
+    
+    // 重啟自動回覆計時器
+    resetAutoReplyTimer();
+  });
+
+  socket.on("session_ended", (data) => {
+    console.log("會話已結束:", data);
+    
+    // 顯示結束訊息
+    const reason = data.reason === 'timeout' ? '超時' : 
+                   data.reason === 'user_request' ? '用戶請求' : 
+                   data.reason === 'ai_complete' ? 'AI 完成' : '未知原因';
+    
+    showToast("info", "會話結束", `會話已結束 (${reason})`, 5000);
+    
+    // 停止所有計時器
+    stopAllTimers();
+    
+    // 3 秒後關閉頁面
+    setTimeout(() => {
+      try {
+        window.close();
+      } catch (error) {
+        console.warn('無法關閉頁面:', error);
+        // 顯示完成訊息
+        const container = document.querySelector('.feedback-container');
+        if (container) {
+          container.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; color: #888;">
+              <div style="font-size: 48px; margin-bottom: 20px;">✓</div>
+              <div style="font-size: 24px;">會話已結束</div>
+              <div style="font-size: 14px; margin-top: 10px;">原因: ${reason}</div>
+            </div>
+          `;
+        }
+      }
+    }, 3000);
+  });
 }
 
 function updateConnectionStatus(connected) {
@@ -268,6 +338,11 @@ function initEventListeners() {
   document
     .getElementById("submitBtn")
     .addEventListener("click", submitFeedback);
+
+  // 結束對話按鈕
+  document
+    .getElementById("endSessionBtn")
+    .addEventListener("click", endSession);
 
   // AI 回覆按鈕
   document
@@ -1671,6 +1746,74 @@ function escapeHtml(text) {
   const div = document.createElement("div");
   div.textContent = text;
   return div.innerHTML;
+}
+
+// ============ 持續對話模式相關函數 ============
+
+function stopAllTimers() {
+  if (autoReplyTimerInterval) {
+    clearInterval(autoReplyTimerInterval);
+    autoReplyTimerInterval = null;
+  }
+  if (closeCountdownInterval) {
+    clearInterval(closeCountdownInterval);
+    closeCountdownInterval = null;
+  }
+  if (dialogTimeoutInterval) {
+    clearInterval(dialogTimeoutInterval);
+    dialogTimeoutInterval = null;
+  }
+  if (autoReplyWarningTimeout) {
+    clearTimeout(autoReplyWarningTimeout);
+    autoReplyWarningTimeout = null;
+  }
+  if (autoReplyCountdownInterval) {
+    clearInterval(autoReplyCountdownInterval);
+    autoReplyCountdownInterval = null;
+  }
+}
+
+function resetAutoReplyTimer() {
+  // 重置自動回覆計時器到初始值
+  if (autoReplyTimerInterval) {
+    clearInterval(autoReplyTimerInterval);
+  }
+  
+  autoReplyTimerRemaining = AUTO_REPLY_TIMER_SECONDS;
+  autoReplyTimerPaused = false;
+  
+  // 重新啟動計時器
+  const timerDisplay = document.getElementById("auto-reply-timer");
+  if (timerDisplay) {
+    updateAutoReplyTimerDisplay();
+    startAutoReplyTimer();
+  }
+}
+
+function endSession() {
+  if (!sessionId) {
+    showToast("warning", "警告", "沒有活躍的會話");
+    return;
+  }
+  
+  // 確認對話框
+  if (!confirm("確定要結束當前對話會話嗎？")) {
+    return;
+  }
+  
+  console.log("用戶請求結束會話:", sessionId);
+  
+  // 發送結束會話事件
+  socket.emit("end_session", {
+    sessionId: sessionId,
+    reason: "user_request"
+  });
+  
+  // 停止所有計時器
+  stopAllTimers();
+  
+  // 顯示提示
+  showToast("info", "已發送", "正在結束會話...");
 }
 
 // ============ 全局函數（供 HTML 調用） ============

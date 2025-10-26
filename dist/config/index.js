@@ -64,7 +64,13 @@ export function createDefaultConfig() {
         cleanupPortOnStart: getEnvBoolean('MCP_CLEANUP_PORT_ON_START', true), // 默认启用端口清理
         // 新增：图片转文字功能配置
         enableImageToText: getEnvBoolean('MCP_ENABLE_IMAGE_TO_TEXT', true),
-        imageToTextPrompt: getEnvVar('MCP_IMAGE_TO_TEXT_PROMPT', '请详细描述这张图片的内容，包括主要元素、颜色、布局、文字等信息。')
+        imageToTextPrompt: getEnvVar('MCP_IMAGE_TO_TEXT_PROMPT', '请详细描述这张图片的内容，包括主要元素、颜色、布局、文字等信息。'),
+        // 新增：持续对话模式配置
+        continuationModeEnabled: getEnvBoolean('MCP_CONTINUATION_MODE_ENABLED', false), // 默认关闭
+        continuationActivityTimeout: getEnvNumber('MCP_CONTINUATION_ACTIVITY_TIMEOUT', 600000), // 10分钟
+        continuationAbsoluteTimeout: getEnvNumber('MCP_CONTINUATION_ABSOLUTE_TIMEOUT', 3600000), // 1小时
+        maxConversationHistory: getEnvNumber('MCP_MAX_CONVERSATION_HISTORY', 50),
+        maxConcurrentContinuations: getEnvNumber('MCP_MAX_CONCURRENT_CONTINUATIONS', 100)
     };
 }
 /**

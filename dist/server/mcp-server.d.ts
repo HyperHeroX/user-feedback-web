@@ -28,6 +28,14 @@ export declare class MCPServer {
      */
     private collectFeedback;
     /**
+     * 生成会话token
+     */
+    private generateSessionToken;
+    /**
+     * 从token提取sessionId
+     */
+    private extractSessionIdFromToken;
+    /**
      * 将反馈数据格式化为MCP内容（支持图片显示）
      */
     private formatFeedbackForMCP;

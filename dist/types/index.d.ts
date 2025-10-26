@@ -19,6 +19,11 @@ export interface Config {
     cleanupPortOnStart?: boolean | undefined;
     enableImageToText?: boolean | undefined;
     imageToTextPrompt?: string | undefined;
+    continuationModeEnabled?: boolean | undefined;
+    continuationActivityTimeout?: number | undefined;
+    continuationAbsoluteTimeout?: number | undefined;
+    maxConversationHistory?: number | undefined;
+    maxConcurrentContinuations?: number | undefined;
 }
 export interface FeedbackData {
     text?: string;
@@ -41,6 +46,8 @@ export interface WorkSummary {
 }
 export interface CollectFeedbackParams {
     work_summary: string;
+    continuation_mode?: boolean | undefined;
+    session_token?: string | undefined;
 }
 export interface TextContent {
     type: 'text';
@@ -61,6 +68,8 @@ export interface CollectFeedbackResult {
     [x: string]: unknown;
     content: MCPContent[];
     isError?: boolean;
+    session_token?: string;
+    continuation_status?: 'awaiting' | 'ended';
 }
 export interface SocketEvents {
     connect: () => void;
@@ -77,11 +86,28 @@ export interface SocketEvents {
         success: boolean;
         message?: string;
     }) => void;
+    feedback_received_continue: (data: {
+        success: boolean;
+        message: string;
+        status: string;
+    }) => void;
     feedback_error: (data: {
         error: string;
     }) => void;
     work_summary_data: (data: {
         work_summary: string;
+    }) => void;
+    end_session: (data: {
+        sessionId: string;
+    }) => void;
+    session_ended: (data: {
+        sessionId: string;
+        reason: 'completed' | 'timeout' | 'user_ended';
+    }) => void;
+    ai_response: (data: {
+        sessionId: string;
+        summary: string;
+        timestamp: number;
     }) => void;
 }
 export interface ServerStatus {
@@ -97,6 +123,19 @@ export interface Session {
     startTime: number;
     timeout: number;
     status: 'active' | 'completed' | 'timeout' | 'error';
+}
+export declare enum SessionStatus {
+    CREATED = "created",
+    ACTIVE = "active",
+    AWAITING_CONTINUATION = "awaiting_continuation",
+    COMPLETED = "completed",
+    EXPIRED = "expired"
+}
+export interface ConversationTurn {
+    timestamp: number;
+    type: 'ai_summary' | 'user_feedback' | 'ai_response';
+    content: string;
+    images?: ImageData[] | undefined;
 }
 export declare class MCPError extends Error {
     code: string;

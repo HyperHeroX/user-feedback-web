@@ -52,9 +52,17 @@ export declare class WebServer {
      */
     private clearAutoReplyTimers;
     /**
+     * 结束会话
+     */
+    endSession(sessionId: string, reason: 'completed' | 'timeout' | 'user_ended'): Promise<void>;
+    /**
      * 收集用户反馈
      */
-    collectFeedback(workSummary: string, timeoutSeconds: number): Promise<FeedbackData[]>;
+    collectFeedback(workSummary: string, timeoutSeconds: number, continuationMode?: boolean, sessionToken?: string): Promise<FeedbackData[]>;
+    /**
+     * 从token提取sessionId
+     */
+    private extractSessionIdFromToken;
     /**
      * 生成反馈页面URL
      */

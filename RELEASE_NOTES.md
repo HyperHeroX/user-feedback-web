@@ -1,5 +1,50 @@
 # 📋 user-feedback MCP Tools - 版本发布说明
 
+## 🚀 v2.2.0 (2025-06-14)
+
+### 🔄 持续对话模式 (Continuation Mode)
+**解决问题**: AI调用工具后立即结束会话,无法进行多轮对话和迭代式开发
+
+**核心变更**:
+- **持续会话支持**: 新增continuation_mode参数,允许AI与用户进行多轮对话
+- **会话令牌管理**: 引入session_token机制,用于恢复和继续现有会话
+- **双超时策略**: 活动超时(10分钟)和绝对超时(1小时)保障系统稳定性
+- **对话历史记录**: 自动保存最近50轮对话,支持上下文连续性
+- **会话状态机**: 完整的会话生命周期管理(CREATED→ACTIVE→AWAITING_CONTINUATION→COMPLETED/EXPIRED)
+
+**技术亮点**:
+- ✅ **向后兼容**: 默认为单次模式,现有AI代理无需修改
+- ✅ **优雅终止**: 支持用户手动结束、超时自动终止、AI主动结束
+- ✅ **并发控制**: 最大100个并发持续会话,防止资源耗尽
+- ✅ **WebSocket增强**: 新增session_ended、end_session、ai_response等事件
+- ✅ **类型安全**: 完整的TypeScript类型定义(SessionStatus、ConversationTurn等)
+
+**新增MCP工具参数**:
+```typescript
+{
+  "continuation_mode": true,      // 启用持续模式(可选,默认false)
+  "session_token": "uuid-token"   // 恢复现有会话(可选)
+}
+```
+
+**新增环境变量**:
+```bash
+MCP_CONTINUATION_MODE_ENABLED=true           # 全局启用开关
+MCP_CONTINUATION_ACTIVITY_TIMEOUT=600000     # 10分钟无活动超时
+MCP_CONTINUATION_ABSOLUTE_TIMEOUT=3600000    # 1小时绝对超时
+MCP_MAX_CONVERSATION_HISTORY=50              # 对话历史上限
+MCP_MAX_CONCURRENT_CONTINUATIONS=100         # 并发会话上限
+```
+
+**使用场景**:
+- 📋 **多轮需求收集**: 逐步澄清用户需求,避免遗漏
+- 🔄 **迭代式开发**: 展示进度→收集反馈→改进→再次展示
+- 🧩 **复杂任务分解**: 将大任务拆分为多个步骤,逐步确认
+
+**API破坏性变更**: 无 (完全向后兼容)
+
+---
+
 ## 🚀 v2.1.3 (2025-06-12)
 
 ### 📋 MCP标准日志功能

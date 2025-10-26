@@ -2,7 +2,7 @@
  * 会话存储管理器
  * 提供内存存储和可选的持久化存储
  */
-import { FeedbackData } from '../types/index.js';
+import { FeedbackData, SessionStatus, ConversationTurn } from '../types/index.js';
 export interface SessionData {
     workSummary: string;
     feedback: FeedbackData[];
@@ -10,6 +10,10 @@ export interface SessionData {
     timeout: number;
     resolve?: (feedback: FeedbackData[]) => void;
     reject?: (error: Error) => void;
+    continuationMode?: boolean;
+    status?: SessionStatus;
+    lastActivityTime?: number;
+    conversationHistory?: ConversationTurn[];
 }
 export declare class SessionStorage {
     private cleanupIntervalMs;
@@ -29,6 +33,14 @@ export declare class SessionStorage {
      */
     updateSession(sessionId: string, updates: Partial<SessionData>): boolean;
     /**
+     * 更新会话最后活动时间
+     */
+    updateLastActivity(sessionId: string): boolean;
+    /**
+     * 添加对话历史记录
+     */
+    addConversationTurn(sessionId: string, turn: ConversationTurn, maxHistory?: number): boolean;
+    /**
      * 删除会话
      */
     deleteSession(sessionId: string): boolean;
@@ -43,7 +55,8 @@ export declare class SessionStorage {
     /**
      * 清理过期会话
      */
-    cleanupExpiredSessions(): number;
+    cleanupExpiredSessions(continuationActivityTimeout?: number, // 10分钟无活动
+    continuationAbsoluteTimeout?: number): number;
     /**
      * 启动清理定时器
      */

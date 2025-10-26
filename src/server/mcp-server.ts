@@ -54,14 +54,18 @@ export class MCPServer {
     this.mcpServer.registerTool(
       'collect_feedback',
       {
-        description: 'Collect feedback from users about AI work summary. This tool opens a web interface for users to provide feedback on the AI\'s work.',
+        description: 'Collect feedback from users about AI work summary. This tool opens a web interface for users to provide feedback on the AI\'s work. Supports continuation mode for multi-turn conversations.',
         inputSchema: {
-          work_summary: z.string().describe('AI工作汇报内容，描述AI完成的工作和结果')
+          work_summary: z.string().describe('AI工作汇报内容，描述AI完成的工作和结果'),
+          continuation_mode: z.boolean().optional().describe('是否启用持续对话模式，默认false（单次模式）'),
+          session_token: z.string().optional().describe('会话token，用于恢复现有持续会话')
         }
       },
-      async (args: { work_summary: string }): Promise<CallToolResult> => {
+      async (args: { work_summary: string; continuation_mode?: boolean | undefined; session_token?: string | undefined }): Promise<CallToolResult> => {
         const params: CollectFeedbackParams = {
-          work_summary: args.work_summary
+          work_summary: args.work_summary,
+          continuation_mode: args.continuation_mode,
+          session_token: args.session_token
         };
 
         logger.mcp('collect_feedback', params);
@@ -137,15 +141,17 @@ export class MCPServer {
    * 实现collect_feedback功能
    */
   private async collectFeedback(params: CollectFeedbackParams): Promise<CallToolResult> {
-    const { work_summary } = params;
+    const { work_summary, continuation_mode = false, session_token } = params;
     const timeout_seconds = this.config.dialogTimeout;
 
-    logger.info(`开始收集反馈，工作汇报长度: ${work_summary.length}字符，超时: ${timeout_seconds}秒`);
+    logger.info(`开始收集反馈，工作汇报长度: ${work_summary.length}字符，超时: ${timeout_seconds}秒，持续模式: ${continuation_mode}`);
 
     // 发送MCP工具调用开始通知
     logger.mcpToolCallStarted('collect_feedback', {
       work_summary_length: work_summary.length,
-      timeout_seconds: timeout_seconds
+      timeout_seconds: timeout_seconds,
+      continuation_mode: continuation_mode,
+      has_session_token: !!session_token
     });
 
     try {
@@ -154,18 +160,58 @@ export class MCPServer {
         await this.webServer.start();
       }
 
-      // 收集用户反馈
-      const feedback = await this.webServer.collectFeedback(work_summary, timeout_seconds);
+      logger.info(`🔄 MCP Server 開始等待用戶反饋... (超時: ${timeout_seconds}秒)`);
+      logger.info(`📌 注意: collect_feedback 調用會阻塞直到用戶提交反饋或超時`);
+      
+      // 發送進度通知：工具正在執行中，等待用戶輸入
+      await this.sendLogNotification({
+        level: 'info',
+        logger: 'user-web-feedback',
+        data: {
+          message: '⏳ 等待用戶反饋中...',
+          status: 'waiting_for_user_input',
+          timeout_seconds: timeout_seconds,
+          web_interface: 'Browser window opened'
+        }
+      });
 
-      logger.info(`反馈收集完成，收到 ${feedback.length} 条反馈`);
+      // 收集用户反馈（這裡會等待 Promise resolve）
+      const feedback = await this.webServer.collectFeedback(
+        work_summary, 
+        timeout_seconds,
+        continuation_mode,
+        session_token
+      );
+
+      logger.info(`✅ 反馈收集完成，收到 ${feedback.length} 条反馈`);
+      
+      // 發送完成通知
+      await this.sendLogNotification({
+        level: 'info',
+        logger: 'user-web-feedback',
+        data: {
+          message: '✅ 用戶反饋已收到',
+          status: 'feedback_received',
+          feedback_count: feedback.length
+        }
+      });
 
       // 格式化反馈数据为MCP内容（支持图片）
       const content = this.formatFeedbackForMCP(feedback);
 
-      return {
+      // 根据模式返回结果
+      const result: CallToolResult = {
         content,
         isError: false
       };
+
+      if (continuation_mode) {
+        // 持续模式：添加session_token和状态
+        result['session_token'] = this.generateSessionToken(session_token || feedback[0]?.sessionId || 'unknown');
+        result['continuation_status'] = 'awaiting';
+      }
+
+      return result;
 
     } catch (error) {
       logger.error('反馈收集失败:', error);
@@ -179,6 +225,30 @@ export class MCPServer {
         }],
         isError: true
       };
+    }
+  }
+
+  /**
+   * 生成会话token
+   */
+  private generateSessionToken(sessionId: string): string {
+    // 简单的base64编码，实际应用可以使用更安全的方法
+    return Buffer.from(`session:${sessionId}:${Date.now()}`).toString('base64');
+  }
+
+  /**
+   * 从token提取sessionId
+   */
+  private extractSessionIdFromToken(token: string): string | null {
+    try {
+      const decoded = Buffer.from(token, 'base64').toString('utf-8');
+      const parts = decoded.split(':');
+      if (parts[0] === 'session' && parts[1]) {
+        return parts[1];
+      }
+      return null;
+    } catch {
+      return null;
     }
   }
 

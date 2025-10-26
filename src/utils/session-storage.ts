@@ -4,7 +4,7 @@
  */
 
 import { logger } from './logger.js';
-import { MCPError, FeedbackData } from '../types/index.js';
+import { MCPError, FeedbackData, SessionStatus, ConversationTurn } from '../types/index.js';
 
 export interface SessionData {
   workSummary: string;
@@ -13,6 +13,12 @@ export interface SessionData {
   timeout: number;
   resolve?: (feedback: FeedbackData[]) => void;
   reject?: (error: Error) => void;
+  
+  // 新增：持续模式相关字段
+  continuationMode?: boolean;           // 是否为持续模式
+  status?: SessionStatus;                // 会话状态
+  lastActivityTime?: number;             // 最后活动时间
+  conversationHistory?: ConversationTurn[]; // 对话历史
 }
 
 export class SessionStorage {
@@ -68,6 +74,37 @@ export class SessionStorage {
   }
 
   /**
+   * 更新会话最后活动时间
+   */
+  updateLastActivity(sessionId: string): boolean {
+    return this.updateSession(sessionId, { lastActivityTime: Date.now() });
+  }
+
+  /**
+   * 添加对话历史记录
+   */
+  addConversationTurn(sessionId: string, turn: ConversationTurn, maxHistory: number = 50): boolean {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      return false;
+    }
+
+    if (!session.conversationHistory) {
+      session.conversationHistory = [];
+    }
+
+    // 限制历史记录长度
+    if (session.conversationHistory.length >= maxHistory) {
+      session.conversationHistory.shift(); // 移除最早的
+    }
+
+    session.conversationHistory.push(turn);
+    this.sessions.set(sessionId, session);
+    logger.debug(`会话 ${sessionId} 添加对话记录，类型: ${turn.type}`);
+    return true;
+  }
+
+  /**
    * 删除会话
    */
   deleteSession(sessionId: string): boolean {
@@ -95,17 +132,40 @@ export class SessionStorage {
   /**
    * 清理过期会话
    */
-  cleanupExpiredSessions(): number {
+  cleanupExpiredSessions(
+    continuationActivityTimeout: number = 600000,  // 10分钟无活动
+    continuationAbsoluteTimeout: number = 3600000  // 1小时绝对上限
+  ): number {
     const now = Date.now();
     let cleanedCount = 0;
 
     for (const [sessionId, session] of this.sessions) {
-      const elapsed = now - session.startTime;
+      let shouldExpire = false;
+      
+      if (session.continuationMode) {
+        // 持续模式：检查活动超时和绝对超时
+        const timeSinceActivity = now - (session.lastActivityTime || session.startTime);
+        const timeSinceStart = now - session.startTime;
+        
+        shouldExpire = 
+          timeSinceActivity > continuationActivityTimeout ||
+          timeSinceStart > continuationAbsoluteTimeout;
+          
+        if (shouldExpire) {
+          logger.info(`持续模式会话 ${sessionId} 超时 (活动: ${timeSinceActivity}ms, 总时长: ${timeSinceStart}ms)`);
+        }
+      } else {
+        // 单次模式：现有逻辑
+        const elapsed = now - session.startTime;
+        shouldExpire = elapsed > session.timeout;
+        
+        if (shouldExpire) {
+          logger.info(`单次模式会话 ${sessionId} 超时`);
+        }
+      }
 
-      if (elapsed > session.timeout) {
+      if (shouldExpire) {
         // 会话超时，自动提交忙碌回复
-        logger.info(`会话 ${sessionId} 超时，自动提交忙碌回复`);
-
         if (session.resolve) {
           // 创建自动忙碌回复
           const busyFeedback: FeedbackData = {

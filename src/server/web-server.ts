@@ -10,7 +10,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Config, FeedbackData, MCPError, ConvertImagesRequest, ConvertImagesResponse, CreatePromptRequest, UpdatePromptRequest, AISettingsRequest, AIReplyRequest, ReorderPromptsRequest } from '../types/index.js';
+import { Config, FeedbackData, MCPError, ConvertImagesRequest, ConvertImagesResponse, CreatePromptRequest, UpdatePromptRequest, AISettingsRequest, AIReplyRequest, ReorderPromptsRequest, SessionStatus } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { PortManager } from '../utils/port-manager.js';
 import { ImageProcessor } from '../utils/image-processor.js';
@@ -715,7 +715,8 @@ export class WebServer {
           socket.emit('session_assigned', {
             session_id: latestSession.sessionId,
             work_summary: latestSession.session.workSummary,
-            timeout: latestSession.session.timeout // 传递超时时间（毫秒）
+            timeout: latestSession.session.timeout, // 传递超时时间（毫秒）
+            continuation_mode: latestSession.session.continuationMode || false // 传递持续对话模式标志
           });
         } else {
           // 无活跃会话
@@ -808,6 +809,14 @@ export class WebServer {
         this.startAutoReplyTimer(socket, data.sessionId, data.workSummary);
       });
 
+      // 结束持续会话
+      socket.on('end_session', (data: { sessionId: string }) => {
+        logger.socket('end_session', socket.id, { sessionId: data.sessionId });
+        this.endSession(data.sessionId, 'user_ended').catch(error => {
+          logger.error('结束会话失败:', error);
+        });
+      });
+
       // 断开连接
       socket.on('disconnect', (reason) => {
         logger.socket('disconnect', socket.id, { reason });
@@ -864,19 +873,56 @@ export class WebServer {
 
       // 添加反馈到会话
       session.feedback.push(processedFeedback);
+      
+      // 添加到对话历史
+      this.sessionStorage.addConversationTurn(feedbackData.sessionId, {
+        timestamp: Date.now(),
+        type: 'user_feedback',
+        content: processedFeedback.text || '',
+        images: processedFeedback.images
+      }, this.config.maxConversationHistory || 50);
+      
+      // 更新最后活动时间
+      this.sessionStorage.updateLastActivity(feedbackData.sessionId);
+      
       this.sessionStorage.updateSession(feedbackData.sessionId, { feedback: session.feedback });
 
-      // 通知提交成功
-      socket.emit('feedback_submitted', {
-        success: true,
-        message: '反馈提交成功',
-        shouldCloseAfterSubmit: feedbackData.shouldCloseAfterSubmit || false
-      });
+      // 根据模式决定如何处理
+      if (session.continuationMode) {
+        // 持续模式：转换状态，不调用 resolve
+        this.sessionStorage.updateSession(feedbackData.sessionId, { 
+          status: SessionStatus.AWAITING_CONTINUATION 
+        });
+        
+        // 通知前端反馈已收到，但保持连线
+        socket.emit('feedback_received_continue', {
+          success: true,
+          message: 'AI 正在处理您的反馈...',
+          status: 'awaiting_continuation'
+        });
+        
+        logger.info(`持续模式会话 ${feedbackData.sessionId}: 反馈已收到，等待 AI 继续`);
+        
+        // 注意：不调用 session.resolve()，保持 Promise pending
+        
+      } else {
+        // 单次模式：现有逻辑
+        socket.emit('feedback_submitted', {
+          success: true,
+          message: '反馈提交成功',
+          shouldCloseAfterSubmit: feedbackData.shouldCloseAfterSubmit || false
+        });
 
-      // 完成反馈收集
-      if (session.resolve) {
-        session.resolve(session.feedback);
-        this.sessionStorage.deleteSession(feedbackData.sessionId);
+        logger.info(`✅ 單次模式會話 ${feedbackData.sessionId}: 用戶已提交反饋，準備 resolve Promise`);
+
+        // 完成反馈收集
+        if (session.resolve) {
+          logger.info(`🎯 調用 session.resolve()，MCP Client 將收到結果並繼續執行`);
+          session.resolve(session.feedback);
+          this.sessionStorage.deleteSession(feedbackData.sessionId);
+        } else {
+          logger.warn(`⚠️ 會話 ${feedbackData.sessionId} 沒有 resolve 函數！這不應該發生`);
+        }
       }
 
     } catch (error) {
@@ -980,12 +1026,100 @@ export class WebServer {
   }
 
   /**
+   * 结束会话
+   */
+  async endSession(sessionId: string, reason: 'completed' | 'timeout' | 'user_ended'): Promise<void> {
+    const session = this.sessionStorage.getSession(sessionId);
+    
+    if (!session) {
+      logger.warn(`尝试结束不存在的会话: ${sessionId}`);
+      return;
+    }
+    
+    logger.info(`结束会话 ${sessionId}, 原因: ${reason}`);
+    
+    // 更新状态
+    this.sessionStorage.updateSession(sessionId, { 
+      status: SessionStatus.COMPLETED 
+    });
+    
+    // 通知所有连接的客户端
+    this.io.to(sessionId).emit('session_ended', {
+      sessionId,
+      reason
+    });
+    
+    // 解析 Promise (如果还在等待)
+    if (session.resolve) {
+      session.resolve(session.feedback);
+    }
+    
+    // 清理资源
+    this.clearAutoReplyTimers(sessionId);
+    this.sessionStorage.deleteSession(sessionId);
+  }
+
+  /**
    * 收集用户反馈
    */
-  async collectFeedback(workSummary: string, timeoutSeconds: number): Promise<FeedbackData[]> {
-    const sessionId = this.generateSessionId();
+  async collectFeedback(
+    workSummary: string, 
+    timeoutSeconds: number,
+    continuationMode: boolean = false,
+    sessionToken?: string
+  ): Promise<FeedbackData[]> {
+    let sessionId: string;
+    
+    // 如果提供了session_token，尝试恢复现有会话
+    if (sessionToken) {
+      sessionId = this.extractSessionIdFromToken(sessionToken);
+      const existingSession = this.sessionStorage.getSession(sessionId);
+      
+      if (!existingSession) {
+        throw new MCPError('Invalid or expired session token', 'INVALID_SESSION');
+      }
+      
+      if (existingSession.status !== SessionStatus.AWAITING_CONTINUATION) {
+        throw new MCPError('Session is not in awaiting continuation state', 'INVALID_SESSION_STATE');
+      }
+      
+      // 更新会话摘要和活动时间
+      this.sessionStorage.addConversationTurn(sessionId, {
+        timestamp: Date.now(),
+        type: 'ai_summary',
+        content: workSummary
+      }, this.config.maxConversationHistory || 50);
+      
+      this.sessionStorage.updateLastActivity(sessionId);
+      
+      // 通知前端 AI 有新消息
+      this.io.to(sessionId).emit('ai_response', {
+        sessionId,
+        summary: workSummary,
+        timestamp: Date.now()
+      });
+      
+      logger.info(`恢复持续会话: ${sessionId}`);
+      
+      // 返回现有会话的 Promise
+      return new Promise((resolve, reject) => {
+        this.sessionStorage.updateSession(sessionId, {
+          resolve,
+          reject,
+          workSummary
+        });
+      });
+    }
+    
+    // 创建新会话
+    sessionId = this.generateSessionId();
 
-    logger.info(`创建反馈会话: ${sessionId}, 超时: ${timeoutSeconds}秒`);
+    logger.info(`创建反馈会话: ${sessionId}, 超时: ${timeoutSeconds}秒, 持续模式: ${continuationMode}`);
+
+    logger.info(`🔄 創建 Promise 等待用戶提交反饋...`);
+    logger.info(`📋 會話 ID: ${sessionId}`);
+    logger.info(`⏱️  超時設置: ${timeoutSeconds} 秒`);
+    logger.info(`🔗 反饋頁面將在瀏覽器中打開`);
 
     return new Promise((resolve, reject) => {
       // 创建会话
@@ -995,7 +1129,16 @@ export class WebServer {
         startTime: Date.now(),
         timeout: timeoutSeconds * 1000,
         resolve,
-        reject
+        reject,
+        // 持续模式相关字段
+        continuationMode,
+        status: SessionStatus.CREATED,
+        lastActivityTime: Date.now(),
+        conversationHistory: [{
+          timestamp: Date.now(),
+          type: 'ai_summary',
+          content: workSummary
+        }]
       };
 
       this.sessionStorage.createSession(sessionId, session);
@@ -1015,6 +1158,22 @@ export class WebServer {
         reject(error);
       });
     });
+  }
+
+  /**
+   * 从token提取sessionId
+   */
+  private extractSessionIdFromToken(token: string): string {
+    try {
+      const decoded = Buffer.from(token, 'base64').toString('utf-8');
+      const parts = decoded.split(':');
+      if (parts[0] === 'session' && parts[1]) {
+        return parts[1];
+      }
+      throw new Error('Invalid token format');
+    } catch {
+      throw new MCPError('Invalid session token format', 'INVALID_TOKEN');
+    }
   }
 
   /**
