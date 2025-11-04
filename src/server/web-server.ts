@@ -1034,19 +1034,19 @@ export class WebServer {
   /**
    * 收集用户反馈
    */
-  async collectFeedback(workSummary: string, timeoutSeconds: number): Promise<FeedbackData[]> {
+  async collectFeedback(workSummary: string, timeoutSeconds: number): Promise<{ feedback: FeedbackData[]; sessionId: string; feedbackUrl: string }> {
     const sessionId = this.generateSessionId();
 
     logger.info(`创建反馈会话: ${sessionId}, 超时: ${timeoutSeconds}秒`);
 
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       // 创建会话
       const session: SessionData = {
         workSummary,
         feedback: [],
         startTime: Date.now(),
         timeout: timeoutSeconds * 1000,
-        resolve,
+        resolve: (feedback: FeedbackData[] = []) => resolve({ feedback, sessionId, feedbackUrl }),
         reject
       };
 
@@ -1061,11 +1061,13 @@ export class WebServer {
       // 注意：超时处理现在由SessionStorage的清理机制处理
 
       // 打开浏览器
-      this.openFeedbackPage(sessionId).catch(error => {
+      try {
+        await this.openFeedbackPage(sessionId);
+      } catch (error) {
         logger.error('打开反馈页面失败:', error);
         this.sessionStorage.deleteSession(sessionId);
         reject(error);
-      });
+      }
     });
   }
 

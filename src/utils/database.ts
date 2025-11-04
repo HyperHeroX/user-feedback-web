@@ -379,6 +379,7 @@ export function getPinnedPrompts(): Prompt[] {
     if (!db) return [];
 
     const rows = db.prepare(`
+    SELECT 
       id, title, content, 
       is_pinned as isPinned, 
       order_index as orderIndex, 

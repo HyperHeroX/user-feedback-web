@@ -59,7 +59,11 @@ export declare class WebServer {
     /**
      * 收集用户反馈
      */
-    collectFeedback(workSummary: string, timeoutSeconds: number): Promise<FeedbackData[]>;
+    collectFeedback(workSummary: string, timeoutSeconds: number): Promise<{
+        feedback: FeedbackData[];
+        sessionId: string;
+        feedbackUrl: string;
+    }>;
     /**
      * 生成反馈页面URL
      */

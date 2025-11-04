@@ -920,14 +920,14 @@ export class WebServer {
     async collectFeedback(workSummary, timeoutSeconds) {
         const sessionId = this.generateSessionId();
         logger.info(`创建反馈会话: ${sessionId}, 超时: ${timeoutSeconds}秒`);
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
             // 创建会话
             const session = {
                 workSummary,
                 feedback: [],
                 startTime: Date.now(),
                 timeout: timeoutSeconds * 1000,
-                resolve,
+                resolve: (feedback = []) => resolve({ feedback, sessionId, feedbackUrl }),
                 reject
             };
             this.sessionStorage.createSession(sessionId, session);
@@ -937,11 +937,14 @@ export class WebServer {
             logger.mcpFeedbackPageCreated(sessionId, feedbackUrl, timeoutSeconds);
             // 注意：超时处理现在由SessionStorage的清理机制处理
             // 打开浏览器
-            this.openFeedbackPage(sessionId).catch(error => {
+            try {
+                await this.openFeedbackPage(sessionId);
+            }
+            catch (error) {
                 logger.error('打开反馈页面失败:', error);
                 this.sessionStorage.deleteSession(sessionId);
                 reject(error);
-            });
+            }
         });
     }
     /**
