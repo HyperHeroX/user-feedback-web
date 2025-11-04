@@ -556,13 +556,27 @@ export class WebServer {
         // 驗證 API Key
         this.app.post('/api/ai-settings/validate', async (req, res) => {
             try {
-                const { apiKey, model } = req.body;
-                if (!apiKey || !model) {
+                let { apiKey, model } = req.body;
+                if (!model) {
                     res.status(400).json({
                         success: false,
-                        error: 'API Key 和模型為必填欄位'
+                        error: '模型為必填欄位'
                     });
                     return;
+                }
+                // 如果沒有提供 API Key，則從資料庫獲取
+                if (!apiKey) {
+                    const settings = getAISettings();
+                    if (!settings || !settings.apiKey || settings.apiKey === 'YOUR_API_KEY_HERE') {
+                        res.status(400).json({
+                            success: false,
+                            valid: false,
+                            error: '請先設定 API Key'
+                        });
+                        return;
+                    }
+                    apiKey = settings.apiKey;
+                    logger.info('使用資料庫中的 API Key 進行驗證');
                 }
                 const result = await validateAPIKey(apiKey, model);
                 if (result.valid) {
