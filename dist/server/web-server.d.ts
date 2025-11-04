@@ -20,6 +20,11 @@ export declare class WebServer {
     private autoReplyWarningTimers;
     constructor(config: Config);
     /**
+     * 等待所有活躍會話完成或達到最大等待時間。
+     * 這是簡單的輪詢實作，檢查 sessionStorage.getSessionCount() 是否降為 0。
+     */
+    private waitForActiveSessions;
+    /**
      * 设置优雅退出处理
      */
     private setupGracefulShutdown;

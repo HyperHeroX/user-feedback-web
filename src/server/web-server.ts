@@ -79,6 +79,44 @@ export class WebServer {
   }
 
   /**
+   * 等待所有活躍會話完成或達到最大等待時間。
+   * 這是簡單的輪詢實作，檢查 sessionStorage.getSessionCount() 是否降為 0。
+   */
+  private async waitForActiveSessions(maxWaitMs: number): Promise<void> {
+    const intervalMs = 1000;
+    const start = Date.now();
+
+    return new Promise((resolve, reject) => {
+      const check = () => {
+        try {
+          const count = this.sessionStorage.getSessionCount();
+          if (count === 0) {
+            clearInterval(timer);
+            resolve();
+            return;
+          }
+
+          const elapsed = Date.now() - start;
+          if (elapsed >= maxWaitMs) {
+            clearInterval(timer);
+            reject(new Error('等待活躍會話超時'));
+            return;
+          }
+
+          // 否則繼續等待
+        } catch (err) {
+          clearInterval(timer);
+          reject(err);
+        }
+      };
+
+      // 立即檢查一次
+      check();
+      const timer = setInterval(check, intervalMs);
+    });
+  }
+
+  /**
    * 设置优雅退出处理
    */
   private setupGracefulShutdown(): void {
@@ -92,9 +130,23 @@ export class WebServer {
       }
 
       isShuttingDown = true;
-      logger.info(`收到 ${signal} 信号，开始优雅关闭...`);
+      logger.info(`收到 ${signal} 信号，嘗試優雅關閉...`);
 
       try {
+        // 如果當前存在活躍的回饋會話，等待使用者提交或到達會話超時
+        const active = this.sessionStorage.getSessionCount();
+        if (active > 0) {
+          // 等待時間以 dialogTimeout 為主（毫秒），最少等待 30 秒，最多等待 5 分鐘
+          const waitMs = Math.min(Math.max(this.config.dialogTimeout * 1000, 30000), 5 * 60 * 1000);
+          logger.info(`檢測到 ${active} 個活躍會話，將等待最多 ${Math.round(waitMs / 1000)} 秒以便使用者提交回饋`);
+          try {
+            await this.waitForActiveSessions(waitMs);
+            logger.info('所有活躍會話已完成或超時，繼續關閉流程');
+          } catch (waitErr) {
+            logger.warn('等待活躍會話完成時發生錯誤或超時，將繼續關閉流程', waitErr);
+          }
+        }
+
         await this.gracefulStop();
         logger.info('优雅关闭完成');
         process.exit(0);
@@ -1210,6 +1262,19 @@ export class WebServer {
     logger.info(`正在停止Web服务器 (端口: ${currentPort})...`);
 
     try {
+      // 如果有活躍會話，先等待一段時間以便使用者提交（最多等待 dialogTimeout 或 30 秒，視情況而定）
+      const active = this.sessionStorage.getSessionCount();
+      if (active > 0) {
+        const waitMs = Math.min(Math.max(this.config.dialogTimeout * 1000, 30000), 5 * 60 * 1000);
+        logger.info(`檢測到 ${active} 個活躍會話，將等待最多 ${Math.round(waitMs / 1000)} 秒以便使用者提交回饋`);
+        try {
+          await this.waitForActiveSessions(waitMs);
+          logger.info('活躍會話已完成，繼續停止流程');
+        } catch (waitErr) {
+          logger.warn('等待活躍會話完成時發生錯誤或超時，將繼續停止流程', waitErr);
+        }
+      }
+
       // 清理所有活跃会话
       this.sessionStorage.clear();
       this.sessionStorage.stopCleanupTimer();
