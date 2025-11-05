@@ -651,8 +651,10 @@ export class WebServer {
           apiKey = settings.apiKey;
           usingDatabaseKey = true;
           logger.info('使用資料庫中解密的 API Key 進行驗證');
+          logger.debug(`解密後的 API Key 長度: ${apiKey.length}, 前綴: ${apiKey.substring(0, 3)}...`);
         } else {
           logger.info('使用新輸入的 API Key 進行驗證');
+          logger.debug(`新輸入的 API Key 長度: ${apiKey.length}, 前綴: ${apiKey.substring(0, 3)}...`);
         }
 
         const result = await validateAPIKey(apiKey, model);

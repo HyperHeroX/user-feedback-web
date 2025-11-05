@@ -422,9 +422,16 @@ export function getAISettings(): AISettings | undefined {
 
     // 解密 API Key
     try {
+        const encryptedKey = settings.apiKey;
+        console.log(`[Database] 嘗試解密 API Key, 加密格式: ${encryptedKey?.substring(0, 20)}...`);
+        console.log(`[Database] 加密密碼是否已設置: ${!!process.env['MCP_ENCRYPTION_PASSWORD']}`);
+        
         settings.apiKey = decrypt(settings.apiKey);
+        
+        console.log(`[Database] API Key 解密成功, 長度: ${settings.apiKey?.length}, 前綴: ${settings.apiKey?.substring(0, 3)}...`);
     } catch (error) {
-        console.error('Failed to decrypt API key:', error);
+        console.error('[Database] Failed to decrypt API key:', error);
+        console.error(`[Database] 使用的加密密碼: ${process.env['MCP_ENCRYPTION_PASSWORD'] ? '已設置' : '未設置(使用預設值)'}`);
         settings.apiKey = '';
     }
 
@@ -456,7 +463,11 @@ export function updateAISettings(data: AISettingsRequest): AISettings {
         }
         if (data.apiKey !== undefined) {
             updates.push('api_key = ?');
-            values.push(encrypt(data.apiKey)); // 加密 API Key
+            console.log(`[Database] 加密 API Key, 原始長度: ${data.apiKey.length}, 前綴: ${data.apiKey.substring(0, 3)}...`);
+            console.log(`[Database] 使用的加密密碼: ${process.env['MCP_ENCRYPTION_PASSWORD'] ? '已設置' : '未設置(使用預設值)'}`);
+            const encrypted = encrypt(data.apiKey);
+            console.log(`[Database] API Key 加密後格式: ${encrypted.substring(0, 20)}...`);
+            values.push(encrypted); // 加密 API Key
         }
         if (data.systemPrompt !== undefined) {
             updates.push('system_prompt = ?');
