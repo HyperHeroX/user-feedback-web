@@ -634,7 +634,9 @@ export class WebServer {
           return;
         }
 
-        // 如果沒有提供 API Key，則從資料庫獲取
+        let usingDatabaseKey = false;
+
+        // 如果沒有提供 API Key，則從資料庫獲取並解密
         if (!apiKey) {
           const settings = getAISettings();
           if (!settings || !settings.apiKey || settings.apiKey === 'YOUR_API_KEY_HERE') {
@@ -645,17 +647,21 @@ export class WebServer {
             });
             return;
           }
+          // getAISettings() 已經自動解密了 API Key
           apiKey = settings.apiKey;
-          logger.info('使用資料庫中的 API Key 進行驗證');
+          usingDatabaseKey = true;
+          logger.info('使用資料庫中解密的 API Key 進行驗證');
+        } else {
+          logger.info('使用新輸入的 API Key 進行驗證');
         }
 
         const result = await validateAPIKey(apiKey, model);
 
         if (result.valid) {
-          logger.info('API Key 驗證成功');
+          logger.info(`API Key 驗證成功 (${usingDatabaseKey ? '資料庫' : '新輸入'})`);
           res.json({ success: true, valid: true });
         } else {
-          logger.warn('API Key 驗證失敗:', result.error);
+          logger.warn(`API Key 驗證失敗 (${usingDatabaseKey ? '資料庫' : '新輸入'}):`, result.error);
           res.json({ success: false, valid: false, error: result.error });
         }
       } catch (error) {

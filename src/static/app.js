@@ -1209,11 +1209,16 @@ async function testAPIKey() {
   try {
     const requestBody = { model };
     
-    // 只有當輸入的 API Key 不是遮罩格式且不為空時才發送
+    // 判斷是否使用新輸入的 API Key：
+    // 1. API Key 不為空
+    // 2. API Key 不是遮罩格式（不以 *** 開頭）
+    // 如果是遮罩格式或為空，後端會自動使用資料庫中解密的 API Key
     if (apiKeyInput && !apiKeyInput.startsWith("***")) {
       requestBody.apiKey = apiKeyInput;
+      console.log("使用新輸入的 API Key 進行測試");
+    } else {
+      console.log("使用資料庫中儲存的 API Key 進行測試");
     }
-    // 否則後端會使用資料庫中儲存的 API Key
 
     const response = await fetch("/api/ai-settings/validate", {
       method: "POST",
