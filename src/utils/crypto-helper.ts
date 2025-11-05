@@ -4,6 +4,8 @@
  */
 
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
@@ -13,19 +15,73 @@ const SALT = 'mcp-feedback-collector-salt-v1'; // 唯一的 salt
 // 追蹤是否已記錄加密密碼狀態
 let encryptionKeyLogged = false;
 
+// 快取加密密碼
+let cachedPassword: string | null = null;
+
+/**
+ * 從配置文件讀取加密密碼
+ */
+function loadPasswordFromConfig(): string | null {
+    try {
+        const configPath = path.join(process.cwd(), 'data', 'config.json');
+        if (fs.existsSync(configPath)) {
+            const configData = fs.readFileSync(configPath, 'utf8');
+            const config = JSON.parse(configData);
+            return config.encryptionPassword || null;
+        }
+    } catch (error) {
+        console.error('[Crypto] 讀取配置文件失敗:', error);
+    }
+    return null;
+}
+
+/**
+ * 獲取加密密碼
+ * 優先級：環境變數 > 配置文件 > 預設值
+ */
+function getEncryptionPassword(): string {
+    if (cachedPassword) {
+        return cachedPassword;
+    }
+
+    // 1. 嘗試從環境變數獲取
+    if (process.env['MCP_ENCRYPTION_PASSWORD']) {
+        cachedPassword = process.env['MCP_ENCRYPTION_PASSWORD'];
+        return cachedPassword;
+    }
+
+    // 2. 嘗試從配置文件獲取
+    const configPassword = loadPasswordFromConfig();
+    if (configPassword) {
+        cachedPassword = configPassword;
+        return cachedPassword;
+    }
+
+    // 3. 使用預設值
+    cachedPassword = 'default-encryption-key-change-in-production';
+    return cachedPassword;
+}
+
 /**
  * 獲取加密金鑰
- * 從環境變數或使用預設值（開發時）
+ * 從環境變數、配置文件或使用預設值（開發時）
  */
 function getEncryptionKey(): Buffer {
-    const password = process.env['MCP_ENCRYPTION_PASSWORD'] || 'default-encryption-key-change-in-production';
-    const isDefault = !process.env['MCP_ENCRYPTION_PASSWORD'];
+    const password = getEncryptionPassword();
+    const isDefault = password === 'default-encryption-key-change-in-production';
+    const isFromEnv = process.env['MCP_ENCRYPTION_PASSWORD'] === password;
+    const isFromConfig = !isDefault && !isFromEnv;
     
     // 在首次使用時記錄加密密碼狀態
     if (!encryptionKeyLogged) {
-        console.log(`[Crypto] 加密密碼狀態: ${isDefault ? '使用預設值' : '使用自定義密碼'}`);
-        if (!isDefault) {
-            console.log(`[Crypto] 自定義密碼長度: ${password.length}`);
+        if (isDefault) {
+            console.log(`[Crypto] 加密密碼狀態: 使用預設值`);
+        } else if (isFromEnv) {
+            console.log(`[Crypto] 加密密碼狀態: 使用環境變數`);
+            console.log(`[Crypto] 密碼長度: ${password.length}`);
+        } else if (isFromConfig) {
+            console.log(`[Crypto] 加密密碼狀態: 使用配置文件`);
+            console.log(`[Crypto] 密碼長度: ${password.length}`);
         }
         encryptionKeyLogged = true;
     }
