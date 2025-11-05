@@ -7,12 +7,23 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
 const SALT = 'mcp-feedback-collector-salt-v1'; // 唯一的 salt
+// 追蹤是否已記錄加密密碼狀態
+let encryptionKeyLogged = false;
 /**
  * 獲取加密金鑰
  * 從環境變數或使用預設值（開發時）
  */
 function getEncryptionKey() {
     const password = process.env['MCP_ENCRYPTION_PASSWORD'] || 'default-encryption-key-change-in-production';
+    const isDefault = !process.env['MCP_ENCRYPTION_PASSWORD'];
+    // 在首次使用時記錄加密密碼狀態
+    if (!encryptionKeyLogged) {
+        console.log(`[Crypto] 加密密碼狀態: ${isDefault ? '使用預設值' : '使用自定義密碼'}`);
+        if (!isDefault) {
+            console.log(`[Crypto] 自定義密碼長度: ${password.length}`);
+        }
+        encryptionKeyLogged = true;
+    }
     return crypto.scryptSync(password, SALT, 32);
 }
 /**
