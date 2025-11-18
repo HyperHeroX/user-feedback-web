@@ -171,12 +171,26 @@ describe('图片处理器', () => {
         }
       ];
 
-      const result = await imageProcessor.processImages(images);
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
-        name: 'test.png',
-        type: 'image/png'
-      });
+      const getImageInfoSpy = jest
+        .spyOn(imageProcessor, 'getImageInfoFromBase64')
+        .mockResolvedValue({
+          format: 'png',
+          width: 50,
+          height: 50,
+          size: 100,
+          hasAlpha: true
+        });
+
+      try {
+        const result = await imageProcessor.processImages(images);
+        expect(result).toHaveLength(1);
+        expect(result[0]).toMatchObject({
+          name: 'test.png',
+          type: 'image/png'
+        });
+      } finally {
+        getImageInfoSpy.mockRestore();
+      }
     });
 
     test('应该在图片处理失败时抛出错误', async () => {

@@ -4,7 +4,6 @@
 
 import { MCPServer } from '../server/mcp-server.js';
 import { createDefaultConfig } from '../config/index.js';
-import { ImageData } from '../types/index.js';
 
 describe('集成测试', () => {
   let mcpServer: MCPServer;

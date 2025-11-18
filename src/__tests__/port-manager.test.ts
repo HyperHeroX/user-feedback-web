@@ -94,7 +94,7 @@ describe('端口管理器', () => {
       const status = await portManager.getPortRangeStatus();
       
       expect(Array.isArray(status)).toBe(true);
-      expect(status.length).toBe(20); // 5000-5019 共20个端口
+      expect(status.length).toBe(100); // 5000-5099 共100个端口
       
       for (const info of status) {
         expect(info).toMatchObject({
@@ -103,7 +103,7 @@ describe('端口管理器', () => {
           pid: undefined
         });
         expect(info.port).toBeGreaterThanOrEqual(5000);
-        expect(info.port).toBeLessThanOrEqual(5019);
+        expect(info.port).toBeLessThanOrEqual(5099);
       }
     });
   });

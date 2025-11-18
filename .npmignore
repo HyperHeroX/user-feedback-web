@@ -10,12 +10,20 @@ src/
 logs/
 node_modules/
 coverage/
+data/
+openspec/
+.github/
+.cursor/
 
 # Build tools
 tsconfig.json
 jest.config.js
 .eslintrc.json
+.prettierrc
+.editorconfig
 scripts/
+Dockerfile
+docker-compose.yml
 
 # Development documentation (keep main docs)
 development-journey.html
@@ -26,6 +34,13 @@ FUNCTIONAL_REQUIREMENTS.md
 DEBUG_MCP_COMMUNICATION.md
 TESTING_STRATEGY.md
 RELEASE_CHECKLIST.md
+DOCUMENTATION_INDEX.md
+DEPLOYMENT_READY.md
+IMPLEMENTATION_COMPLETE.md
+QUICK_REFERENCE.md
+ARCHITECTURE.md
+API_DOCUMENTATION.md
+SECURITY_CONSIDERATIONS.md
 
 # IDE and OS files
 .vscode/

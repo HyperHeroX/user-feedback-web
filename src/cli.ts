@@ -5,7 +5,6 @@
  */
 
 import { program } from 'commander';
-import fetch from 'node-fetch';
 import { getConfig, displayConfig } from './config/index.js';
 import { logger } from './utils/logger.js';
 import { MCPServer } from './server/mcp-server.js';
@@ -21,6 +20,13 @@ const isMCPMode = !process.stdin.isTTY ||
 if (isMCPMode) {
   logger.disableColors();
   logger.setLevel('silent' as any);
+}
+
+function getRuntimeFetch(): typeof fetch {
+  if (typeof fetch === 'function') {
+    return fetch;
+  }
+  throw new MCPError('Fetch API is not available in this environment', 'FETCH_UNSUPPORTED');
 }
 
 /**
@@ -190,13 +196,14 @@ program
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       try {
-        const response = await fetch(`http://localhost:${server.getStatus().webPort}/api/metrics`);
+        const runtimeFetch = getRuntimeFetch();
+        const response = await runtimeFetch(`http://localhost:${server.getStatus().webPort}/api/metrics`);
         const metrics = await response.json();
 
         if (options.format === 'json') {
           console.log(JSON.stringify(metrics, null, 2));
         } else {
-          const reportResponse = await fetch(`http://localhost:${server.getStatus().webPort}/api/performance-report`);
+          const reportResponse = await runtimeFetch(`http://localhost:${server.getStatus().webPort}/api/performance-report`);
           const report = await reportResponse.text();
           console.log(report);
         }
@@ -247,7 +254,8 @@ program
       };
 
       try {
-        const response = await fetch(`http://localhost:${server.getStatus().webPort}/api/test-session`, {
+        const runtimeFetch = getRuntimeFetch();
+        const response = await runtimeFetch(`http://localhost:${server.getStatus().webPort}/api/test-session`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

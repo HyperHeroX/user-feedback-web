@@ -5,7 +5,6 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logger } from './logger.js';
-import { MCPError } from '../types/index.js';
 
 const execAsync = promisify(exec);
 

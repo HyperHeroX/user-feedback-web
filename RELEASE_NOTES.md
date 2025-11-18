@@ -1,5 +1,25 @@
 # 📋 user-feedback MCP Tools - 版本发布说明
 
+## 🚀 v2.1.4 (2025-11-18)
+
+### 📦 npm 发布體驗優化
+**目標**: 確保 npm 套件僅包含最終使用者所需的 dist 執行輸出與核心文檔。
+
+**核心變更**:
+- ✅ 將 `package.json` `files` 陣列精簡為 `dist/`, `README.md`, `LICENSE`
+- ✅ 強化 `.npmignore`，排除 `data/`, `openspec/`, `.github/`, Docker 檔等開發資產
+- ✅ 保留 TypeScript 聲明與 source map，確保型別體驗不受影響
+- ✅ 維持既有建置流程與 `prepublishOnly` 鈎子，避免破壞既有 CI/CD
+
+### 🧪 驗證
+- `npm run build`
+- `npm pack`（最終套件 ~104KB，僅含 dist/ + README + LICENSE）
+- `npx user-web-feedback --version`（來自本地 tarball）
+- `node -e "import('user-web-feedback')"`（驗證 ESM 匯入）
+- `npx tsc --noEmit test.ts`（在臨時專案中驗證型別）
+
+---
+
 ## 🚀 v2.1.3 (2025-06-12)
 
 ### 📋 MCP标准日志功能

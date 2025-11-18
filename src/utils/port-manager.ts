@@ -44,7 +44,7 @@ export class PortManager {
         }
       });
 
-      server.on('error', (err: any) => {
+      server.on('error', (_err: any) => {
         if (!resolved) {
           resolved = true;
           clearTimeout(timeout);
@@ -108,7 +108,7 @@ export class PortManager {
         logger.info(`成功清理僵尸进程，端口 ${port} 已释放`);
         return port;
       } else {
-        logger.error(`无法清理僵尸进程，寻找其他端口`);
+        logger.error('无法清理僵尸进程，寻找其他端口');
         return await this.findAlternativePort(port);
       }
     }
@@ -121,7 +121,7 @@ export class PortManager {
         logger.info(`成功终止进程，端口 ${port} 已释放`);
         return port;
       } else {
-        logger.error(`无法终止进程，寻找其他端口`);
+        logger.error('无法终止进程，寻找其他端口');
         return await this.findAlternativePort(port);
       }
     }

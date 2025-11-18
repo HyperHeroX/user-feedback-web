@@ -21,8 +21,8 @@ describe('配置管理', () => {
       expect(config).toMatchObject({
         apiBaseUrl: 'https://api.ssopen.top',
         defaultModel: 'gpt-4o-mini',
-        webPort: 5000,
-        dialogTimeout: 60000,
+        webPort: 5050,
+        dialogTimeout: 60,
         enableChat: true,
         corsOrigin: '*',
         maxFileSize: 10485760,
@@ -52,8 +52,8 @@ describe('配置管理', () => {
       
       const config = createDefaultConfig();
       
-      expect(config.webPort).toBe(5000); // 回退到默认值
-      expect(config.dialogTimeout).toBe(60000); // 回退到默认值
+      expect(config.webPort).toBe(5050); // 回退到默认值
+      expect(config.dialogTimeout).toBe(60); // 回退到默认值 (秒)
     });
   });
 

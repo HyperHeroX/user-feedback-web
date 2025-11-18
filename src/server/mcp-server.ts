@@ -4,7 +4,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolResult, TextContent, ImageContent, SetLevelRequestSchema, LoggingMessageNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolResult, TextContent, ImageContent, SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { Config, CollectFeedbackParams, MCPError, FeedbackData, ImageData, MCPLogLevel, MCPLogMessage } from '../types/index.js';
 import { logger } from '../utils/logger.js';

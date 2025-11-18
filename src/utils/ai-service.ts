@@ -178,7 +178,7 @@ function buildPrompt(systemPrompt: string, aiMessage: string, userContext?: stri
         prompt += `使用者上下文：\n${userContext}\n\n`;
     }
 
-    prompt += `請生成一個簡潔、專業的回應：`;
+    prompt += '請生成一個簡潔、專業的回應：';
 
     return prompt;
 }

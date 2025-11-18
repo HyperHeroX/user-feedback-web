@@ -4,7 +4,6 @@
  */
 
 import Jimp from 'jimp';
-import { promises as fs } from 'fs';
 import { MCPError, ImageData } from '../types/index.js';
 import { logger } from './logger.js';
 
