@@ -54,9 +54,50 @@ export class MCPServer {
             };
             logger.mcp('collect_feedback', params);
             try {
+                // 在呼叫 collectFeedback 之前，發送一個 MCP 日誌/通知說明正在等待使用者回覆
+                try {
+                    await this.mcpServer.server.notification({
+                        method: 'notifications/message',
+                        params: {
+                            level: 'info',
+                            logger: 'user-web-feedback',
+                            data: {
+                                event: 'collect_feedback_waiting',
+                                work_summary_length: params.work_summary.length
+                            }
+                        }
+                    });
+                }
+                catch (nErr) {
+                    // 靜默失敗，不影響流程
+                }
                 const result = await this.collectFeedback(params);
-                logger.mcp('collect_feedback', params, result);
-                return result;
+                // collectFeedback 現在會回傳 { feedback, sessionId, feedbackUrl }
+                // 在等待開始後，通知 caller 反馈页面地址。
+                try {
+                    await this.mcpServer.server.notification({
+                        method: 'notifications/message',
+                        params: {
+                            level: 'info',
+                            logger: 'user-web-feedback',
+                            data: {
+                                event: 'collect_feedback_created',
+                                sessionId: result.sessionId,
+                                feedbackUrl: result.feedbackUrl
+                            }
+                        }
+                    });
+                }
+                catch (nErr) {
+                    // 忽略通知錯誤
+                }
+                logger.mcp('collect_feedback', params, { feedback_count: result.feedback.length });
+                // 將格式化後的 feedback 傳回作為工具結果
+                const content = this.formatFeedbackForMCP(result.feedback);
+                return {
+                    content,
+                    isError: false
+                };
             }
             catch (error) {
                 logger.error('collect_feedback工具调用失败:', error);
@@ -125,26 +166,16 @@ export class MCPServer {
             if (!this.webServer.isRunning()) {
                 await this.webServer.start();
             }
-            // 收集用户反馈
-            const feedback = await this.webServer.collectFeedback(work_summary, timeout_seconds);
-            logger.info(`反馈收集完成，收到 ${feedback.length} 条反馈`);
-            // 格式化反馈数据为MCP内容（支持图片）
-            const content = this.formatFeedbackForMCP(feedback);
-            return {
-                content,
-                isError: false
-            };
+            // 收集用户反馈（webServer.collectFeedback 已回傳 { feedback, sessionId, feedbackUrl }）
+            const result = await this.webServer.collectFeedback(work_summary, timeout_seconds);
+            logger.info(`反馈收集流程已完成（可能为空），会话: ${result.sessionId}`);
+            return result;
         }
         catch (error) {
             logger.error('反馈收集失败:', error);
-            const errorMessage = error instanceof MCPError ? error.message : 'Failed to collect user feedback';
-            return {
-                content: [{
-                        type: 'text',
-                        text: `错误: ${errorMessage}`
-                    }],
-                isError: true
-            };
+            if (error instanceof MCPError)
+                throw error;
+            throw new MCPError('Failed to collect user feedback', 'COLLECT_FEEDBACK_ERROR', error);
         }
     }
     /**

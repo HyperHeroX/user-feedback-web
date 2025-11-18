@@ -214,6 +214,7 @@ export interface AISettings {
   systemPrompt: string;
   temperature?: number;
   maxTokens?: number;
+  autoReplyTimerSeconds?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -226,6 +227,7 @@ export interface AISettingsRequest {
   systemPrompt?: string;
   temperature?: number;
   maxTokens?: number;
+  autoReplyTimerSeconds?: number;
 }
 
 // AI 設定響應類型（API Key 遮罩）

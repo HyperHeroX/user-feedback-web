@@ -71,6 +71,40 @@ export class WebServer {
         this.setupGracefulShutdown();
     }
     /**
+     * 等待所有活躍會話完成或達到最大等待時間。
+     * 這是簡單的輪詢實作，檢查 sessionStorage.getSessionCount() 是否降為 0。
+     */
+    async waitForActiveSessions(maxWaitMs) {
+        const intervalMs = 1000;
+        const start = Date.now();
+        return new Promise((resolve, reject) => {
+            const check = () => {
+                try {
+                    const count = this.sessionStorage.getSessionCount();
+                    if (count === 0) {
+                        clearInterval(timer);
+                        resolve();
+                        return;
+                    }
+                    const elapsed = Date.now() - start;
+                    if (elapsed >= maxWaitMs) {
+                        clearInterval(timer);
+                        reject(new Error('等待活躍會話超時'));
+                        return;
+                    }
+                    // 否則繼續等待
+                }
+                catch (err) {
+                    clearInterval(timer);
+                    reject(err);
+                }
+            };
+            // 立即檢查一次
+            check();
+            const timer = setInterval(check, intervalMs);
+        });
+    }
+    /**
      * 设置优雅退出处理
      */
     setupGracefulShutdown() {
@@ -82,8 +116,22 @@ export class WebServer {
                 return;
             }
             isShuttingDown = true;
-            logger.info(`收到 ${signal} 信号，开始优雅关闭...`);
+            logger.info(`收到 ${signal} 信号，嘗試優雅關閉...`);
             try {
+                // 如果當前存在活躍的回饋會話，等待使用者提交或到達會話超時
+                const active = this.sessionStorage.getSessionCount();
+                if (active > 0) {
+                    // 等待時間以 dialogTimeout 為主（毫秒），最少等待 30 秒，最多等待 5 分鐘
+                    const waitMs = Math.min(Math.max(this.config.dialogTimeout * 1000, 30000), 5 * 60 * 1000);
+                    logger.info(`檢測到 ${active} 個活躍會話，將等待最多 ${Math.round(waitMs / 1000)} 秒以便使用者提交回饋`);
+                    try {
+                        await this.waitForActiveSessions(waitMs);
+                        logger.info('所有活躍會話已完成或超時，繼續關閉流程');
+                    }
+                    catch (waitErr) {
+                        logger.warn('等待活躍會話完成時發生錯誤或超時，將繼續關閉流程', waitErr);
+                    }
+                }
                 await this.gracefulStop();
                 logger.info('优雅关闭完成');
                 process.exit(0);
@@ -457,6 +505,7 @@ export class WebServer {
                         systemPrompt: settings.systemPrompt,
                         temperature: settings.temperature,
                         maxTokens: settings.maxTokens,
+                        autoReplyTimerSeconds: settings.autoReplyTimerSeconds,
                         createdAt: settings.createdAt,
                         updatedAt: settings.updatedAt
                     }
@@ -488,6 +537,7 @@ export class WebServer {
                         systemPrompt: settings.systemPrompt,
                         temperature: settings.temperature,
                         maxTokens: settings.maxTokens,
+                        autoReplyTimerSeconds: settings.autoReplyTimerSeconds,
                         createdAt: settings.createdAt,
                         updatedAt: settings.updatedAt
                     }
@@ -508,21 +558,43 @@ export class WebServer {
         // 驗證 API Key
         this.app.post('/api/ai-settings/validate', async (req, res) => {
             try {
-                const { apiKey, model } = req.body;
-                if (!apiKey || !model) {
+                let { apiKey, model } = req.body;
+                if (!model) {
                     res.status(400).json({
                         success: false,
-                        error: 'API Key 和模型為必填欄位'
+                        error: '模型為必填欄位'
                     });
                     return;
                 }
+                let usingDatabaseKey = false;
+                // 如果沒有提供 API Key，則從資料庫獲取並解密
+                if (!apiKey) {
+                    const settings = getAISettings();
+                    if (!settings || !settings.apiKey || settings.apiKey === 'YOUR_API_KEY_HERE') {
+                        res.status(400).json({
+                            success: false,
+                            valid: false,
+                            error: '請先設定 API Key'
+                        });
+                        return;
+                    }
+                    // getAISettings() 已經自動解密了 API Key
+                    apiKey = settings.apiKey;
+                    usingDatabaseKey = true;
+                    logger.info('使用資料庫中解密的 API Key 進行驗證');
+                    logger.debug(`解密後的 API Key 長度: ${apiKey.length}, 前綴: ${apiKey.substring(0, 3)}...`);
+                }
+                else {
+                    logger.info('使用新輸入的 API Key 進行驗證');
+                    logger.debug(`新輸入的 API Key 長度: ${apiKey.length}, 前綴: ${apiKey.substring(0, 3)}...`);
+                }
                 const result = await validateAPIKey(apiKey, model);
                 if (result.valid) {
-                    logger.info('API Key 驗證成功');
+                    logger.info(`API Key 驗證成功 (${usingDatabaseKey ? '資料庫' : '新輸入'})`);
                     res.json({ success: true, valid: true });
                 }
                 else {
-                    logger.warn('API Key 驗證失敗:', result.error);
+                    logger.warn(`API Key 驗證失敗 (${usingDatabaseKey ? '資料庫' : '新輸入'}):`, result.error);
                     res.json({ success: false, valid: false, error: result.error });
                 }
             }
@@ -872,14 +944,14 @@ export class WebServer {
     async collectFeedback(workSummary, timeoutSeconds) {
         const sessionId = this.generateSessionId();
         logger.info(`创建反馈会话: ${sessionId}, 超时: ${timeoutSeconds}秒`);
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
             // 创建会话
             const session = {
                 workSummary,
                 feedback: [],
                 startTime: Date.now(),
                 timeout: timeoutSeconds * 1000,
-                resolve,
+                resolve: (feedback = []) => resolve({ feedback, sessionId, feedbackUrl }),
                 reject
             };
             this.sessionStorage.createSession(sessionId, session);
@@ -889,11 +961,14 @@ export class WebServer {
             logger.mcpFeedbackPageCreated(sessionId, feedbackUrl, timeoutSeconds);
             // 注意：超时处理现在由SessionStorage的清理机制处理
             // 打开浏览器
-            this.openFeedbackPage(sessionId).catch(error => {
+            try {
+                await this.openFeedbackPage(sessionId);
+            }
+            catch (error) {
                 logger.error('打开反馈页面失败:', error);
                 this.sessionStorage.deleteSession(sessionId);
                 reject(error);
-            });
+            }
         });
     }
     /**
@@ -1057,6 +1132,19 @@ export class WebServer {
         const currentPort = this.port;
         logger.info(`正在停止Web服务器 (端口: ${currentPort})...`);
         try {
+            // 如果有活躍會話，先等待一段時間以便使用者提交（最多等待 dialogTimeout 或 30 秒，視情況而定）
+            const active = this.sessionStorage.getSessionCount();
+            if (active > 0) {
+                const waitMs = Math.min(Math.max(this.config.dialogTimeout * 1000, 30000), 5 * 60 * 1000);
+                logger.info(`檢測到 ${active} 個活躍會話，將等待最多 ${Math.round(waitMs / 1000)} 秒以便使用者提交回饋`);
+                try {
+                    await this.waitForActiveSessions(waitMs);
+                    logger.info('活躍會話已完成，繼續停止流程');
+                }
+                catch (waitErr) {
+                    logger.warn('等待活躍會話完成時發生錯誤或超時，將繼續停止流程', waitErr);
+                }
+            }
             // 清理所有活跃会话
             this.sessionStorage.clear();
             this.sessionStorage.stopCleanupTimer();

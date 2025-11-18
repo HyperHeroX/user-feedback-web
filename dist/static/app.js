@@ -1097,7 +1097,11 @@ function openAISettingsModal() {
   if (aiSettings) {
     document.getElementById("apiUrl").value = aiSettings.apiUrl;
     document.getElementById("model").value = aiSettings.model;
-    document.getElementById("apiKey").value = ""; // 不顯示現有 API Key
+    // 顯示遮罩的 API Key
+    document.getElementById("apiKey").value = aiSettings.apiKeyMasked || "";
+    document.getElementById("apiKey").placeholder = aiSettings.apiKeyMasked 
+      ? "已保存 API Key（留空則不修改）" 
+      : "請輸入 API Key";
     document.getElementById("systemPrompt").value = aiSettings.systemPrompt;
     document.getElementById("temperature").value =
       aiSettings.temperature || 0.7;
@@ -1125,12 +1129,16 @@ async function saveAISettings() {
   const settingsData = {
     apiUrl: apiUrl || undefined,
     model: model || undefined,
-    apiKey: apiKey || undefined, // 如果空白則不更新
     systemPrompt: systemPrompt || undefined,
     temperature,
     maxTokens,
     autoReplyTimerSeconds,
   };
+
+  // 只有當 API Key 不是遮罩格式且不為空時才更新
+  if (apiKey && !apiKey.startsWith("***")) {
+    settingsData.apiKey = apiKey;
+  }
 
   try {
     const response = await fetch("/api/ai-settings", {
@@ -1188,13 +1196,8 @@ async function saveAISettings() {
 }
 
 async function testAPIKey() {
-  const apiKey = document.getElementById("apiKey").value.trim();
+  const apiKeyInput = document.getElementById("apiKey").value.trim();
   const model = document.getElementById("model").value.trim();
-
-  if (!apiKey) {
-    showToast("error", "錯誤", "請輸入 API Key");
-    return;
-  }
 
   if (!model) {
     showToast("error", "錯誤", "請輸入模型名稱");
@@ -1204,10 +1207,23 @@ async function testAPIKey() {
   showLoadingOverlay("正在測試 API Key...");
 
   try {
+    const requestBody = { model };
+    
+    // 判斷是否使用新輸入的 API Key：
+    // 1. API Key 不為空
+    // 2. API Key 不是遮罩格式（不以 *** 開頭）
+    // 如果是遮罩格式或為空，後端會自動使用資料庫中解密的 API Key
+    if (apiKeyInput && !apiKeyInput.startsWith("***")) {
+      requestBody.apiKey = apiKeyInput;
+      console.log("使用新輸入的 API Key 進行測試");
+    } else {
+      console.log("使用資料庫中儲存的 API Key 進行測試");
+    }
+
     const response = await fetch("/api/ai-settings/validate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiKey, model }),
+      body: JSON.stringify(requestBody),
     });
 
     const data = await response.json();

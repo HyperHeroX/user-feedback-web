@@ -10,6 +10,25 @@ const DB_DIR = path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DB_DIR, 'feedback.db');
 let db = null;
 /**
+ * 嘗試取得已初始化的資料庫，若無法載入 native 模組（例如在無法編譯 native addon 的環境），
+ * 則回傳 null，呼叫端需妥善處理回傳為 null 的情況以降級處理。
+ */
+function tryGetDb() {
+    try {
+        if (!db) {
+            return initDatabase();
+        }
+        return db;
+    }
+    catch (err) {
+        // 記錄錯誤，並回傳 null 以便上層採取降級處理
+        // 使用 console 而非 logger 以避免循環引用（此模組在啟動時可能比 logger 早被呼叫）
+        console.error('Database unavailable:', err instanceof Error ? err.message : err);
+        db = null;
+        return null;
+    }
+}
+/**
  * 初始化資料庫
  * 創建資料目錄和資料表
  */
@@ -64,10 +83,26 @@ function createTables() {
       system_prompt TEXT NOT NULL,
       temperature REAL,
       max_tokens INTEGER,
+      auto_reply_timer_seconds INTEGER DEFAULT 300,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+    // 遷移：為現有的ai_settings表添加auto_reply_timer_seconds列（如果不存在）
+    try {
+        const columnCheck = db.prepare("PRAGMA table_info(ai_settings)").all();
+        const hasColumn = columnCheck.some(col => col.name === 'auto_reply_timer_seconds');
+        if (!hasColumn) {
+            db.exec(`
+                ALTER TABLE ai_settings 
+                ADD COLUMN auto_reply_timer_seconds INTEGER DEFAULT 300
+            `);
+            console.log('[Database] Successfully migrated ai_settings table - added auto_reply_timer_seconds column');
+        }
+    }
+    catch (error) {
+        console.warn('[Database] Migration check failed (may be normal for new DBs):', error);
+    }
     // 使用者偏好設定表
     db.exec(`
     CREATE TABLE IF NOT EXISTS user_preferences (
@@ -99,10 +134,10 @@ function initDefaultSettings() {
 
 保持回應簡短（2-3句話），除非需要更詳細的說明。`;
         db.prepare(`
-      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, temperature, max_tokens)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, temperature, max_tokens, auto_reply_timer_seconds)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run('https://generativelanguage.googleapis.com/v1beta', 'gemini-2.0-flash-exp', encrypt('YOUR_API_KEY_HERE'), // 加密預設值
-        defaultSystemPrompt, 0.7, 1000);
+        defaultSystemPrompt, 0.7, 1000, 300);
     }
     // 檢查使用者偏好設定
     const preferences = db.prepare('SELECT COUNT(*) as count FROM user_preferences').get();
@@ -136,7 +171,9 @@ export function getDatabase() {
  * 獲取所有提示詞
  */
 export function getAllPrompts() {
-    const db = getDatabase();
+    const db = tryGetDb();
+    if (!db)
+        return [];
     const rows = db.prepare(`
     SELECT 
       id, title, content, 
@@ -157,7 +194,9 @@ export function getAllPrompts() {
  * 根據 ID 獲取提示詞
  */
 export function getPromptById(id) {
-    const db = getDatabase();
+    const db = tryGetDb();
+    if (!db)
+        return undefined;
     const row = db.prepare(`
     SELECT 
       id, title, content, 
@@ -180,7 +219,9 @@ export function getPromptById(id) {
  * 創建新提示詞
  */
 export function createPrompt(data) {
-    const db = getDatabase();
+    const db = tryGetDb();
+    if (!db)
+        throw new Error('Database unavailable');
     // 獲取當前最大的 order_index
     const maxOrder = db.prepare('SELECT MAX(order_index) as maxOrder FROM prompts').get();
     const orderIndex = (maxOrder.maxOrder ?? -1) + 1;
@@ -197,7 +238,9 @@ export function createPrompt(data) {
  * 更新提示詞
  */
 export function updatePrompt(id, data) {
-    const db = getDatabase();
+    const db = tryGetDb();
+    if (!db)
+        throw new Error('Database unavailable');
     // 構建動態 SQL
     const updates = [];
     const values = [];
@@ -240,7 +283,9 @@ export function updatePrompt(id, data) {
  * 刪除提示詞
  */
 export function deletePrompt(id) {
-    const db = getDatabase();
+    const db = tryGetDb();
+    if (!db)
+        return false;
     const result = db.prepare('DELETE FROM prompts WHERE id = ?').run(id);
     return result.changes > 0;
 }
@@ -248,7 +293,9 @@ export function deletePrompt(id) {
  * 切換提示詞釘選狀態
  */
 export function togglePromptPin(id) {
-    const db = getDatabase();
+    const db = tryGetDb();
+    if (!db)
+        throw new Error('Database unavailable');
     const prompt = getPromptById(id);
     if (!prompt)
         throw new Error('Prompt not found');
@@ -266,7 +313,9 @@ export function togglePromptPin(id) {
  * 調整提示詞順序
  */
 export function reorderPrompts(prompts) {
-    const db = getDatabase();
+    const db = tryGetDb();
+    if (!db)
+        throw new Error('Database unavailable');
     const updateStmt = db.prepare(`
     UPDATE prompts
     SET order_index = ?, updated_at = CURRENT_TIMESTAMP
@@ -283,7 +332,9 @@ export function reorderPrompts(prompts) {
  * 獲取釘選的提示詞（按順序）
  */
 export function getPinnedPrompts() {
-    const db = getDatabase();
+    const db = tryGetDb();
+    if (!db)
+        return [];
     const rows = db.prepare(`
     SELECT 
       id, title, content, 
@@ -306,11 +357,13 @@ export function getPinnedPrompts() {
  * 獲取 AI 設定
  */
 export function getAISettings() {
-    const db = getDatabase();
+    const db = tryGetDb();
+    if (!db)
+        return undefined;
     const row = db.prepare(`
     SELECT 
       id, api_url as apiUrl, model, api_key as apiKey, system_prompt as systemPrompt,
-      temperature, max_tokens as maxTokens,
+      temperature, max_tokens as maxTokens, auto_reply_timer_seconds as autoReplyTimerSeconds,
       created_at as createdAt, updated_at as updatedAt
     FROM ai_settings
     ORDER BY id DESC
@@ -321,10 +374,15 @@ export function getAISettings() {
     const settings = row;
     // 解密 API Key
     try {
+        const encryptedKey = settings.apiKey;
+        console.log(`[Database] 嘗試解密 API Key, 加密格式: ${encryptedKey?.substring(0, 20)}...`);
+        console.log(`[Database] 加密密碼是否已設置: ${!!process.env['MCP_ENCRYPTION_PASSWORD']}`);
         settings.apiKey = decrypt(settings.apiKey);
+        console.log(`[Database] API Key 解密成功, 長度: ${settings.apiKey?.length}, 前綴: ${settings.apiKey?.substring(0, 3)}...`);
     }
     catch (error) {
-        console.error('Failed to decrypt API key:', error);
+        console.error('[Database] Failed to decrypt API key:', error);
+        console.error(`[Database] 使用的加密密碼: ${process.env['MCP_ENCRYPTION_PASSWORD'] ? '已設置' : '未設置(使用預設值)'}`);
         settings.apiKey = '';
     }
     return settings;
@@ -333,7 +391,9 @@ export function getAISettings() {
  * 更新 AI 設定
  */
 export function updateAISettings(data) {
-    const db = getDatabase();
+    const db = tryGetDb();
+    if (!db)
+        throw new Error('Database unavailable');
     // 檢查是否已有設定
     const existing = db.prepare('SELECT id FROM ai_settings ORDER BY id DESC LIMIT 1').get();
     if (existing) {
@@ -350,7 +410,11 @@ export function updateAISettings(data) {
         }
         if (data.apiKey !== undefined) {
             updates.push('api_key = ?');
-            values.push(encrypt(data.apiKey)); // 加密 API Key
+            console.log(`[Database] 加密 API Key, 原始長度: ${data.apiKey.length}, 前綴: ${data.apiKey.substring(0, 3)}...`);
+            console.log(`[Database] 使用的加密密碼: ${process.env['MCP_ENCRYPTION_PASSWORD'] ? '已設置' : '未設置(使用預設值)'}`);
+            const encrypted = encrypt(data.apiKey);
+            console.log(`[Database] API Key 加密後格式: ${encrypted.substring(0, 20)}...`);
+            values.push(encrypted); // 加密 API Key
         }
         if (data.systemPrompt !== undefined) {
             updates.push('system_prompt = ?');
@@ -363,6 +427,10 @@ export function updateAISettings(data) {
         if (data.maxTokens !== undefined) {
             updates.push('max_tokens = ?');
             values.push(data.maxTokens);
+        }
+        if (data.autoReplyTimerSeconds !== undefined) {
+            updates.push('auto_reply_timer_seconds = ?');
+            values.push(data.autoReplyTimerSeconds);
         }
         if (updates.length > 0) {
             updates.push('updated_at = CURRENT_TIMESTAMP');
@@ -384,9 +452,9 @@ export function updateAISettings(data) {
     else {
         // 創建新設定
         db.prepare(`
-      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, temperature, max_tokens)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(data.apiUrl || 'https://generativelanguage.googleapis.com/v1beta', data.model || 'gemini-2.0-flash-exp', data.apiKey ? encrypt(data.apiKey) : encrypt('YOUR_API_KEY_HERE'), data.systemPrompt || '', data.temperature ?? 0.7, data.maxTokens ?? 1000);
+      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, temperature, max_tokens, auto_reply_timer_seconds)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(data.apiUrl || 'https://generativelanguage.googleapis.com/v1beta', data.model || 'gemini-2.0-flash-exp', data.apiKey ? encrypt(data.apiKey) : encrypt('YOUR_API_KEY_HERE'), data.systemPrompt || '', data.temperature ?? 0.7, data.maxTokens ?? 1000, data.autoReplyTimerSeconds ?? 300);
     }
     const settings = getAISettings();
     if (!settings)
@@ -398,7 +466,17 @@ export function updateAISettings(data) {
  * 獲取使用者偏好設定
  */
 export function getUserPreferences() {
-    const db = getDatabase();
+    const db = tryGetDb();
+    if (!db) {
+        return {
+            id: 0,
+            autoReplyTimeout: 300,
+            enableAutoReply: false,
+            theme: 'light',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+    }
     const row = db.prepare(`
     SELECT 
       id,
@@ -432,7 +510,18 @@ export function getUserPreferences() {
  * 更新使用者偏好設定
  */
 export function updateUserPreferences(data) {
-    const db = getDatabase();
+    const db = tryGetDb();
+    if (!db) {
+        // 無法存取資料庫，回傳預設偏好（但不儲存）
+        return {
+            id: 0,
+            autoReplyTimeout: data.autoReplyTimeout ?? 300,
+            enableAutoReply: data.enableAutoReply ?? false,
+            theme: data.theme || 'light',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+    }
     const existing = db.prepare('SELECT id FROM user_preferences ORDER BY id DESC LIMIT 1').get();
     if (existing) {
         const updates = [];

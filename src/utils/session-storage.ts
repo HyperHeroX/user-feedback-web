@@ -157,7 +157,27 @@ export class SessionStorage {
   clear(): void {
     // 通知所有会话关闭
     for (const [sessionId, session] of this.sessions) {
-      if (session.reject) {
+      // 在服務器關閉時，優先以友善的回覆通知使用者會話尚未提交
+      // 並指示使用者重新呼叫或稍後再次嘗試。
+      // 使用 resolve 回傳預設回覆，避免拋出錯誤導致 MCP 客戶端收到『Server is shutting down』例外。
+      if (session.resolve) {
+        const shutdownFeedback: FeedbackData = {
+          text: '伺服器即將關閉：您的反饋尚未提交。請重新呼叫 user-web-feedback 以繼續提交，或稍後再次嘗試。未完成的摘要/回覆將不會送出。',
+          images: [],
+          timestamp: Date.now(),
+          sessionId
+        };
+
+        try {
+          session.resolve([shutdownFeedback]);
+        } catch (e) {
+          // 如果 resolve 本身拋錯，再退回到 reject（備援）
+          if (session.reject) {
+            session.reject(new MCPError('Server is shutting down', 'SERVER_SHUTDOWN'));
+          }
+        }
+      } else if (session.reject) {
+        // 若沒有 resolve，才使用 reject 通知錯誤
         session.reject(new MCPError('Server is shutting down', 'SERVER_SHUTDOWN'));
       }
     }

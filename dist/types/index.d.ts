@@ -165,6 +165,7 @@ export interface AISettings {
     systemPrompt: string;
     temperature?: number;
     maxTokens?: number;
+    autoReplyTimerSeconds?: number;
     createdAt: string;
     updatedAt: string;
 }
@@ -175,6 +176,7 @@ export interface AISettingsRequest {
     systemPrompt?: string;
     temperature?: number;
     maxTokens?: number;
+    autoReplyTimerSeconds?: number;
 }
 export interface AISettingsResponse {
     id: number;
