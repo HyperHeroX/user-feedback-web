@@ -103,10 +103,30 @@ function createTables(): void {
       system_prompt TEXT NOT NULL,
       temperature REAL,
       max_tokens INTEGER,
+      auto_reply_timer_seconds INTEGER DEFAULT 300,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+    // 遷移：為現有的ai_settings表添加auto_reply_timer_seconds列（如果不存在）
+    try {
+        const columnCheck = db.prepare(
+            "PRAGMA table_info(ai_settings)"
+        ).all() as Array<{ name: string }>;
+        
+        const hasColumn = columnCheck.some(col => col.name === 'auto_reply_timer_seconds');
+        
+        if (!hasColumn) {
+            db.exec(`
+                ALTER TABLE ai_settings 
+                ADD COLUMN auto_reply_timer_seconds INTEGER DEFAULT 300
+            `);
+            console.log('[Database] Successfully migrated ai_settings table - added auto_reply_timer_seconds column');
+        }
+    } catch (error) {
+        console.warn('[Database] Migration check failed (may be normal for new DBs):', error);
+    }
 
     // 使用者偏好設定表
     db.exec(`
@@ -141,15 +161,16 @@ function initDefaultSettings(): void {
 保持回應簡短（2-3句話），除非需要更詳細的說明。`;
 
         db.prepare(`
-      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, temperature, max_tokens)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, temperature, max_tokens, auto_reply_timer_seconds)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
             'https://generativelanguage.googleapis.com/v1beta',
             'gemini-2.0-flash-exp',
             encrypt('YOUR_API_KEY_HERE'), // 加密預設值
             defaultSystemPrompt,
             0.7,
-            1000
+            1000,
+            300
         );
     }
 
@@ -409,7 +430,7 @@ export function getAISettings(): AISettings | undefined {
     const row = db.prepare(`
     SELECT 
       id, api_url as apiUrl, model, api_key as apiKey, system_prompt as systemPrompt,
-      temperature, max_tokens as maxTokens,
+      temperature, max_tokens as maxTokens, auto_reply_timer_seconds as autoReplyTimerSeconds,
       created_at as createdAt, updated_at as updatedAt
     FROM ai_settings
     ORDER BY id DESC
@@ -481,6 +502,10 @@ export function updateAISettings(data: AISettingsRequest): AISettings {
             updates.push('max_tokens = ?');
             values.push(data.maxTokens);
         }
+        if (data.autoReplyTimerSeconds !== undefined) {
+            updates.push('auto_reply_timer_seconds = ?');
+            values.push(data.autoReplyTimerSeconds);
+        }
 
         if (updates.length > 0) {
             updates.push('updated_at = CURRENT_TIMESTAMP');
@@ -501,15 +526,16 @@ export function updateAISettings(data: AISettingsRequest): AISettings {
     } else {
         // 創建新設定
         db.prepare(`
-      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, temperature, max_tokens)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, temperature, max_tokens, auto_reply_timer_seconds)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(
             data.apiUrl || 'https://generativelanguage.googleapis.com/v1beta',
             data.model || 'gemini-2.0-flash-exp',
             data.apiKey ? encrypt(data.apiKey) : encrypt('YOUR_API_KEY_HERE'),
             data.systemPrompt || '',
             data.temperature ?? 0.7,
-            data.maxTokens ?? 1000
+            data.maxTokens ?? 1000,
+            data.autoReplyTimerSeconds ?? 300
         );
     }
 

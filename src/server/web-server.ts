@@ -569,6 +569,7 @@ export class WebServer {
             systemPrompt: settings.systemPrompt,
             temperature: settings.temperature,
             maxTokens: settings.maxTokens,
+            autoReplyTimerSeconds: settings.autoReplyTimerSeconds,
             createdAt: settings.createdAt,
             updatedAt: settings.updatedAt
           }
@@ -603,6 +604,7 @@ export class WebServer {
             systemPrompt: settings.systemPrompt,
             temperature: settings.temperature,
             maxTokens: settings.maxTokens,
+            autoReplyTimerSeconds: settings.autoReplyTimerSeconds,
             createdAt: settings.createdAt,
             updatedAt: settings.updatedAt
           }
