@@ -21,6 +21,7 @@ export declare class WebServer {
     constructor(config: Config);
     /**
      * 解析静态资源目录，优先使用构建产物，其次回退到源码目录
+     * 使用模块的实际位置而不是 process.cwd()，以支持从任何目录启动的 MCP 模式
      */
     private getStaticAssetsPath;
     /**

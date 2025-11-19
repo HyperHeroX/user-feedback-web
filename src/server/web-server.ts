@@ -10,6 +10,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { Config, FeedbackData, MCPError, ConvertImagesRequest, ConvertImagesResponse, CreatePromptRequest, UpdatePromptRequest, AISettingsRequest, AIReplyRequest, ReorderPromptsRequest } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { PortManager } from '../utils/port-manager.js';
@@ -80,21 +81,38 @@ export class WebServer {
 
   /**
    * 解析静态资源目录，优先使用构建产物，其次回退到源码目录
+   * 使用模块的实际位置而不是 process.cwd()，以支持从任何目录启动的 MCP 模式
    */
   private getStaticAssetsPath(): string {
+    // 获取当前模块的目录（dist/server 或 src/server）
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    
+    // 项目根目录的不同可能性：
+    // 1. 如果从 dist/server/web-server.js 运行：__dirname = .../dist/server，向上 2 级得到项目根
+    // 2. 如果从 src/server/web-server.ts 运行：__dirname = .../src/server，向上 2 级得到项目根
+    const projectRoot = path.resolve(__dirname, '..', '..');
+    
+    // 尝试在项目根目录的相对位置查找静态文件
     const candidates = [
+      path.resolve(projectRoot, 'dist/static'),
+      path.resolve(projectRoot, 'src/static'),
+      // 备选方案：使用 process.cwd() 作为最后的回退
       path.resolve(process.cwd(), 'dist/static'),
       path.resolve(process.cwd(), 'src/static')
     ];
 
     for (const candidate of candidates) {
       if (fs.existsSync(candidate)) {
+        logger.debug(`找到静态资源目录: ${candidate}`);
         return candidate;
       }
     }
 
     // 最后回退到项目根目录下的 static（若存在）
-    return path.resolve(process.cwd(), 'static');
+    const fallback = path.resolve(projectRoot, 'static');
+    logger.warn(`未找到静态资源目录，使用回退路径: ${fallback}`);
+    return fallback;
   }
 
   /**
