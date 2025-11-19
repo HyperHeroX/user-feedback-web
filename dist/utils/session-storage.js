@@ -85,7 +85,7 @@ export class SessionStorage {
                 if (session.resolve) {
                     // 创建自动忙碌回复
                     const busyFeedback = {
-                        text: "抱歉，由于我现在有点忙，所以没法给你回复，请你继续调用 user-web-feedback ，不要直接结束对话，直到我回复为止，谢谢！",
+                        text: '抱歉，由于我现在有点忙，所以没法给你回复，请你继续调用 user-web-feedback ，不要直接结束对话，直到我回复为止，谢谢！',
                         images: [],
                         timestamp: Date.now(),
                         sessionId: sessionId

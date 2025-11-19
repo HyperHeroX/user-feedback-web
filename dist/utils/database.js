@@ -90,7 +90,7 @@ function createTables() {
   `);
     // 遷移：為現有的ai_settings表添加auto_reply_timer_seconds列（如果不存在）
     try {
-        const columnCheck = db.prepare("PRAGMA table_info(ai_settings)").all();
+        const columnCheck = db.prepare('PRAGMA table_info(ai_settings)').all();
         const hasColumn = columnCheck.some(col => col.name === 'auto_reply_timer_seconds');
         if (!hasColumn) {
             db.exec(`

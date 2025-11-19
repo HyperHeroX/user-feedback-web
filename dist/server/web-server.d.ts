@@ -20,6 +20,10 @@ export declare class WebServer {
     private autoReplyWarningTimers;
     constructor(config: Config);
     /**
+     * 解析静态资源目录，优先使用构建产物，其次回退到源码目录
+     */
+    private getStaticAssetsPath;
+    /**
      * 等待所有活躍會話完成或達到最大等待時間。
      * 這是簡單的輪詢實作，檢查 sessionStorage.getSessionCount() 是否降為 0。
      */

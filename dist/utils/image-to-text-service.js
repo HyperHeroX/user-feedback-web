@@ -1,8 +1,13 @@
 /**
  * 图片转文字服务
  */
-import fetch from 'node-fetch';
 import { logger } from './logger.js';
+function getRuntimeFetch() {
+    if (typeof fetch === 'function') {
+        return fetch.bind(globalThis);
+    }
+    throw new Error('Fetch API is not available in this environment');
+}
 export class ImageToTextService {
     config;
     constructor(config) {
@@ -22,7 +27,8 @@ export class ImageToTextService {
             logger.debug('开始转换图片为文字', { mimeType });
             // 清理base64数据，移除data URL前缀
             const cleanBase64 = imageData.replace(/^data:image\/[^;]+;base64,/, '');
-            const response = await fetch(`${this.config.apiBaseUrl}/v1/chat/completions`, {
+            const runtimeFetch = getRuntimeFetch();
+            const response = await runtimeFetch(`${this.config.apiBaseUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.config.apiKey}`,

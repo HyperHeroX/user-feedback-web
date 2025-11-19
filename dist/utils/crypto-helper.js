@@ -7,7 +7,6 @@ import fs from 'fs';
 import path from 'path';
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
-const AUTH_TAG_LENGTH = 16;
 const SALT = 'mcp-feedback-collector-salt-v1'; // 唯一的 salt
 // 追蹤是否已記錄加密密碼狀態
 let encryptionKeyLogged = false;
@@ -65,14 +64,14 @@ function getEncryptionKey() {
     // 在首次使用時記錄加密密碼狀態
     if (!encryptionKeyLogged) {
         if (isDefault) {
-            console.log(`[Crypto] 加密密碼狀態: 使用預設值`);
+            console.log('[Crypto] 加密密碼狀態: 使用預設值');
         }
         else if (isFromEnv) {
-            console.log(`[Crypto] 加密密碼狀態: 使用環境變數`);
+            console.log('[Crypto] 加密密碼狀態: 使用環境變數');
             console.log(`[Crypto] 密碼長度: ${password.length}`);
         }
         else if (isFromConfig) {
-            console.log(`[Crypto] 加密密碼狀態: 使用配置文件`);
+            console.log('[Crypto] 加密密碼狀態: 使用配置文件');
             console.log(`[Crypto] 密碼長度: ${password.length}`);
         }
         encryptionKeyLogged = true;

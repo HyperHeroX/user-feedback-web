@@ -8,7 +8,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'fs';
 import { MCPError } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { PortManager } from '../utils/port-manager.js';
@@ -69,6 +69,22 @@ export class WebServer {
         this.setupRoutes();
         this.setupSocketHandlers();
         this.setupGracefulShutdown();
+    }
+    /**
+     * 解析静态资源目录，优先使用构建产物，其次回退到源码目录
+     */
+    getStaticAssetsPath() {
+        const candidates = [
+            path.resolve(process.cwd(), 'dist/static'),
+            path.resolve(process.cwd(), 'src/static')
+        ];
+        for (const candidate of candidates) {
+            if (fs.existsSync(candidate)) {
+                return candidate;
+            }
+        }
+        // 最后回退到项目根目录下的 static（若存在）
+        return path.resolve(process.cwd(), 'static');
     }
     /**
      * 等待所有活躍會話完成或達到最大等待時間。
@@ -209,10 +225,7 @@ export class WebServer {
      * 设置路由
      */
     setupRoutes() {
-        // 获取当前文件的目录路径（ES模块兼容）
-        const __filename = fileURLToPath(import.meta.url);
-        const __dirname = path.dirname(__filename);
-        const staticPath = path.resolve(__dirname, '../static');
+        const staticPath = this.getStaticAssetsPath();
         // 静态文件服务 - 使用绝对路径
         this.app.use(express.static(staticPath));
         // 主页路由
@@ -558,7 +571,8 @@ export class WebServer {
         // 驗證 API Key
         this.app.post('/api/ai-settings/validate', async (req, res) => {
             try {
-                let { apiKey, model } = req.body;
+                let { apiKey } = req.body;
+                const { model } = req.body;
                 if (!model) {
                     res.status(400).json({
                         success: false,
@@ -670,7 +684,7 @@ export class WebServer {
             }
         });
         // 错误处理中间件
-        this.app.use((error, req, res, next) => {
+        this.app.use((error, req, res, _next) => {
             logger.error('Express错误:', error);
             res.status(500).json({
                 error: 'Internal Server Error',
@@ -821,7 +835,7 @@ export class WebServer {
                 return;
             }
             // 处理图片数据
-            let processedFeedback = { ...feedbackData };
+            const processedFeedback = { ...feedbackData };
             if (feedbackData.images && feedbackData.images.length > 0) {
                 logger.info(`开始处理 ${feedbackData.images.length} 张图片...`);
                 try {
@@ -944,7 +958,8 @@ export class WebServer {
     async collectFeedback(workSummary, timeoutSeconds) {
         const sessionId = this.generateSessionId();
         logger.info(`创建反馈会话: ${sessionId}, 超时: ${timeoutSeconds}秒`);
-        return new Promise(async (resolve, reject) => {
+        const feedbackUrl = this.generateFeedbackUrl(sessionId);
+        return new Promise((resolve, reject) => {
             // 创建会话
             const session = {
                 workSummary,
@@ -955,20 +970,15 @@ export class WebServer {
                 reject
             };
             this.sessionStorage.createSession(sessionId, session);
-            // 生成反馈页面URL
-            const feedbackUrl = this.generateFeedbackUrl(sessionId);
             // 发送MCP日志通知，包含反馈页面信息
             logger.mcpFeedbackPageCreated(sessionId, feedbackUrl, timeoutSeconds);
             // 注意：超时处理现在由SessionStorage的清理机制处理
             // 打开浏览器
-            try {
-                await this.openFeedbackPage(sessionId);
-            }
-            catch (error) {
+            this.openFeedbackPage(sessionId).catch((error) => {
                 logger.error('打开反馈页面失败:', error);
                 this.sessionStorage.deleteSession(sessionId);
                 reject(error);
-            }
+            });
         });
     }
     /**

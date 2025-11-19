@@ -116,10 +116,10 @@ class Logger {
             this.logFile = path.join(logDir, `mcp-debug-${timestamp}.log`);
             this.fileLoggingEnabled = true;
             // 写入日志文件头
-            const header = `=== user-feedback MCP Tools Debug Log ===\n` +
+            const header = '=== user-feedback MCP Tools Debug Log ===\n' +
                 `Start Time: ${new Date().toISOString()}\n` +
                 `Log Level: ${this.currentLevel}\n` +
-                `==========================================\n\n`;
+                '==========================================\n\n';
             fs.writeFileSync(this.logFile, header);
             console.log(`日志文件已创建: ${this.logFile}`);
         }
@@ -228,7 +228,8 @@ class Logger {
      * 移除颜色代码
      */
     removeColorCodes(text) {
-        return text.replace(/\x1b\[[0-9;]*m/g, '');
+        // eslint-disable-next-line no-control-regex -- strip ANSI color codes
+        return text.replace(/\x1B\[[0-9;]*m/g, '');
     }
     /**
      * 错误日志
