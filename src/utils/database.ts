@@ -119,9 +119,9 @@ function createTables(): void {
         const columnCheck = db.prepare(
             'PRAGMA table_info(ai_settings)'
         ).all() as Array<{ name: string }>;
-        
+
         const hasColumn = columnCheck.some(col => col.name === 'auto_reply_timer_seconds');
-        
+
         if (!hasColumn) {
             db.exec(`
                 ALTER TABLE ai_settings 
@@ -474,9 +474,9 @@ export function getAISettings(): AISettings | undefined {
         const encryptedKey = settings.apiKey;
         logger.debug(`[Database] 嘗試解密 API Key, 加密格式: ${encryptedKey?.substring(0, 20)}...`);
         logger.debug(`[Database] 加密密碼是否已設置: ${!!process.env['MCP_ENCRYPTION_PASSWORD']}`);
-        
+
         settings.apiKey = decrypt(settings.apiKey);
-        
+
         logger.debug(`[Database] API Key 解密成功, 長度: ${settings.apiKey?.length}, 前綴: ${settings.apiKey?.substring(0, 3)}...`);
     } catch (error) {
         logger.error('[Database] Failed to decrypt API key:', error);
@@ -854,7 +854,7 @@ export function deleteLogs(options: LogDeleteOptions = {}): number {
 export function cleanupOldLogs(retentionDays: number = 30): number {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-    
+
     return deleteLogs({ beforeDate: cutoffDate.toISOString() });
 }
 
@@ -869,7 +869,7 @@ export function getLogSources(): string[] {
         const results = db.prepare(`
             SELECT DISTINCT source FROM logs WHERE source IS NOT NULL ORDER BY source
         `).all() as { source: string }[];
-        
+
         return results.map(r => r.source);
     } catch (error) {
         return [];

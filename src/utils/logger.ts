@@ -141,7 +141,7 @@ class Logger {
    */
   private async loadDatabaseFunctions(): Promise<void> {
     if (this.insertLogsFunc) return;
-    
+
     try {
       const { insertLogs, cleanupOldLogs } = await import('./database.js');
       this.insertLogsFunc = insertLogs;
@@ -163,7 +163,7 @@ class Logger {
 
     // 脫敏處理
     const sanitizedMessage = sanitizeLogMessage(message);
-    const sanitizedContext = context 
+    const sanitizedContext = context
       ? sanitizeLogMessage(typeof context === 'string' ? context : JSON.stringify(context))
       : undefined;
 

@@ -87,12 +87,12 @@ export class WebServer {
     // 获取当前模块的目录（dist/server 或 src/server）
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    
+
     // 项目根目录的不同可能性：
     // 1. 如果从 dist/server/web-server.js 运行：__dirname = .../dist/server，向上 2 级得到项目根
     // 2. 如果从 src/server/web-server.ts 运行：__dirname = .../src/server，向上 2 级得到项目根
     const projectRoot = path.resolve(__dirname, '..', '..');
-    
+
     // 尝试在项目根目录的相对位置查找静态文件
     const candidates = [
       path.resolve(projectRoot, 'dist/static'),
@@ -786,7 +786,7 @@ export class WebServer {
     this.app.get('/api/logs', (req, res) => {
       try {
         const options: LogQueryOptions = {};
-        
+
         if (req.query['page']) options.page = parseInt(req.query['page'] as string);
         if (req.query['limit']) options.limit = parseInt(req.query['limit'] as string);
         if (req.query['level']) options.level = req.query['level'] as LogQueryOptions['level'];
@@ -824,7 +824,7 @@ export class WebServer {
     this.app.delete('/api/logs', (req, res) => {
       try {
         const options: LogDeleteOptions = {};
-        
+
         if (req.query['beforeDate']) options.beforeDate = req.query['beforeDate'] as string;
         if (req.query['level']) options.level = req.query['level'] as LogDeleteOptions['level'];
 
