@@ -362,6 +362,21 @@ function initEventListeners() {
     .getElementById("cancelAutoReply")
     .addEventListener("click", cancelAutoReply);
 
+  // 日誌檢視器按鈕
+  document.getElementById("logViewerBtn").addEventListener("click", openLogViewerModal);
+  document.getElementById("closeLogViewer").addEventListener("click", closeLogViewerModal);
+  document.getElementById("logSearchBtn").addEventListener("click", searchLogs);
+  document.getElementById("logRefreshBtn").addEventListener("click", () => loadLogs(1));
+  document.getElementById("logPrevPage").addEventListener("click", () => loadLogs(currentLogPage - 1));
+  document.getElementById("logNextPage").addEventListener("click", () => loadLogs(currentLogPage + 1));
+  document.getElementById("clearOldLogs").addEventListener("click", clearOldLogs);
+  document.getElementById("logSearch").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      searchLogs();
+    }
+  });
+
   // 點擊自動回覆計時區塊可切換暫停/繼續（若被 focus 暫停，點擊會恢復）
   const autoReplyTimerEl = document.getElementById("auto-reply-timer");
   if (autoReplyTimerEl) {
@@ -1097,11 +1112,9 @@ function openAISettingsModal() {
   if (aiSettings) {
     document.getElementById("apiUrl").value = aiSettings.apiUrl;
     document.getElementById("model").value = aiSettings.model;
-    // 顯示遮罩的 API Key
-    document.getElementById("apiKey").value = aiSettings.apiKeyMasked || "";
-    document.getElementById("apiKey").placeholder = aiSettings.apiKeyMasked 
-      ? "已保存 API Key（留空則不修改）" 
-      : "請輸入 API Key";
+    // API Key 欄位預設為空，不從資料庫讀取
+    document.getElementById("apiKey").value = "";
+    document.getElementById("apiKey").placeholder = "留空則保留原有 API Key";
     document.getElementById("systemPrompt").value = aiSettings.systemPrompt;
     document.getElementById("temperature").value =
       aiSettings.temperature || 0.7;
@@ -1681,6 +1694,244 @@ function showLoadingOverlay(text = "處理中...") {
 
 function hideLoadingOverlay() {
   document.getElementById("loadingOverlay").style.display = "none";
+}
+
+// ============ 日誌檢視器功能 ============
+
+let currentLogPage = 1;
+let totalLogPages = 1;
+let logSources = [];
+
+async function openLogViewerModal() {
+  const modal = document.getElementById("logViewerModal");
+  if (modal) {
+    modal.classList.add("show");
+    
+    // 載入日誌來源列表
+    await loadLogSources();
+    
+    // 載入第一頁日誌
+    await loadLogs(1);
+  }
+}
+
+function closeLogViewerModal() {
+  const modal = document.getElementById("logViewerModal");
+  if (modal) {
+    modal.classList.remove("show");
+  }
+}
+
+async function loadLogSources() {
+  try {
+    const response = await fetch("/api/logs/sources");
+    if (response.ok) {
+      const data = await response.json();
+      logSources = data.sources || [];
+      
+      // 更新來源下拉選單
+      const sourceFilter = document.getElementById("logSourceFilter");
+      if (sourceFilter) {
+        // 保留第一個選項
+        sourceFilter.innerHTML = '<option value="">全部來源</option>';
+        logSources.forEach(source => {
+          const option = document.createElement("option");
+          option.value = source;
+          option.textContent = source;
+          sourceFilter.appendChild(option);
+        });
+      }
+    }
+  } catch (error) {
+    console.error("載入日誌來源失敗:", error);
+  }
+}
+
+async function loadLogs(page = 1) {
+  const container = document.getElementById("logEntriesContainer");
+  if (!container) return;
+  
+  // 顯示載入中
+  container.innerHTML = '<div class="log-loading"><div class="spinner"></div>載入中...</div>';
+  
+  try {
+    // 收集篩選參數
+    const params = new URLSearchParams();
+    params.set("page", page.toString());
+    params.set("limit", "50");
+    
+    const level = document.getElementById("logLevelFilter").value;
+    if (level) params.set("level", level);
+    
+    const source = document.getElementById("logSourceFilter").value;
+    if (source) params.set("source", source);
+    
+    const search = document.getElementById("logSearch").value.trim();
+    if (search) params.set("search", search);
+    
+    const startDate = document.getElementById("logStartDate").value;
+    if (startDate) params.set("startDate", startDate);
+    
+    const endDate = document.getElementById("logEndDate").value;
+    if (endDate) params.set("endDate", endDate);
+    
+    const response = await fetch(`/api/logs?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    const logs = data.logs || [];
+    currentLogPage = data.page || 1;
+    totalLogPages = data.totalPages || 1;
+    
+    // 渲染日誌條目
+    if (logs.length === 0) {
+      container.innerHTML = `
+        <div class="placeholder">
+          <span class="icon">📭</span>
+          <p>沒有符合條件的日誌記錄</p>
+        </div>
+      `;
+    } else {
+      container.innerHTML = logs.map(log => renderLogEntry(log)).join("");
+    }
+    
+    // 更新分頁控制
+    updateLogPagination();
+    
+  } catch (error) {
+    console.error("載入日誌失敗:", error);
+    container.innerHTML = `
+      <div class="placeholder">
+        <span class="icon">❌</span>
+        <p>載入日誌失敗: ${error.message}</p>
+      </div>
+    `;
+  }
+}
+
+function renderLogEntry(log) {
+  const timestamp = new Date(log.timestamp).toLocaleString("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  });
+  
+  const levelClass = `log-level-${log.level}`;
+  const searchTerm = document.getElementById("logSearch").value.trim();
+  
+  // 高亮搜尋詞
+  let message = escapeHtml(log.message);
+  if (searchTerm) {
+    const regex = new RegExp(`(${escapeRegex(searchTerm)})`, "gi");
+    message = message.replace(regex, "<mark>$1</mark>");
+  }
+  
+  // 格式化 meta 資訊
+  let metaHtml = "";
+  if (log.meta) {
+    try {
+      const metaObj = typeof log.meta === "string" ? JSON.parse(log.meta) : log.meta;
+      if (Object.keys(metaObj).length > 0) {
+        metaHtml = `<div class="log-meta"><pre>${escapeHtml(JSON.stringify(metaObj, null, 2))}</pre></div>`;
+      }
+    } catch (e) {
+      // 如果無法解析，顯示原始字串
+      if (log.meta) {
+        metaHtml = `<div class="log-meta">${escapeHtml(String(log.meta))}</div>`;
+      }
+    }
+  }
+  
+  return `
+    <div class="log-entry">
+      <div class="log-entry-header">
+        <span class="log-timestamp">${timestamp}</span>
+        <span class="log-level ${levelClass}">${log.level}</span>
+        <span class="log-source">[${escapeHtml(log.source)}]</span>
+      </div>
+      <div class="log-message">${message}</div>
+      ${metaHtml}
+    </div>
+  `;
+}
+
+function updateLogPagination() {
+  const pageInfo = document.getElementById("logPageInfo");
+  const prevBtn = document.getElementById("logPrevPage");
+  const nextBtn = document.getElementById("logNextPage");
+  
+  if (pageInfo) {
+    pageInfo.textContent = `${currentLogPage} / ${totalLogPages}`;
+  }
+  
+  if (prevBtn) {
+    prevBtn.disabled = currentLogPage <= 1;
+  }
+  
+  if (nextBtn) {
+    nextBtn.disabled = currentLogPage >= totalLogPages;
+  }
+}
+
+function searchLogs() {
+  loadLogs(1);
+}
+
+async function clearOldLogs() {
+  // 預設清除 7 天前的日誌
+  const daysToKeep = 7;
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+  
+  if (!confirm(`確定要清除 ${daysToKeep} 天前的所有日誌嗎？此操作無法復原。`)) {
+    return;
+  }
+  
+  try {
+    showLoadingOverlay("清除舊日誌中...");
+    
+    const response = await fetch(`/api/logs?endDate=${cutoffDate.toISOString().split("T")[0]}`, {
+      method: "DELETE"
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const data = await response.json();
+    showToast("success", "清除成功", `已刪除 ${data.deletedCount || 0} 條舊日誌`);
+    
+    // 重新載入日誌
+    await loadLogs(1);
+    
+  } catch (error) {
+    console.error("清除舊日誌失敗:", error);
+    showToast("error", "清除失敗", error.message);
+  } finally {
+    hideLoadingOverlay();
+  }
+}
+
+// HTML 轉義
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// 正則表達式轉義
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function escapeHtml(text) {

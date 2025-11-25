@@ -108,6 +108,9 @@
                     <span class="icon">📝</span>
                     提示詞
                 </h3>
+                <button id="logViewerBtn" class="btn btn-ghost" title="系統日誌">
+                    <span class="icon">📋</span>
+                </button>
                 <button id="aiSettingsBtn" class="btn btn-ghost" title="AI 設定">
                     <span class="icon">⚙️</span>
                 </button>
@@ -297,6 +300,58 @@
             </div>
             <div class="modal-footer">
                 <button id="alertModalOk" class="btn btn-primary">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日誌檢視器彈窗 -->
+    <div id="logViewerModal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <span class="icon">📋</span>
+                    系統日誌
+                </h2>
+                <button class="modal-close" id="closeLogViewer">
+                    <span class="icon">✖️</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- 搜尋和篩選區（緊湊版） -->
+                <div class="log-filter-bar">
+                    <input type="text" id="logSearch" class="form-control" placeholder="搜尋日誌內容...">
+                    <select id="logLevelFilter" class="form-control log-select-sm">
+                        <option value="">全部級別</option>
+                        <option value="error">Error</option>
+                        <option value="warn">Warn</option>
+                        <option value="info">Info</option>
+                        <option value="debug">Debug</option>
+                    </select>
+                    <select id="logSourceFilter" class="form-control log-select-sm">
+                        <option value="">全部來源</option>
+                    </select>
+                    <input type="date" id="logStartDate" class="form-control log-date-sm" title="開始日期">
+                    <input type="date" id="logEndDate" class="form-control log-date-sm" title="結束日期">
+                    <button id="logSearchBtn" class="btn btn-secondary btn-sm" title="搜尋">🔍</button>
+                    <button id="logRefreshBtn" class="btn btn-ghost btn-sm" title="重新整理">🔄</button>
+                </div>
+
+                <!-- 日誌列表 -->
+                <div id="logEntriesContainer" class="log-entries-container">
+                    <div class="placeholder">
+                        <span class="icon">📭</span>
+                        <p>尚無日誌記錄</p>
+                    </div>
+                </div>
+
+                <!-- 分頁控制 -->
+                <div class="log-pagination">
+                    <button id="logPrevPage" class="btn btn-ghost btn-sm" disabled>◀ 上一頁</button>
+                    <span id="logPageInfo" class="log-page-info">1 / 1</span>
+                    <button id="logNextPage" class="btn btn-ghost btn-sm" disabled>下一頁 ▶</button>
+                    <button type="button" id="clearOldLogs" class="btn btn-ghost btn-sm" title="清除7天前日誌">🗑️</button>
+                </div>
             </div>
         </div>
     </div>

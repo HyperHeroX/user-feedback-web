@@ -5,6 +5,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getAISettings } from './database.js';
+import { logger } from './logger.js';
 import type { AIReplyRequest, AIReplyResponse } from '../types/index.js';
 
 // 重試配置
@@ -73,7 +74,7 @@ export async function generateAIReply(request: AIReplyRequest): Promise<AIReplyR
             reply
         };
     } catch (error) {
-        console.error('AI service error:', error);
+        logger.error('AI service error:', error);
 
         return {
             success: false,

@@ -52,6 +52,27 @@ const LOG_COLORS = {
     silent: '' // 无颜色
 };
 const RESET_COLOR = '\x1b[0m';
+// 敏感資訊脫敏正則表達式
+const SENSITIVE_PATTERNS = [
+    // API Keys (各種格式)
+    { pattern: /sk-[a-zA-Z0-9]{20,}/g, replacement: 'sk-***' },
+    { pattern: /AIza[a-zA-Z0-9_-]{35}/g, replacement: 'AIza***' },
+    { pattern: /api[_-]?key['":\s]*['"]?([a-zA-Z0-9_-]{20,})['"]?/gi, replacement: 'api_key: ***' },
+    // Bearer tokens
+    { pattern: /Bearer\s+[a-zA-Z0-9_.-]+/gi, replacement: 'Bearer ***' },
+    // 長字串 token (保留首尾各4字元)
+    { pattern: /([a-zA-Z0-9]{4})[a-zA-Z0-9]{16,}([a-zA-Z0-9]{4})/g, replacement: '$1***$2' },
+];
+/**
+ * 敏感資訊脫敏
+ */
+function sanitizeLogMessage(message) {
+    let sanitized = message;
+    for (const { pattern, replacement } of SENSITIVE_PATTERNS) {
+        sanitized = sanitized.replace(pattern, replacement);
+    }
+    return sanitized;
+}
 class Logger {
     currentLevel = 'info';
     logFile;
@@ -60,6 +81,122 @@ class Logger {
     // MCP日志相关
     mcpLogLevel = 'info';
     mcpLogCallback = undefined;
+    // 資料庫日誌相關
+    dbLoggingEnabled = true;
+    logBuffer = [];
+    flushInterval = null;
+    currentSource = 'system';
+    lastCleanupDate = '';
+    BUFFER_SIZE = 10;
+    FLUSH_INTERVAL_MS = 5000;
+    LOG_RETENTION_DAYS = 30;
+    // 延遲載入 database 模組以避免循環依賴
+    insertLogsFunc = null;
+    cleanupOldLogsFunc = null;
+    constructor() {
+        // 設定定時刷新
+        this.flushInterval = setInterval(() => {
+            this.flushToDatabase();
+        }, this.FLUSH_INTERVAL_MS);
+        // 確保程式退出時刷新緩衝區
+        process.on('beforeExit', () => {
+            this.flushToDatabase();
+        });
+    }
+    /**
+     * 設定日誌來源（用於標記日誌來自哪個模組）
+     */
+    setSource(source) {
+        this.currentSource = source;
+    }
+    /**
+     * 啟用/禁用資料庫日誌
+     */
+    setDatabaseLogging(enabled) {
+        this.dbLoggingEnabled = enabled;
+    }
+    /**
+     * 延遲載入 database 函數
+     */
+    async loadDatabaseFunctions() {
+        if (this.insertLogsFunc)
+            return;
+        try {
+            const { insertLogs, cleanupOldLogs } = await import('./database.js');
+            this.insertLogsFunc = insertLogs;
+            this.cleanupOldLogsFunc = cleanupOldLogs;
+        }
+        catch (error) {
+            // 載入失敗時靜默處理
+            this.dbLoggingEnabled = false;
+        }
+    }
+    /**
+     * 寫入日誌到資料庫緩衝區
+     */
+    writeToDatabase(level, message, context) {
+        if (!this.dbLoggingEnabled || level === 'silent')
+            return;
+        // 檢查是否需要執行每日清理
+        this.checkAndCleanupOldLogs();
+        // 脫敏處理
+        const sanitizedMessage = sanitizeLogMessage(message);
+        const sanitizedContext = context
+            ? sanitizeLogMessage(typeof context === 'string' ? context : JSON.stringify(context))
+            : undefined;
+        this.logBuffer.push({
+            level,
+            message: sanitizedMessage,
+            context: sanitizedContext,
+            source: this.currentSource,
+            createdAt: new Date().toISOString()
+        });
+        // 達到閾值時刷新
+        if (this.logBuffer.length >= this.BUFFER_SIZE) {
+            this.flushToDatabase();
+        }
+    }
+    /**
+     * 批次寫入資料庫
+     */
+    async flushToDatabase() {
+        if (this.logBuffer.length === 0)
+            return;
+        const logsToWrite = [...this.logBuffer];
+        this.logBuffer = [];
+        try {
+            await this.loadDatabaseFunctions();
+            if (this.insertLogsFunc) {
+                this.insertLogsFunc(logsToWrite);
+            }
+        }
+        catch (error) {
+            // 寫入失敗時輸出到 stderr，避免遞迴
+            process.stderr.write(`Failed to write logs to database: ${error}\n`);
+        }
+    }
+    /**
+     * 檢查並清理過期日誌（每日執行一次）
+     */
+    async checkAndCleanupOldLogs() {
+        const todayParts = new Date().toISOString().split('T');
+        const today = todayParts[0] ?? '';
+        if (this.lastCleanupDate === today)
+            return;
+        this.lastCleanupDate = today;
+        try {
+            await this.loadDatabaseFunctions();
+            if (this.cleanupOldLogsFunc) {
+                const deleted = this.cleanupOldLogsFunc(this.LOG_RETENTION_DAYS);
+                if (deleted > 0) {
+                    process.stderr.write(`[Logger] Cleaned up ${deleted} old log entries\n`);
+                }
+            }
+        }
+        catch (error) {
+            // 清理失敗時靜默處理
+        }
+    }
     /**
      * 设置日志级别
      */
@@ -121,10 +258,10 @@ class Logger {
                 `Log Level: ${this.currentLevel}\n` +
                 '==========================================\n\n';
             fs.writeFileSync(this.logFile, header);
-            console.log(`日志文件已创建: ${this.logFile}`);
+            process.stderr.write(`日志文件已创建: ${this.logFile}\n`);
         }
         catch (error) {
-            console.error('无法创建日志文件:', error);
+            process.stderr.write(`无法创建日志文件: ${error}\n`);
             this.fileLoggingEnabled = false;
         }
     }
@@ -161,7 +298,7 @@ class Logger {
         }
         catch (error) {
             // 避免日志回调错误导致程序崩溃
-            console.error('MCP log callback error:', error);
+            process.stderr.write(`MCP log callback error: ${error}\n`);
         }
     }
     /**
@@ -199,15 +336,22 @@ class Logger {
         if (!this.shouldLog(level))
             return;
         const formattedMessage = this.formatMessage(level, message, ...args);
-        // 控制台输出
-        if (level === 'error') {
-            console.error(formattedMessage);
-        }
-        else if (level === 'warn') {
-            console.warn(formattedMessage);
+        // 控制台输出 - 总是使用 stderr 避免污染 stdout（MCP JSON-RPC 协议需要纯净的 stdout）
+        if (this.colorsDisabled) {
+            // MCP 模式：使用 stderr 避免污染 stdout
+            process.stderr.write(formattedMessage + '\n');
         }
         else {
-            console.log(formattedMessage);
+            // 普通模式：使用 console 方法
+            if (level === 'error') {
+                console.error(formattedMessage);
+            }
+            else if (level === 'warn') {
+                console.warn(formattedMessage);
+            }
+            else {
+                console.log(formattedMessage);
+            }
         }
         // 文件输出（去除颜色代码）
         if (this.fileLoggingEnabled && this.logFile) {
@@ -216,9 +360,12 @@ class Logger {
                 fs.appendFileSync(this.logFile, cleanMessage + '\n');
             }
             catch (error) {
-                console.error('写入日志文件失败:', error);
+                process.stderr.write(`写入日志文件失败: ${error}\n`);
             }
         }
+        // 寫入資料庫
+        const context = args.length > 0 ? args : undefined;
+        this.writeToDatabase(level, message, context);
         // 发送MCP日志通知
         const mcpLevel = LOG_LEVEL_TO_MCP[level];
         const logData = args.length > 0 ? { message, args } : message;

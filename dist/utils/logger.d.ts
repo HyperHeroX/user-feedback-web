@@ -9,6 +9,41 @@ declare class Logger {
     private colorsDisabled;
     private mcpLogLevel;
     private mcpLogCallback;
+    private dbLoggingEnabled;
+    private logBuffer;
+    private flushInterval;
+    private currentSource;
+    private lastCleanupDate;
+    private readonly BUFFER_SIZE;
+    private readonly FLUSH_INTERVAL_MS;
+    private readonly LOG_RETENTION_DAYS;
+    private insertLogsFunc;
+    private cleanupOldLogsFunc;
+    constructor();
+    /**
+     * 設定日誌來源（用於標記日誌來自哪個模組）
+     */
+    setSource(source: string): void;
+    /**
+     * 啟用/禁用資料庫日誌
+     */
+    setDatabaseLogging(enabled: boolean): void;
+    /**
+     * 延遲載入 database 函數
+     */
+    private loadDatabaseFunctions;
+    /**
+     * 寫入日誌到資料庫緩衝區
+     */
+    private writeToDatabase;
+    /**
+     * 批次寫入資料庫
+     */
+    private flushToDatabase;
+    /**
+     * 檢查並清理過期日誌（每日執行一次）
+     */
+    private checkAndCleanupOldLogs;
     /**
      * 设置日志级别
      */

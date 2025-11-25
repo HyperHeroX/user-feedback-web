@@ -4,6 +4,7 @@
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getAISettings } from './database.js';
+import { logger } from './logger.js';
 // 重試配置
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [1000, 2000, 4000]; // 毫秒
@@ -48,7 +49,7 @@ export async function generateAIReply(request) {
         };
     }
     catch (error) {
-        console.error('AI service error:', error);
+        logger.error('AI service error:', error);
         return {
             success: false,
             error: error instanceof Error ? error.message : '未知錯誤'
