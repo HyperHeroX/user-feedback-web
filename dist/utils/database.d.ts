@@ -3,7 +3,7 @@
  * 使用 better-sqlite3 進行資料持久化
  */
 import Database from 'better-sqlite3';
-import type { Prompt, CreatePromptRequest, UpdatePromptRequest, AISettings, AISettingsRequest, UserPreferences } from '../types/index.js';
+import type { Prompt, CreatePromptRequest, UpdatePromptRequest, AISettings, AISettingsRequest, UserPreferences, LogEntry, LogQueryOptions, LogQueryResult, LogDeleteOptions } from '../types/index.js';
 /**
  * 初始化資料庫
  * 創建資料目錄和資料表
@@ -68,4 +68,29 @@ export declare function getUserPreferences(): UserPreferences;
  * 更新使用者偏好設定
  */
 export declare function updateUserPreferences(data: Partial<Omit<UserPreferences, 'id' | 'createdAt' | 'updatedAt'>>): UserPreferences;
+/**
+ * 插入單筆日誌
+ */
+export declare function insertLog(log: Omit<LogEntry, 'id'>): void;
+/**
+ * 批次插入日誌
+ */
+export declare function insertLogs(logs: Omit<LogEntry, 'id'>[]): void;
+/**
+ * 查詢日誌
+ */
+export declare function queryLogs(options?: LogQueryOptions): LogQueryResult;
+/**
+ * 刪除日誌
+ */
+export declare function deleteLogs(options?: LogDeleteOptions): number;
+/**
+ * 清理過期日誌
+ * @param retentionDays 保留天數，預設 30 天
+ */
+export declare function cleanupOldLogs(retentionDays?: number): number;
+/**
+ * 獲取日誌來源列表（用於篩選下拉選單）
+ */
+export declare function getLogSources(): string[];
 //# sourceMappingURL=database.d.ts.map

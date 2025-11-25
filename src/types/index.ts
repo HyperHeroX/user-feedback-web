@@ -287,3 +287,43 @@ export interface ReorderPromptsRequest {
     orderIndex: number;
   }>;
 }
+
+// ============ Log Types ============
+
+// 日誌條目類型
+export interface LogEntry {
+  id?: number;
+  level: LogLevel;
+  message: string;
+  context?: string | undefined; // JSON 格式的額外上下文
+  source?: string | undefined;  // 來源模組
+  createdAt?: string | undefined;
+}
+
+// 日誌查詢選項
+export interface LogQueryOptions {
+  page?: number;
+  limit?: number;
+  level?: LogLevel | undefined;
+  search?: string;
+  source?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+// 日誌查詢結果
+export interface LogQueryResult {
+  logs: LogEntry[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+// 日誌刪除選項
+export interface LogDeleteOptions {
+  beforeDate?: string;
+  level?: LogLevel | undefined;
+}

@@ -222,4 +222,34 @@ export interface ReorderPromptsRequest {
         orderIndex: number;
     }>;
 }
+export interface LogEntry {
+    id?: number;
+    level: LogLevel;
+    message: string;
+    context?: string | undefined;
+    source?: string | undefined;
+    createdAt?: string | undefined;
+}
+export interface LogQueryOptions {
+    page?: number;
+    limit?: number;
+    level?: LogLevel | undefined;
+    search?: string;
+    source?: string;
+    startDate?: string;
+    endDate?: string;
+}
+export interface LogQueryResult {
+    logs: LogEntry[];
+    pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+    };
+}
+export interface LogDeleteOptions {
+    beforeDate?: string;
+    level?: LogLevel | undefined;
+}
 //# sourceMappingURL=index.d.ts.map

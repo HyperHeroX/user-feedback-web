@@ -5,6 +5,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { logger } from './logger.js';
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const SALT = 'mcp-feedback-collector-salt-v1'; // 唯一的 salt
@@ -25,7 +26,7 @@ function loadPasswordFromConfig() {
         }
     }
     catch (error) {
-        console.error('[Crypto] 讀取配置文件失敗:', error);
+        logger.error('[Crypto] 讀取配置文件失敗:', error);
     }
     return null;
 }
@@ -64,15 +65,15 @@ function getEncryptionKey() {
     // 在首次使用時記錄加密密碼狀態
     if (!encryptionKeyLogged) {
         if (isDefault) {
-            console.log('[Crypto] 加密密碼狀態: 使用預設值');
+            logger.info('[Crypto] 加密密碼狀態: 使用預設值');
         }
         else if (isFromEnv) {
-            console.log('[Crypto] 加密密碼狀態: 使用環境變數');
-            console.log(`[Crypto] 密碼長度: ${password.length}`);
+            logger.info('[Crypto] 加密密碼狀態: 使用環境變數');
+            logger.info(`[Crypto] 密碼長度: ${password.length}`);
         }
         else if (isFromConfig) {
-            console.log('[Crypto] 加密密碼狀態: 使用配置文件');
-            console.log(`[Crypto] 密碼長度: ${password.length}`);
+            logger.info('[Crypto] 加密密碼狀態: 使用配置文件');
+            logger.info(`[Crypto] 密碼長度: ${password.length}`);
         }
         encryptionKeyLogged = true;
     }

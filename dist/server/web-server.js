@@ -18,7 +18,7 @@ import { ImageToTextService } from '../utils/image-to-text-service.js';
 import { performanceMonitor } from '../utils/performance-monitor.js';
 import { SessionStorage } from '../utils/session-storage.js';
 import { VERSION } from '../index.js';
-import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences } from '../utils/database.js';
+import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs } from '../utils/database.js';
 import { maskApiKey } from '../utils/crypto-helper.js';
 import { generateAIReply, validateAPIKey } from '../utils/ai-service.js';
 /**
@@ -696,6 +696,86 @@ export class WebServer {
                     error: error instanceof Error ? error.message : '更新使用者偏好設定失敗',
                     details: error instanceof Error ? error.details || null : null,
                     stack: error instanceof Error ? error.stack : undefined
+                });
+            }
+        });
+        // ============ 日誌 API ============
+        // 查詢日誌
+        this.app.get('/api/logs', (req, res) => {
+            try {
+                const options = {};
+                if (req.query['page'])
+                    options.page = parseInt(req.query['page']);
+                if (req.query['limit'])
+                    options.limit = parseInt(req.query['limit']);
+                if (req.query['level'])
+                    options.level = req.query['level'];
+                if (req.query['search'])
+                    options.search = req.query['search'];
+                if (req.query['source'])
+                    options.source = req.query['source'];
+                if (req.query['startDate'])
+                    options.startDate = req.query['startDate'];
+                if (req.query['endDate'])
+                    options.endDate = req.query['endDate'];
+                const result = queryLogs(options);
+                res.json({ success: true, ...result });
+            }
+            catch (error) {
+                logger.error('查詢日誌失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '查詢日誌失敗'
+                });
+            }
+        });
+        // 獲取日誌來源列表
+        this.app.get('/api/logs/sources', (req, res) => {
+            try {
+                const sources = getLogSources();
+                res.json({ success: true, sources });
+            }
+            catch (error) {
+                logger.error('獲取日誌來源列表失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '獲取日誌來源列表失敗'
+                });
+            }
+        });
+        // 刪除日誌
+        this.app.delete('/api/logs', (req, res) => {
+            try {
+                const options = {};
+                if (req.query['beforeDate'])
+                    options.beforeDate = req.query['beforeDate'];
+                if (req.query['level'])
+                    options.level = req.query['level'];
+                const deletedCount = deleteLogs(options);
+                logger.info(`刪除日誌成功，共刪除 ${deletedCount} 筆`);
+                res.json({ success: true, deletedCount });
+            }
+            catch (error) {
+                logger.error('刪除日誌失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '刪除日誌失敗'
+                });
+            }
+        });
+        // 清理過期日誌
+        this.app.post('/api/logs/cleanup', (req, res) => {
+            try {
+                const retentionDays = req.body.retentionDays || 30;
+                const deletedCount = cleanupOldLogs(retentionDays);
+                logger.info(`清理過期日誌成功，共刪除 ${deletedCount} 筆`);
+                res.json({ success: true, deletedCount });
+            }
+            catch (error) {
+                logger.error('清理過期日誌失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '清理過期日誌失敗'
                 });
             }
         });

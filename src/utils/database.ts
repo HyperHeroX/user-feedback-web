@@ -7,13 +7,19 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { encrypt, decrypt } from './crypto-helper.js';
+import { logger } from './logger.js';
 import type {
     Prompt,
     CreatePromptRequest,
     UpdatePromptRequest,
     AISettings,
     AISettingsRequest,
-    UserPreferences
+    UserPreferences,
+    LogEntry,
+    LogQueryOptions,
+    LogQueryResult,
+    LogDeleteOptions,
+    LogLevel
 } from '../types/index.js';
 
 const DB_DIR = path.join(process.cwd(), 'data');
@@ -33,8 +39,7 @@ function tryGetDb(): Database.Database | null {
         return db;
     } catch (err) {
         // 記錄錯誤，並回傳 null 以便上層採取降級處理
-        // 使用 console 而非 logger 以避免循環引用（此模組在啟動時可能比 logger 早被呼叫）
-        console.error('Database unavailable:', err instanceof Error ? err.message : err);
+        logger.error('Database unavailable:', err instanceof Error ? err.message : err);
         db = null;
         return null;
     }
@@ -114,18 +119,18 @@ function createTables(): void {
         const columnCheck = db.prepare(
             'PRAGMA table_info(ai_settings)'
         ).all() as Array<{ name: string }>;
-        
+
         const hasColumn = columnCheck.some(col => col.name === 'auto_reply_timer_seconds');
-        
+
         if (!hasColumn) {
             db.exec(`
                 ALTER TABLE ai_settings 
                 ADD COLUMN auto_reply_timer_seconds INTEGER DEFAULT 300
             `);
-            console.log('[Database] Successfully migrated ai_settings table - added auto_reply_timer_seconds column');
+            logger.info('Successfully migrated ai_settings table - added auto_reply_timer_seconds column');
         }
     } catch (error) {
-        console.warn('[Database] Migration check failed (may be normal for new DBs):', error);
+        logger.warn('Migration check failed (may be normal for new DBs):', error);
     }
 
     // 使用者偏好設定表
@@ -138,6 +143,29 @@ function createTables(): void {
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
+  `);
+
+    // 日誌表
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      level TEXT NOT NULL,
+      message TEXT NOT NULL,
+      context TEXT,
+      source TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+    // 日誌表索引優化查詢
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level)
+  `);
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at DESC)
+  `);
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_logs_source ON logs(source)
   `);
 }
 
@@ -444,15 +472,15 @@ export function getAISettings(): AISettings | undefined {
     // 解密 API Key
     try {
         const encryptedKey = settings.apiKey;
-        console.log(`[Database] 嘗試解密 API Key, 加密格式: ${encryptedKey?.substring(0, 20)}...`);
-        console.log(`[Database] 加密密碼是否已設置: ${!!process.env['MCP_ENCRYPTION_PASSWORD']}`);
-        
+        logger.debug(`[Database] 嘗試解密 API Key, 加密格式: ${encryptedKey?.substring(0, 20)}...`);
+        logger.debug(`[Database] 加密密碼是否已設置: ${!!process.env['MCP_ENCRYPTION_PASSWORD']}`);
+
         settings.apiKey = decrypt(settings.apiKey);
-        
-        console.log(`[Database] API Key 解密成功, 長度: ${settings.apiKey?.length}, 前綴: ${settings.apiKey?.substring(0, 3)}...`);
+
+        logger.debug(`[Database] API Key 解密成功, 長度: ${settings.apiKey?.length}, 前綴: ${settings.apiKey?.substring(0, 3)}...`);
     } catch (error) {
-        console.error('[Database] Failed to decrypt API key:', error);
-        console.error(`[Database] 使用的加密密碼: ${process.env['MCP_ENCRYPTION_PASSWORD'] ? '已設置' : '未設置(使用預設值)'}`);
+        logger.error('[Database] Failed to decrypt API key:', error);
+        logger.error(`[Database] 使用的加密密碼: ${process.env['MCP_ENCRYPTION_PASSWORD'] ? '已設置' : '未設置(使用預設值)'}`);
         settings.apiKey = '';
     }
 
@@ -484,10 +512,10 @@ export function updateAISettings(data: AISettingsRequest): AISettings {
         }
         if (data.apiKey !== undefined) {
             updates.push('api_key = ?');
-            console.log(`[Database] 加密 API Key, 原始長度: ${data.apiKey.length}, 前綴: ${data.apiKey.substring(0, 3)}...`);
-            console.log(`[Database] 使用的加密密碼: ${process.env['MCP_ENCRYPTION_PASSWORD'] ? '已設置' : '未設置(使用預設值)'}`);
+            logger.debug(`[Database] 加密 API Key, 原始長度: ${data.apiKey.length}, 前綴: ${data.apiKey.substring(0, 3)}...`);
+            logger.debug(`[Database] 使用的加密密碼: ${process.env['MCP_ENCRYPTION_PASSWORD'] ? '已設置' : '未設置(使用預設值)'}`);
             const encrypted = encrypt(data.apiKey);
-            console.log(`[Database] API Key 加密後格式: ${encrypted.substring(0, 20)}...`);
+            logger.debug(`[Database] API Key 加密後格式: ${encrypted.substring(0, 20)}...`);
             values.push(encrypted); // 加密 API Key
         }
         if (data.systemPrompt !== undefined) {
@@ -653,5 +681,198 @@ export function updateUserPreferences(data: Partial<Omit<UserPreferences, 'id' |
     }
 
     return getUserPreferences();
+}
+
+// ============ 日誌資料庫操作 ============
+
+/**
+ * 插入單筆日誌
+ */
+export function insertLog(log: Omit<LogEntry, 'id'>): void {
+    const db = tryGetDb();
+    if (!db) return; // 無法存取資料庫時靜默失敗
+
+    try {
+        db.prepare(`
+            INSERT INTO logs (level, message, context, source, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        `).run(
+            log.level,
+            log.message,
+            log.context || null,
+            log.source || null,
+            log.createdAt || new Date().toISOString()
+        );
+    } catch (error) {
+        // 寫入日誌失敗時使用 stderr，避免遞迴
+        process.stderr.write(`[Database] Failed to insert log: ${error}\n`);
+    }
+}
+
+/**
+ * 批次插入日誌
+ */
+export function insertLogs(logs: Omit<LogEntry, 'id'>[]): void {
+    const db = tryGetDb();
+    if (!db || logs.length === 0) return;
+
+    try {
+        const insert = db.prepare(`
+            INSERT INTO logs (level, message, context, source, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        `);
+
+        const insertMany = db.transaction((logs: Omit<LogEntry, 'id'>[]) => {
+            for (const log of logs) {
+                insert.run(
+                    log.level,
+                    log.message,
+                    log.context || null,
+                    log.source || null,
+                    log.createdAt || new Date().toISOString()
+                );
+            }
+        });
+
+        insertMany(logs);
+    } catch (error) {
+        process.stderr.write(`[Database] Failed to insert logs batch: ${error}\n`);
+    }
+}
+
+/**
+ * 查詢日誌
+ */
+export function queryLogs(options: LogQueryOptions = {}): LogQueryResult {
+    const db = tryGetDb();
+    if (!db) {
+        return {
+            logs: [],
+            pagination: { page: 1, limit: 50, total: 0, totalPages: 0 }
+        };
+    }
+
+    const page = options.page || 1;
+    const limit = Math.min(options.limit || 50, 200);
+    const offset = (page - 1) * limit;
+
+    // 構建 WHERE 條件
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    if (options.level) {
+        conditions.push('level = ?');
+        params.push(options.level);
+    }
+
+    if (options.source) {
+        conditions.push('source = ?');
+        params.push(options.source);
+    }
+
+    if (options.search) {
+        conditions.push('(message LIKE ? OR context LIKE ?)');
+        const searchPattern = `%${options.search}%`;
+        params.push(searchPattern, searchPattern);
+    }
+
+    if (options.startDate) {
+        conditions.push('created_at >= ?');
+        params.push(options.startDate);
+    }
+
+    if (options.endDate) {
+        conditions.push('created_at <= ?');
+        params.push(options.endDate);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // 計算總數
+    const countSql = `SELECT COUNT(*) as total FROM logs ${whereClause}`;
+    const countResult = db.prepare(countSql).get(...params) as { total: number };
+    const total = countResult.total;
+    const totalPages = Math.ceil(total / limit);
+
+    // 查詢日誌
+    const querySql = `
+        SELECT id, level, message, context, source, created_at as createdAt
+        FROM logs
+        ${whereClause}
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+    `;
+    const logs = db.prepare(querySql).all(...params, limit, offset) as LogEntry[];
+
+    return {
+        logs,
+        pagination: {
+            page,
+            limit,
+            total,
+            totalPages
+        }
+    };
+}
+
+/**
+ * 刪除日誌
+ */
+export function deleteLogs(options: LogDeleteOptions = {}): number {
+    const db = tryGetDb();
+    if (!db) return 0;
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+
+    if (options.beforeDate) {
+        conditions.push('created_at < ?');
+        params.push(options.beforeDate);
+    }
+
+    if (options.level) {
+        conditions.push('level = ?');
+        params.push(options.level);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const sql = `DELETE FROM logs ${whereClause}`;
+
+    try {
+        const result = db.prepare(sql).run(...params);
+        return result.changes;
+    } catch (error) {
+        process.stderr.write(`[Database] Failed to delete logs: ${error}\n`);
+        return 0;
+    }
+}
+
+/**
+ * 清理過期日誌
+ * @param retentionDays 保留天數，預設 30 天
+ */
+export function cleanupOldLogs(retentionDays: number = 30): number {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+
+    return deleteLogs({ beforeDate: cutoffDate.toISOString() });
+}
+
+/**
+ * 獲取日誌來源列表（用於篩選下拉選單）
+ */
+export function getLogSources(): string[] {
+    const db = tryGetDb();
+    if (!db) return [];
+
+    try {
+        const results = db.prepare(`
+            SELECT DISTINCT source FROM logs WHERE source IS NOT NULL ORDER BY source
+        `).all() as { source: string }[];
+
+        return results.map(r => r.source);
+    } catch (error) {
+        return [];
+    }
 }
 

@@ -11,7 +11,7 @@ import compression from 'compression';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { Config, FeedbackData, MCPError, ConvertImagesRequest, ConvertImagesResponse, CreatePromptRequest, UpdatePromptRequest, AISettingsRequest, AIReplyRequest, ReorderPromptsRequest } from '../types/index.js';
+import { Config, FeedbackData, MCPError, ConvertImagesRequest, ConvertImagesResponse, CreatePromptRequest, UpdatePromptRequest, AISettingsRequest, AIReplyRequest, ReorderPromptsRequest, LogQueryOptions, LogDeleteOptions } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { PortManager } from '../utils/port-manager.js';
 import { ImageProcessor } from '../utils/image-processor.js';
@@ -19,7 +19,7 @@ import { ImageToTextService } from '../utils/image-to-text-service.js';
 import { performanceMonitor } from '../utils/performance-monitor.js';
 import { SessionStorage, SessionData } from '../utils/session-storage.js';
 import { VERSION } from '../index.js';
-import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences } from '../utils/database.js';
+import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs } from '../utils/database.js';
 import { maskApiKey } from '../utils/crypto-helper.js';
 import { generateAIReply, validateAPIKey } from '../utils/ai-service.js';
 
@@ -87,12 +87,12 @@ export class WebServer {
     // 获取当前模块的目录（dist/server 或 src/server）
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    
+
     // 项目根目录的不同可能性：
     // 1. 如果从 dist/server/web-server.js 运行：__dirname = .../dist/server，向上 2 级得到项目根
     // 2. 如果从 src/server/web-server.ts 运行：__dirname = .../src/server，向上 2 级得到项目根
     const projectRoot = path.resolve(__dirname, '..', '..');
-    
+
     // 尝试在项目根目录的相对位置查找静态文件
     const candidates = [
       path.resolve(projectRoot, 'dist/static'),
@@ -776,6 +776,82 @@ export class WebServer {
           error: error instanceof Error ? error.message : '更新使用者偏好設定失敗',
           details: error instanceof Error ? (error as any).details || null : null,
           stack: error instanceof Error ? error.stack : undefined
+        });
+      }
+    });
+
+    // ============ 日誌 API ============
+
+    // 查詢日誌
+    this.app.get('/api/logs', (req, res) => {
+      try {
+        const options: LogQueryOptions = {};
+
+        if (req.query['page']) options.page = parseInt(req.query['page'] as string);
+        if (req.query['limit']) options.limit = parseInt(req.query['limit'] as string);
+        if (req.query['level']) options.level = req.query['level'] as LogQueryOptions['level'];
+        if (req.query['search']) options.search = req.query['search'] as string;
+        if (req.query['source']) options.source = req.query['source'] as string;
+        if (req.query['startDate']) options.startDate = req.query['startDate'] as string;
+        if (req.query['endDate']) options.endDate = req.query['endDate'] as string;
+
+        const result = queryLogs(options);
+        res.json({ success: true, ...result });
+      } catch (error) {
+        logger.error('查詢日誌失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '查詢日誌失敗'
+        });
+      }
+    });
+
+    // 獲取日誌來源列表
+    this.app.get('/api/logs/sources', (req, res) => {
+      try {
+        const sources = getLogSources();
+        res.json({ success: true, sources });
+      } catch (error) {
+        logger.error('獲取日誌來源列表失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取日誌來源列表失敗'
+        });
+      }
+    });
+
+    // 刪除日誌
+    this.app.delete('/api/logs', (req, res) => {
+      try {
+        const options: LogDeleteOptions = {};
+
+        if (req.query['beforeDate']) options.beforeDate = req.query['beforeDate'] as string;
+        if (req.query['level']) options.level = req.query['level'] as LogDeleteOptions['level'];
+
+        const deletedCount = deleteLogs(options);
+        logger.info(`刪除日誌成功，共刪除 ${deletedCount} 筆`);
+        res.json({ success: true, deletedCount });
+      } catch (error) {
+        logger.error('刪除日誌失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '刪除日誌失敗'
+        });
+      }
+    });
+
+    // 清理過期日誌
+    this.app.post('/api/logs/cleanup', (req, res) => {
+      try {
+        const retentionDays = req.body.retentionDays || 30;
+        const deletedCount = cleanupOldLogs(retentionDays);
+        logger.info(`清理過期日誌成功，共刪除 ${deletedCount} 筆`);
+        res.json({ success: true, deletedCount });
+      } catch (error) {
+        logger.error('清理過期日誌失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '清理過期日誌失敗'
         });
       }
     });
