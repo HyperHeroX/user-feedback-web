@@ -1,5 +1,5 @@
 /**
- * 图片转文字服务
+ * 圖片轉文字服務
  */
 
 import { Config } from '../types/index.js';
@@ -20,21 +20,21 @@ export class ImageToTextService {
   }
 
   /**
-   * 将图片转换为文字描述
+   * 將圖片轉換為文字描述
    */
   async convertImageToText(imageData: string, mimeType: string): Promise<string> {
     if (!this.config.enableImageToText) {
-      throw new Error('图片转文字功能未启用');
+      throw new Error('圖片轉文字功能未啟用');
     }
 
     if (!this.config.apiKey) {
-      throw new Error('API密钥未配置');
+      throw new Error('API金鑰未設定');
     }
 
     try {
-      logger.debug('开始转换图片为文字', { mimeType });
+      logger.debug('開始轉換圖片為文字', { mimeType });
 
-      // 清理base64数据，移除data URL前缀
+      // 清理base64資料，移除data URL前綴
       const cleanBase64 = imageData.replace(/^data:image\/[^;]+;base64,/, '');
 
       const runtimeFetch = getRuntimeFetch();
@@ -52,7 +52,7 @@ export class ImageToTextService {
               content: [
                 {
                   type: 'text',
-                  text: this.config.imageToTextPrompt || '请详细描述这张图片的内容，包括主要元素、颜色、布局、文字等信息。'
+                  text: this.config.imageToTextPrompt || '請詳細描述這張圖片的內容，包括主要元素、顏色、佈局、文字等資訊。'
                 },
                 {
                   type: 'image_url',
@@ -70,39 +70,39 @@ export class ImageToTextService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        logger.error('API调用失败', { status: response.status, error: errorText });
-        throw new Error(`API调用失败: ${response.status} ${errorText}`);
+        logger.error('API呼叫失敗', { status: response.status, error: errorText });
+        throw new Error(`API呼叫失敗: ${response.status} ${errorText}`);
       }
 
       const result = await response.json() as any;
-      
+
       if (!result.choices || !result.choices[0] || !result.choices[0].message) {
-        logger.error('API响应格式错误', { result });
-        throw new Error('API响应格式错误');
+        logger.error('API回應格式錯誤', { result });
+        throw new Error('API回應格式錯誤');
       }
 
       const description = result.choices[0].message.content;
-      
+
       if (!description || typeof description !== 'string') {
-        throw new Error('未能获取有效的图片描述');
+        throw new Error('未能取得有效的圖片描述');
       }
 
-      logger.debug('图片转文字成功', { descriptionLength: description.length });
+      logger.debug('圖片轉文字成功', { descriptionLength: description.length });
       return description.trim();
 
     } catch (error) {
-      logger.error('图片转文字失败:', error);
-      
+      logger.error('圖片轉文字失敗:', error);
+
       if (error instanceof Error) {
         throw error;
       }
-      
-      throw new Error('图片转文字处理失败');
+
+      throw new Error('圖片轉文字處理失敗');
     }
   }
 
   /**
-   * 批量转换图片为文字
+   * 批量轉換圖片為文字
    */
   async convertMultipleImages(images: Array<{ name: string; type: string; data: string }>): Promise<string[]> {
     const descriptions: string[] = [];
@@ -110,17 +110,17 @@ export class ImageToTextService {
     for (let i = 0; i < images.length; i++) {
       const image = images[i];
       if (!image) {
-        descriptions.push('转换失败: 图片数据无效');
+        descriptions.push('轉換失敗: 圖片資料無效');
         continue;
       }
 
       try {
-        logger.info(`正在转换第 ${i + 1}/${images.length} 张图片: ${image.name}`);
+        logger.info(`正在轉換第 ${i + 1}/${images.length} 張圖片: ${image.name}`);
         const description = await this.convertImageToText(image.data, image.type);
         descriptions.push(description);
       } catch (error) {
-        logger.error(`转换图片 ${image.name} 失败:`, error);
-        descriptions.push(`转换失败: ${error instanceof Error ? error.message : '未知错误'}`);
+        logger.error(`轉換圖片 ${image.name} 失敗:`, error);
+        descriptions.push(`轉換失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
       }
     }
 
@@ -128,20 +128,20 @@ export class ImageToTextService {
   }
 
   /**
-   * 检查是否支持图片转文字功能
+   * 檢查是否支援圖片轉文字功能
    */
   isEnabled(): boolean {
     return Boolean(this.config.enableImageToText && this.config.apiKey);
   }
 
   /**
-   * 获取配置信息
+   * 取得設定資訊
    */
   getConfig(): { enabled: boolean; model: string; prompt: string } {
     return {
       enabled: this.isEnabled(),
       model: this.config.defaultModel,
-      prompt: this.config.imageToTextPrompt || '请详细描述这张图片的内容，包括主要元素、颜色、布局、文字等信息。'
+      prompt: this.config.imageToTextPrompt || '請詳細描述這張圖片的內容，包括主要元素、顏色、佈局、文字等資訊。'
     };
   }
 }

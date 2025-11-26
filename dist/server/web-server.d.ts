@@ -1,9 +1,9 @@
 /**
- * user-feedback MCP Tools - Web服务器实现
+ * user-feedback MCP Tools - Web伺服器實作
  */
 import { Config, FeedbackData } from '../types/index.js';
 /**
- * Web服务器类
+ * Web伺服器類別
  */
 export declare class WebServer {
     private app;
@@ -20,8 +20,8 @@ export declare class WebServer {
     private autoReplyWarningTimers;
     constructor(config: Config);
     /**
-     * 解析静态资源目录，优先使用构建产物，其次回退到源码目录
-     * 使用模块的实际位置而不是 process.cwd()，以支持从任何目录启动的 MCP 模式
+     * 解析靜態資源目錄，優先使用建置產物，其次回退到原始碼目錄
+     * 使用模組的實際位置而不是 process.cwd()，以支援從任何目錄啟動的 MCP 模式
      */
     private getStaticAssetsPath;
     /**
@@ -30,23 +30,23 @@ export declare class WebServer {
      */
     private waitForActiveSessions;
     /**
-     * 设置优雅退出处理
+     * 設定優雅結束處理
      */
     private setupGracefulShutdown;
     /**
-     * 设置中间件
+     * 設定中介軟體
      */
     private setupMiddleware;
     /**
-     * 设置路由
+     * 設定路由
      */
     private setupRoutes;
     /**
-     * 设置Socket.IO事件处理
+     * 設定Socket.IO事件處理
      */
     private setupSocketHandlers;
     /**
-     * 处理反馈提交
+     * 處理回饋提交
      */
     private handleFeedbackSubmission;
     /**
@@ -62,7 +62,7 @@ export declare class WebServer {
      */
     private clearAutoReplyTimers;
     /**
-     * 收集用户反馈
+     * 收集使用者回饋
      */
     collectFeedback(workSummary: string, timeoutSeconds: number): Promise<{
         feedback: FeedbackData[];
@@ -70,35 +70,35 @@ export declare class WebServer {
         feedbackUrl: string;
     }>;
     /**
-     * 生成反馈页面URL
+     * 產生回饋頁面URL
      */
     private generateFeedbackUrl;
     /**
-     * 打开反馈页面
+     * 開啟回饋頁面
      */
     private openFeedbackPage;
     /**
-     * 生成会话ID
+     * 產生會話ID
      */
     private generateSessionId;
     /**
-     * 启动Web服务器
+     * 啟動Web伺服器
      */
     start(): Promise<void>;
     /**
-     * 优雅停止Web服务器
+     * 優雅停止Web伺服器
      */
     gracefulStop(): Promise<void>;
     /**
-     * 停止Web服务器
+     * 停止Web伺服器
      */
     stop(): Promise<void>;
     /**
-     * 检查服务器是否运行
+     * 檢查伺服器是否執行
      */
     isRunning(): boolean;
     /**
-     * 获取服务器端口
+     * 取得伺服器連接埠
      */
     getPort(): number;
 }

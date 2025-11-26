@@ -1,5 +1,5 @@
 /**
- * user-feedback MCP Tools - Web服务器实现
+ * user-feedback MCP Tools - Web伺服器實作
  */
 
 import express from 'express';
@@ -24,7 +24,7 @@ import { maskApiKey } from '../utils/crypto-helper.js';
 import { generateAIReply, validateAPIKey } from '../utils/ai-service.js';
 
 /**
- * Web服务器类
+ * Web伺服器類別
  */
 export class WebServer {
   private app: express.Application;
@@ -59,13 +59,13 @@ export class WebServer {
       logger.error('資料庫初始化失敗:', error);
     }
 
-    // 创建Express应用
+    // 建立Express應用程式
     this.app = express();
 
-    // 创建HTTP服务器
+    // 建立HTTP伺服器
     this.server = createServer(this.app);
 
-    // 创建Socket.IO服务器
+    // 建立Socket.IO伺服器
     this.io = new SocketIOServer(this.server, {
       cors: {
         origin: config.corsOrigin,
@@ -80,38 +80,38 @@ export class WebServer {
   }
 
   /**
-   * 解析静态资源目录，优先使用构建产物，其次回退到源码目录
-   * 使用模块的实际位置而不是 process.cwd()，以支持从任何目录启动的 MCP 模式
+   * 解析靜態資源目錄，優先使用建置產物，其次回退到原始碼目錄
+   * 使用模組的實際位置而不是 process.cwd()，以支援從任何目錄啟動的 MCP 模式
    */
   private getStaticAssetsPath(): string {
-    // 获取当前模块的目录（dist/server 或 src/server）
+    // 取得當前模組的目錄（dist/server 或 src/server）
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
 
-    // 项目根目录的不同可能性：
-    // 1. 如果从 dist/server/web-server.js 运行：__dirname = .../dist/server，向上 2 级得到项目根
-    // 2. 如果从 src/server/web-server.ts 运行：__dirname = .../src/server，向上 2 级得到项目根
+    // 專案根目錄的不同可能性：
+    // 1. 如果從 dist/server/web-server.js 執行：__dirname = .../dist/server，向上 2 級得到專案根
+    // 2. 如果從 src/server/web-server.ts 執行：__dirname = .../src/server，向上 2 級得到專案根
     const projectRoot = path.resolve(__dirname, '..', '..');
 
-    // 尝试在项目根目录的相对位置查找静态文件
+    // 嘗試在專案根目錄的相對位置查找靜態檔案
     const candidates = [
       path.resolve(projectRoot, 'dist/static'),
       path.resolve(projectRoot, 'src/static'),
-      // 备选方案：使用 process.cwd() 作为最后的回退
+      // 備選方案：使用 process.cwd() 作為最後的回退
       path.resolve(process.cwd(), 'dist/static'),
       path.resolve(process.cwd(), 'src/static')
     ];
 
     for (const candidate of candidates) {
       if (fs.existsSync(candidate)) {
-        logger.debug(`找到静态资源目录: ${candidate}`);
+        logger.debug(`找到靜態資源目錄: ${candidate}`);
         return candidate;
       }
     }
 
-    // 最后回退到项目根目录下的 static（若存在）
+    // 最後回退到專案根目錄下的 static（若存在）
     const fallback = path.resolve(projectRoot, 'static');
-    logger.warn(`未找到静态资源目录，使用回退路径: ${fallback}`);
+    logger.warn(`未找到靜態資源目錄，使用回退路徑: ${fallback}`);
     return fallback;
   }
 
@@ -154,15 +154,15 @@ export class WebServer {
   }
 
   /**
-   * 设置优雅退出处理
+   * 設定優雅結束處理
    */
   private setupGracefulShutdown(): void {
     let isShuttingDown = false;
 
-    // 注册退出信号处理
+    // 註冊結束訊號處理
     const gracefulShutdown = async (signal: string) => {
       if (isShuttingDown) {
-        logger.warn(`已在关闭过程中，忽略 ${signal} 信号`);
+        logger.warn(`已在關閉過程中，忽略 ${signal} 訊號`);
         return;
       }
 
@@ -185,83 +185,83 @@ export class WebServer {
         }
 
         await this.gracefulStop();
-        logger.info('优雅关闭完成');
+        logger.info('優雅關閉完成');
         process.exit(0);
       } catch (error) {
-        logger.error('优雅关闭失败:', error);
+        logger.error('優雅關閉失敗:', error);
         process.exit(1);
       }
     };
 
-    // 标准退出信号
+    // 標準結束訊號
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
-    // Windows特有的退出信号
+    // Windows特有的結束訊號
     if (process.platform === 'win32') {
       process.on('SIGBREAK', () => gracefulShutdown('SIGBREAK'));
     }
 
-    // 未捕获的异常
+    // 未捕獲的異常
     process.on('uncaughtException', async (error) => {
       if (isShuttingDown) return;
 
       isShuttingDown = true;
-      logger.error('未捕获的异常:', error);
+      logger.error('未捕獲的異常:', error);
       try {
         await this.gracefulStop();
       } catch (stopError) {
-        logger.error('异常退出时清理失败:', stopError);
+        logger.error('異常結束時清理失敗:', stopError);
       }
       process.exit(1);
     });
 
-    // 未处理的Promise拒绝 - 只记录，不退出
+    // 未處理的Promise拒絕 - 只記錄，不結束
     process.on('unhandledRejection', (reason, promise) => {
-      logger.error('未处理的Promise拒绝:', reason);
+      logger.error('未處理的Promise拒絕:', reason);
       logger.debug('Promise:', promise);
-      // 不要因为Promise拒绝就退出程序，这在MCP环境中很常见
+      // 不要因為Promise拒絕就結束程式，這在MCP環境中很常見
     });
   }
 
   /**
-   * 设置中间件
+   * 設定中介軟體
    */
   private setupMiddleware(): void {
-    // 安全中间件
+    // 安全中介軟體
     this.app.use(helmet({
-      contentSecurityPolicy: false // 允许内联脚本
+      contentSecurityPolicy: false // 允許內嵌指令碼
     }));
 
-    // 压缩中间件
+    // 壓縮中介軟體
     this.app.use(compression());
 
-    // CORS中间件
+    // CORS中介軟體
     this.app.use(cors({
       origin: this.config.corsOrigin,
       credentials: true
     }));
 
-    // JSON解析中间件
+    // JSON解析中介軟體
     this.app.use(express.json({ limit: '50mb' }));
     this.app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-    // 请求日志和性能监控中间件
+    // 請求日誌和效能監控中介軟體
     this.app.use((req, res, next) => {
       const start = Date.now();
       res.on('finish', () => {
         const duration = Date.now() - start;
         const success = res.statusCode < 400;
 
-        // 记录请求日志
+        // 記錄請求日誌
         logger.request(req.method, req.url, res.statusCode, duration);
 
-        // 记录性能指标
+        // 記錄效能指標
         performanceMonitor.recordRequest(duration, success);
 
-        // 记录慢请求
+        // 記錄慢請求
         if (duration > 1000) {
-          logger.warn(`慢请求: ${req.method} ${req.path} - ${duration}ms`);
+          logger.warn(`慢請求: ${req.method} ${req.path} - ${duration}ms`);
         }
       });
       next();
@@ -269,12 +269,12 @@ export class WebServer {
   }
 
   /**
-   * 设置路由
+   * 設定路由
    */
   private setupRoutes(): void {
     const staticPath = this.getStaticAssetsPath();
 
-    // 静态文件服务 - 使用绝对路径
+    // 靜態檔案服務 - 使用絕對路徑
     this.app.use(express.static(staticPath));
 
     // 主页路由
@@ -282,20 +282,20 @@ export class WebServer {
       res.sendFile('index.html', { root: staticPath });
     });
 
-    // API配置路由
+    // API設定路由
     this.app.get('/api/config', (req, res) => {
       const chatConfig = {
         api_key: this.config.apiKey || '',
         api_base_url: this.config.apiBaseUrl || 'https://api.openai.com/v1',
         model: this.config.defaultModel || 'gpt-4o-mini',
-        enable_chat: this.config.enableChat !== false, // 默认启用
+        enable_chat: this.config.enableChat !== false, // 預設啟用
         max_file_size: this.config.maxFileSize,
         dialog_timeout: this.config.dialogTimeout, // MCP_DIALOG_TIMEOUT (毫秒)
         temperature: 0.7,
         max_tokens: 2000
       };
 
-      logger.info('返回聊天配置:', {
+      logger.info('回傳聊天設定:', {
         hasApiKey: !!chatConfig.api_key,
         apiBaseUrl: chatConfig.api_base_url,
         model: chatConfig.model,
@@ -306,18 +306,18 @@ export class WebServer {
       res.json(chatConfig);
     });
 
-    // 测试会话创建路由
+    // 測試會話建立路由
     this.app.post('/api/test-session', (req, res) => {
       const { work_summary, timeout_seconds = 300 } = req.body;
 
       if (!work_summary) {
-        res.status(400).json({ error: '缺少work_summary参数' });
+        res.status(400).json({ error: '缺少work_summary參數' });
         return;
       }
 
       const sessionId = this.generateSessionId();
 
-      // 创建测试会话
+      // 建立測試會話
       const session: SessionData = {
         workSummary: work_summary,
         feedback: [],
@@ -327,10 +327,10 @@ export class WebServer {
 
       this.sessionStorage.createSession(sessionId, session);
 
-      // 记录会话创建
+      // 記錄會話建立
       performanceMonitor.recordSessionCreated();
 
-      logger.info(`创建测试会话: ${sessionId}`);
+      logger.info(`建立測試會話: ${sessionId}`);
 
       res.json({
         success: true,
@@ -339,7 +339,7 @@ export class WebServer {
       });
     });
 
-    // 版本信息API
+    // 版本資訊API
     this.app.get('/api/version', (req, res) => {
       res.json({
         version: VERSION,
@@ -347,7 +347,7 @@ export class WebServer {
       });
     });
 
-    // 健康检查路由
+    // 健康檢查路由
     this.app.get('/health', (req, res) => {
       res.json({
         status: 'healthy',
@@ -359,19 +359,19 @@ export class WebServer {
       });
     });
 
-    // 性能监控路由
+    // 效能監控路由
     this.app.get('/api/metrics', (req, res) => {
       const metrics = performanceMonitor.getMetrics();
       res.json(metrics);
     });
 
-    // 性能报告路由
+    // 效能報告路由
     this.app.get('/api/performance-report', (req, res) => {
       const report = performanceMonitor.getFormattedReport();
       res.type('text/plain').send(report);
     });
 
-    // 图片转文字API
+    // 圖片轉文字API
     this.app.post('/api/convert-images', async (req, res) => {
       try {
         const { images }: ConvertImagesRequest = req.body;
@@ -379,26 +379,26 @@ export class WebServer {
         if (!images || !Array.isArray(images) || images.length === 0) {
           res.status(400).json({
             success: false,
-            error: '请提供要转换的图片数据'
+            error: '請提供要轉換的圖片資料'
           } as ConvertImagesResponse);
           return;
         }
 
-        // 检查功能是否启用
+        // 檢查功能是否啟用
         if (!this.imageToTextService.isEnabled()) {
           res.status(400).json({
             success: false,
-            error: '图片转文字功能未启用或API密钥未配置'
+            error: '圖片轉文字功能未啟用或API金鑰未設定'
           } as ConvertImagesResponse);
           return;
         }
 
-        logger.info(`开始转换 ${images.length} 张图片为文字`);
+        logger.info(`開始轉換 ${images.length} 張圖片為文字`);
 
-        // 批量转换图片
+        // 批量轉換圖片
         const descriptions = await this.imageToTextService.convertMultipleImages(images);
 
-        logger.info(`图片转文字完成，共转换 ${descriptions.length} 张图片`);
+        logger.info(`圖片轉文字完成，共轉換 ${descriptions.length} 張圖片`);
 
         res.json({
           success: true,
@@ -406,10 +406,10 @@ export class WebServer {
         } as ConvertImagesResponse);
 
       } catch (error) {
-        logger.error('图片转文字API错误:', error);
+        logger.error('圖片轉文字API錯誤:', error);
         res.status(500).json({
           success: false,
-          error: error instanceof Error ? error.message : '图片转文字处理失败'
+          error: error instanceof Error ? error.message : '圖片轉文字處理失敗'
         } as ConvertImagesResponse);
       }
     });
@@ -856,9 +856,9 @@ export class WebServer {
       }
     });
 
-    // 错误处理中间件
+    // 錯誤處理中介軟體
     this.app.use((error: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-      logger.error('Express错误:', error);
+      logger.error('Express錯誤:', error);
       res.status(500).json({
         error: 'Internal Server Error',
         message: error.message
@@ -867,27 +867,27 @@ export class WebServer {
   }
 
   /**
-   * 设置Socket.IO事件处理
+   * 設定Socket.IO事件處理
    */
   private setupSocketHandlers(): void {
     this.io.on('connection', (socket) => {
       logger.socket('connect', socket.id);
-      logger.info(`新的WebSocket连接: ${socket.id}`);
+      logger.info(`新的WebSocket連線: ${socket.id}`);
 
-      // 记录WebSocket连接
+      // 記錄WebSocket連線
       performanceMonitor.recordWebSocketConnection();
 
-      // 测试消息处理
+      // 測試訊息處理
       socket.on('test_message', (data: any) => {
         logger.socket('test_message', socket.id, data);
         socket.emit('test_response', { message: 'Test message received!', timestamp: Date.now() });
       });
 
-      // 处理会话请求（固定URL模式）
+      // 處理會話請求（固定URL模式）
       socket.on('request_session', () => {
         logger.socket('request_session', socket.id);
 
-        // 查找最新的活跃会话
+        // 查找最新的活躍會話
         const activeSessions = this.sessionStorage.getAllSessions();
         let latestSession: { sessionId: string; session: any } | null = null;
 
@@ -898,27 +898,27 @@ export class WebServer {
         }
 
         if (latestSession) {
-          // 有活跃会话，分配给客户端
-          logger.info(`为客户端 ${socket.id} 分配会话: ${latestSession.sessionId}`);
+          // 有活躍會話，分配給用戶端
+          logger.info(`為用戶端 ${socket.id} 分配會話: ${latestSession.sessionId}`);
           socket.emit('session_assigned', {
             session_id: latestSession.sessionId,
             work_summary: latestSession.session.workSummary,
-            timeout: latestSession.session.timeout // 传递超时时间（毫秒）
+            timeout: latestSession.session.timeout // 傳遞逾時時間（毫秒）
           });
         } else {
-          // 无活跃会话
-          logger.info(`客户端 ${socket.id} 请求会话，但无活跃会话`);
+          // 無活躍會話
+          logger.info(`用戶端 ${socket.id} 請求會話，但無活躍會話`);
           socket.emit('no_active_session', {
-            message: '当前无活跃的反馈会话'
+            message: '當前無活躍的回饋會話'
           });
         }
       });
 
-      // 处理最新工作汇报请求
+      // 處理最新工作匯報請求
       socket.on('request_latest_summary', () => {
         logger.socket('request_latest_summary', socket.id);
 
-        // 查找最新的活跃会话
+        // 查找最新的活躍會話
         const activeSessions = this.sessionStorage.getAllSessions();
         let latestSession: { sessionId: string; session: any } | null = null;
 
@@ -929,8 +929,8 @@ export class WebServer {
         }
 
         if (latestSession && latestSession.session.workSummary) {
-          // 找到最新的工作汇报
-          logger.info(`为客户端 ${socket.id} 返回最新工作汇报`);
+          // 找到最新的工作匯報
+          logger.info(`為用戶端 ${socket.id} 回傳最新工作匯報`);
           socket.emit('latest_summary_response', {
             success: true,
             work_summary: latestSession.session.workSummary,
@@ -938,16 +938,16 @@ export class WebServer {
             timestamp: latestSession.session.startTime
           });
         } else {
-          // 没有找到工作汇报
-          logger.info(`客户端 ${socket.id} 请求最新工作汇报，但未找到`);
+          // 沒有找到工作匯報
+          logger.info(`用戶端 ${socket.id} 請求最新工作匯報，但未找到`);
           socket.emit('latest_summary_response', {
             success: false,
-            message: '暂无最新工作汇报，请等待AI调用collect_feedback工具函数'
+            message: '暫無最新工作匯報，請等待AI呼叫collect_feedback工具函式'
           });
         }
       });
 
-      // 获取工作汇报数据
+      // 取得工作匯報資料
       socket.on('get_work_summary', (data: { feedback_session_id: string }) => {
         logger.socket('get_work_summary', socket.id, data);
 
@@ -958,12 +958,12 @@ export class WebServer {
           });
         } else {
           socket.emit('feedback_error', {
-            error: '会话不存在或已过期'
+            error: '會話不存在或已過期'
           });
         }
       });
 
-      // 提交反馈
+      // 提交回饋
       socket.on('submit_feedback', async (data: FeedbackData) => {
         logger.socket('submit_feedback', socket.id, {
           sessionId: data.sessionId,
@@ -996,81 +996,81 @@ export class WebServer {
         this.startAutoReplyTimer(socket, data.sessionId, data.workSummary);
       });
 
-      // 断开连接
+      // 斷開連線
       socket.on('disconnect', (reason) => {
         logger.socket('disconnect', socket.id, { reason });
-        logger.info(`WebSocket连接断开: ${socket.id}, 原因: ${reason}`);
+        logger.info(`WebSocket連線斷開: ${socket.id}, 原因: ${reason}`);
 
-        // 记录WebSocket断开连接
+        // 記錄WebSocket斷開連線
         performanceMonitor.recordWebSocketDisconnection();
       });
     });
   }
 
   /**
-   * 处理反馈提交
+   * 處理回饋提交
    */
   private async handleFeedbackSubmission(socket: any, feedbackData: FeedbackData): Promise<void> {
     const session = this.sessionStorage.getSession(feedbackData.sessionId);
 
     if (!session) {
       socket.emit('feedback_error', {
-        error: '会话不存在或已过期'
+        error: '會話不存在或已過期'
       });
       return;
     }
 
     try {
-      // 验证反馈数据
+      // 驗證回饋資料
       if (!feedbackData.text && (!feedbackData.images || feedbackData.images.length === 0)) {
         socket.emit('feedback_error', {
-          error: '请提供文字反馈或上传图片'
+          error: '請提供文字回饋或上傳圖片'
         });
         return;
       }
 
-      // 处理图片数据
+      // 處理圖片資料
       const processedFeedback = { ...feedbackData };
       if (feedbackData.images && feedbackData.images.length > 0) {
-        logger.info(`开始处理 ${feedbackData.images.length} 张图片...`);
+        logger.info(`開始處理 ${feedbackData.images.length} 張圖片...`);
 
         try {
           const processedImages = await this.imageProcessor.processImages(feedbackData.images);
           processedFeedback.images = processedImages;
 
           const stats = this.imageProcessor.getImageStats(processedImages);
-          logger.info(`图片处理完成: ${stats.totalCount} 张图片, 总大小: ${(stats.totalSize / 1024 / 1024).toFixed(2)}MB`);
+          logger.info(`圖片處理完成: ${stats.totalCount} 張圖片, 總大小: ${(stats.totalSize / 1024 / 1024).toFixed(2)}MB`);
 
         } catch (error) {
-          logger.error('图片处理失败:', error);
+          logger.error('圖片處理失敗:', error);
           socket.emit('feedback_error', {
-            error: `图片处理失败: ${error instanceof Error ? error.message : '未知错误'}`
+            error: `圖片處理失敗: ${error instanceof Error ? error.message : '未知錯誤'}`
           });
           return;
         }
       }
 
-      // 添加反馈到会话
+      // 新增回饋到會話
       session.feedback.push(processedFeedback);
       this.sessionStorage.updateSession(feedbackData.sessionId, { feedback: session.feedback });
 
       // 通知提交成功
       socket.emit('feedback_submitted', {
         success: true,
-        message: '反馈提交成功',
+        message: '回饋提交成功',
         shouldCloseAfterSubmit: feedbackData.shouldCloseAfterSubmit || false
       });
 
-      // 完成反馈收集
+      // 完成回饋收集
       if (session.resolve) {
         session.resolve(session.feedback);
         this.sessionStorage.deleteSession(feedbackData.sessionId);
       }
 
     } catch (error) {
-      logger.error('处理反馈提交时出错:', error);
+      logger.error('處理回饋提交時出錯:', error);
       socket.emit('feedback_error', {
-        error: '服务器处理错误，请稍后重试'
+        error: '伺服器處理錯誤，請稍後重試'
       });
     }
   }
@@ -1168,16 +1168,16 @@ export class WebServer {
   }
 
   /**
-   * 收集用户反馈
+   * 收集使用者回饋
    */
   async collectFeedback(workSummary: string, timeoutSeconds: number): Promise<{ feedback: FeedbackData[]; sessionId: string; feedbackUrl: string }> {
     const sessionId = this.generateSessionId();
 
-    logger.info(`创建反馈会话: ${sessionId}, 超时: ${timeoutSeconds}秒`);
+    logger.info(`建立回饋會話: ${sessionId}, 逾時: ${timeoutSeconds}秒`);
     const feedbackUrl = this.generateFeedbackUrl(sessionId);
 
     return new Promise((resolve, reject) => {
-      // 创建会话
+      // 建立會話
       const session: SessionData = {
         workSummary,
         feedback: [],
@@ -1192,11 +1192,11 @@ export class WebServer {
       // 发送MCP日志通知，包含反馈页面信息
       logger.mcpFeedbackPageCreated(sessionId, feedbackUrl, timeoutSeconds);
 
-      // 注意：超时处理现在由SessionStorage的清理机制处理
+      // 注意：逾時處理現在由SessionStorage的清理機制處理
 
-      // 打开浏览器
+      // 開啟瀏覽器
       this.openFeedbackPage(sessionId).catch((error) => {
-        logger.error('打开反馈页面失败:', error);
+        logger.error('開啟回饋頁面失敗:', error);
         this.sessionStorage.deleteSession(sessionId);
         reject(error);
       });
@@ -1204,21 +1204,21 @@ export class WebServer {
   }
 
   /**
-   * 生成反馈页面URL
+   * 產生回饋頁面URL
    */
   private generateFeedbackUrl(sessionId: string): string {
-    // 如果启用了固定URL模式，返回根路径
+    // 如果啟用了固定URL模式，回傳根路徑
     if (this.config.useFixedUrl) {
-      // 优先使用配置的服务器基础URL
+      // 優先使用設定的伺服器基礎URL
       if (this.config.serverBaseUrl) {
         return this.config.serverBaseUrl;
       }
-      // 使用配置的主机名
+      // 使用設定的主機名
       const host = this.config.serverHost || 'localhost';
       return `http://${host}:${this.port}`;
     }
 
-    // 传统模式：包含会话ID参数
+    // 傳統模式：包含會話ID參數
     if (this.config.serverBaseUrl) {
       return `${this.config.serverBaseUrl}/?mode=feedback&session=${sessionId}`;
     }
@@ -1227,47 +1227,47 @@ export class WebServer {
   }
 
   /**
-   * 打开反馈页面
+   * 開啟回饋頁面
    */
   private async openFeedbackPage(sessionId: string): Promise<void> {
     const url = this.generateFeedbackUrl(sessionId);
-    logger.info(`打开反馈页面: ${url}`);
+    logger.info(`開啟回饋頁面: ${url}`);
 
     try {
       const open = await import('open');
       await open.default(url);
-      logger.info('浏览器已打开反馈页面');
+      logger.info('瀏覽器已開啟回饋頁面');
     } catch (error) {
-      logger.warn('无法自动打开浏览器:', error);
-      logger.info(`请手动打开浏览器访问: ${url}`);
+      logger.warn('無法自動開啟瀏覽器:', error);
+      logger.info(`請手動開啟瀏覽器存取: ${url}`);
     }
   }
 
   /**
-   * 生成会话ID
+   * 產生會話ID
    */
   private generateSessionId(): string {
     return `feedback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
   /**
-   * 启动Web服务器
+   * 啟動Web伺服器
    */
   async start(): Promise<void> {
     if (this.isServerRunning) {
-      logger.warn('Web服务器已在运行中');
+      logger.warn('Web伺服器已在執行中');
       return;
     }
 
     try {
-      // 根据配置选择端口策略
+      // 根據設定選擇連接埠策略
       if (this.config.forcePort) {
-        // 强制端口模式
-        logger.info(`强制端口模式: 尝试使用端口 ${this.config.webPort}`);
+        // 強制連接埠模式
+        logger.info(`強制連接埠模式: 嘗試使用連接埠 ${this.config.webPort}`);
 
-        // 根据配置决定是否清理端口
+        // 根據設定決定是否清理連接埠
         if (this.config.cleanupPortOnStart) {
-          logger.info(`启动时端口清理已启用，清理端口 ${this.config.webPort}`);
+          logger.info(`啟動時連接埠清理已啟用，清理連接埠 ${this.config.webPort}`);
           await this.portManager.cleanupPort(this.config.webPort);
         }
 
@@ -1276,15 +1276,15 @@ export class WebServer {
           this.config.killProcessOnPortConflict || false
         );
       } else {
-        // 智能端口模式：使用新的冲突解决方案
-        logger.info(`智能端口模式: 尝试使用端口 ${this.config.webPort}`);
+        // 智慧連接埠模式：使用新的衝突解決方案
+        logger.info(`智慧連接埠模式: 嘗試使用連接埠 ${this.config.webPort}`);
         this.port = await this.portManager.resolvePortConflict(this.config.webPort);
       }
 
-      // 启动服务器前再次确认端口可用
-      logger.info(`准备在端口 ${this.port} 启动服务器...`);
+      // 啟動伺服器前再次確認連接埠可用
+      logger.info(`準備在連接埠 ${this.port} 啟動伺服器...`);
 
-      // 启动服务器
+      // 啟動伺服器
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Server start timeout'));
@@ -1302,24 +1302,24 @@ export class WebServer {
 
       this.isServerRunning = true;
 
-      // 根据配置显示不同的启动信息
+      // 根據設定顯示不同的啟動資訊
       const serverUrl = `http://localhost:${this.port}`;
 
       if (this.config.forcePort) {
-        logger.info(`Web服务器启动成功 (强制端口): ${serverUrl}`);
+        logger.info(`Web伺服器啟動成功 (強制連接埠): ${serverUrl}`);
       } else {
-        logger.info(`Web服务器启动成功: ${serverUrl}`);
+        logger.info(`Web伺服器啟動成功: ${serverUrl}`);
       }
 
       if (this.config.useFixedUrl) {
-        logger.info(`固定URL模式已启用，访问地址: ${serverUrl}`);
+        logger.info(`固定URL模式已啟用，存取位址: ${serverUrl}`);
       }
 
       // 发送MCP日志通知，包含端口和URL信息
       logger.mcpServerStarted(this.port, serverUrl);
 
     } catch (error) {
-      logger.error('Web服务器启动失败:', error);
+      logger.error('Web伺服器啟動失敗:', error);
       throw new MCPError(
         'Failed to start web server',
         'WEB_SERVER_START_ERROR',
@@ -1329,7 +1329,7 @@ export class WebServer {
   }
 
   /**
-   * 优雅停止Web服务器
+   * 優雅停止Web伺服器
    */
   async gracefulStop(): Promise<void> {
     if (!this.isServerRunning) {
@@ -1337,10 +1337,10 @@ export class WebServer {
     }
 
     const currentPort = this.port;
-    logger.info(`开始优雅停止Web服务器 (端口: ${currentPort})...`);
+    logger.info(`開始優雅停止Web伺服器 (連接埠: ${currentPort})...`);
 
     try {
-      // 1. 停止接受新连接
+      // 1. 停止接受新連線
       if (this.server) {
         this.server.close();
       }
@@ -1352,11 +1352,11 @@ export class WebServer {
           timestamp: new Date().toISOString()
         });
 
-        // 等待客户端处理关闭通知
+        // 等待用戶端處理關閉通知
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
-      // 3. 关闭所有Socket连接
+      // 3. 關閉所有Socket連線
       if (this.io) {
         this.io.close();
       }
@@ -1366,26 +1366,26 @@ export class WebServer {
         this.clearAutoReplyTimers(sessionId);
       }
 
-      // 5. 清理会话数据
+      // 5. 清理會話資料
       this.sessionStorage.clear();
       this.sessionStorage.stopCleanupTimer();
 
-      // 6. 等待所有异步操作完成
+      // 6. 等待所有非同步操作完成
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       this.isServerRunning = false;
-      logger.info(`Web服务器已优雅停止 (端口: ${currentPort})`);
+      logger.info(`Web伺服器已優雅停止 (連接埠: ${currentPort})`);
 
     } catch (error) {
-      logger.error('优雅停止Web服务器时出错:', error);
-      // 即使出错也要标记为已停止
+      logger.error('優雅停止Web伺服器時出錯:', error);
+      // 即使出錯也要標記為已停止
       this.isServerRunning = false;
       throw error;
     }
   }
 
   /**
-   * 停止Web服务器
+   * 停止Web伺服器
    */
   async stop(): Promise<void> {
     if (!this.isServerRunning) {
@@ -1393,7 +1393,7 @@ export class WebServer {
     }
 
     const currentPort = this.port;
-    logger.info(`正在停止Web服务器 (端口: ${currentPort})...`);
+    logger.info(`正在停止Web伺服器 (連接埠: ${currentPort})...`);
 
     try {
       // 如果有活躍會話，先等待一段時間以便使用者提交（最多等待 dialogTimeout 或 30 秒，視情況而定）
@@ -1409,17 +1409,17 @@ export class WebServer {
         }
       }
 
-      // 清理所有活跃会话
+      // 清理所有活躍會話
       this.sessionStorage.clear();
       this.sessionStorage.stopCleanupTimer();
 
-      // 关闭所有WebSocket连接
+      // 關閉所有WebSocket連線
       this.io.disconnectSockets(true);
 
-      // 关闭Socket.IO
+      // 關閉Socket.IO
       this.io.close();
 
-      // 关闭HTTP服务器
+      // 關閉HTTP伺服器
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error('Server close timeout'));
@@ -1436,32 +1436,32 @@ export class WebServer {
       });
 
       this.isServerRunning = false;
-      logger.info(`Web服务器已停止 (端口: ${currentPort})`);
+      logger.info(`Web伺服器已停止 (連接埠: ${currentPort})`);
 
-      // 等待端口完全释放
-      logger.info(`等待端口 ${currentPort} 完全释放...`);
+      // 等待連接埠完全釋放
+      logger.info(`等待連接埠 ${currentPort} 完全釋放...`);
       try {
         await this.portManager.waitForPortRelease(currentPort, 3000);
-        logger.info(`端口 ${currentPort} 已完全释放`);
+        logger.info(`連接埠 ${currentPort} 已完全釋放`);
       } catch (error) {
-        logger.warn(`端口 ${currentPort} 释放超时，但服务器已停止`);
+        logger.warn(`連接埠 ${currentPort} 釋放逾時，但伺服器已停止`);
       }
 
     } catch (error) {
-      logger.error('停止Web服务器时出错:', error);
+      logger.error('停止Web伺服器時出錯:', error);
       throw error;
     }
   }
 
   /**
-   * 检查服务器是否运行
+   * 檢查伺服器是否執行
    */
   isRunning(): boolean {
     return this.isServerRunning;
   }
 
   /**
-   * 获取服务器端口
+   * 取得伺服器連接埠
    */
   getPort(): number {
     return this.port;

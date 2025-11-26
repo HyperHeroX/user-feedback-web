@@ -1,9 +1,9 @@
 /**
- * user-feedback MCP Tools - 日志工具
+ * user-feedback MCP Tools - 日誌工具
  */
 import fs from 'fs';
 import path from 'path';
-// 日志级别优先级
+// 日誌級別優先級
 const LOG_LEVELS = {
     error: 0,
     warn: 1,
@@ -11,7 +11,7 @@ const LOG_LEVELS = {
     debug: 3,
     silent: 999
 };
-// MCP日志级别优先级
+// MCP日誌級別優先級
 const MCP_LOG_LEVELS = {
     emergency: 0,
     alert: 1,
@@ -22,19 +22,19 @@ const MCP_LOG_LEVELS = {
     info: 6,
     debug: 7
 };
-// 内部日志级别到MCP日志级别的映射
+// 內部日誌級別到MCP日誌級別的對映
 const LOG_LEVEL_TO_MCP = {
     error: 'error',
     warn: 'warning',
     info: 'info',
     debug: 'debug',
-    silent: 'info' // silent模式下如果需要发送MCP日志，使用info级别
+    silent: 'info' // silent模式下如果需要傳送MCP日誌，使用info級別
 };
 /**
- * 检测是否为远程环境
+ * 檢測是否為遠端環境
  */
 function isRemoteEnvironment() {
-    // 检测常见的远程环境标识
+    // 檢測常見的遠端環境標識
     return !!(process.env['SSH_CLIENT'] ||
         process.env['SSH_TTY'] ||
         process.env['VSCODE_REMOTE'] ||
@@ -43,16 +43,16 @@ function isRemoteEnvironment() {
         process.env['REMOTE_CONTAINERS'] ||
         process.env['WSL_DISTRO_NAME']);
 }
-// 日志颜色
+// 日誌顏色
 const LOG_COLORS = {
-    error: '\x1b[31m', // 红色
-    warn: '\x1b[33m', // 黄色
+    error: '\x1b[31m', // 紅色
+    warn: '\x1b[33m', // 黃色
     info: '\x1b[36m', // 青色
     debug: '\x1b[37m', // 白色
-    silent: '' // 无颜色
+    silent: '' // 無顏色
 };
 const RESET_COLOR = '\x1b[0m';
-// 敏感資訊脫敏正則表達式
+// 敏感資訊脫敏正則運算式
 const SENSITIVE_PATTERNS = [
     // API Keys (各種格式)
     { pattern: /sk-[a-zA-Z0-9]{20,}/g, replacement: 'sk-***' },
@@ -78,7 +78,7 @@ class Logger {
     logFile;
     fileLoggingEnabled = false;
     colorsDisabled = false;
-    // MCP日志相关
+    // MCP日誌相關
     mcpLogLevel = 'info';
     mcpLogCallback = undefined;
     // 資料庫日誌相關
@@ -110,13 +110,13 @@ class Logger {
         this.currentSource = source;
     }
     /**
-     * 啟用/禁用資料庫日誌
+     * 啟用/停用資料庫日誌
      */
     setDatabaseLogging(enabled) {
         this.dbLoggingEnabled = enabled;
     }
     /**
-     * 延遲載入 database 函數
+     * 延遲載入 database 函式
      */
     async loadDatabaseFunctions() {
         if (this.insertLogsFunc)
@@ -198,91 +198,91 @@ class Logger {
         }
     }
     /**
-     * 设置日志级别
+     * 設定日誌級別
      */
     setLevel(level) {
         this.currentLevel = level;
     }
     /**
-     * 获取当前日志级别
+     * 取得目前日誌級別
      */
     getLevel() {
         return this.currentLevel;
     }
     /**
-     * 禁用颜色输出（用于MCP模式）
+     * 停用顏色輸出（用於MCP模式）
      */
     disableColors() {
         this.colorsDisabled = true;
     }
     /**
-     * 设置MCP日志级别
+     * 設定MCP日誌級別
      */
     setMCPLogLevel(level) {
         this.mcpLogLevel = level;
     }
     /**
-     * 获取MCP日志级别
+     * 取得MCP日誌級別
      */
     getMCPLogLevel() {
         return this.mcpLogLevel;
     }
     /**
-     * 设置MCP日志回调函数
+     * 設定MCP日誌回呼函式
      */
     setMCPLogCallback(callback) {
         this.mcpLogCallback = callback;
     }
     /**
-     * 清除MCP日志回调函数
+     * 清除MCP日誌回呼函式
      */
     clearMCPLogCallback() {
         this.mcpLogCallback = undefined;
     }
     /**
-     * 启用文件日志记录
+     * 啟用檔案日誌記錄
      */
     enableFileLogging(logDir = 'logs') {
         try {
-            // 确保日志目录存在
+            // 確保日誌目錄存在
             if (!fs.existsSync(logDir)) {
                 fs.mkdirSync(logDir, { recursive: true });
             }
-            // 生成日志文件名
+            // 產生日誌檔案名
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             this.logFile = path.join(logDir, `mcp-debug-${timestamp}.log`);
             this.fileLoggingEnabled = true;
-            // 写入日志文件头
+            // 寫入日誌檔案標頭
             const header = '=== user-feedback MCP Tools Debug Log ===\n' +
                 `Start Time: ${new Date().toISOString()}\n` +
                 `Log Level: ${this.currentLevel}\n` +
                 '==========================================\n\n';
             fs.writeFileSync(this.logFile, header);
-            process.stderr.write(`日志文件已创建: ${this.logFile}\n`);
+            process.stderr.write(`日誌檔案已建立: ${this.logFile}\n`);
         }
         catch (error) {
-            process.stderr.write(`无法创建日志文件: ${error}\n`);
+            process.stderr.write(`無法建立日誌檔案: ${error}\n`);
             this.fileLoggingEnabled = false;
         }
     }
     /**
-     * 检查是否应该输出指定级别的日志
+     * 檢查是否應該輸出指定級別的日誌
      */
     shouldLog(level) {
-        // silent模式下不输出任何日志
+        // silent模式下不輸出任何日誌
         if (this.currentLevel === 'silent') {
             return false;
         }
         return LOG_LEVELS[level] <= LOG_LEVELS[this.currentLevel];
     }
     /**
-     * 检查是否应该发送MCP日志
+     * 檢查是否應該傳送MCP日誌
      */
     shouldSendMCPLog(level) {
         return MCP_LOG_LEVELS[level] <= MCP_LOG_LEVELS[this.mcpLogLevel];
     }
     /**
-     * 发送MCP日志通知
+     * 傳送MCP日誌通知
      */
     sendMCPLog(level, message, data) {
         if (!this.mcpLogCallback || !this.shouldSendMCPLog(level)) {
@@ -297,29 +297,29 @@ class Logger {
             this.mcpLogCallback(mcpMessage);
         }
         catch (error) {
-            // 避免日志回调错误导致程序崩溃
+            // 避免日誌回呼錯誤導致程式崩潰
             process.stderr.write(`MCP log callback error: ${error}\n`);
         }
     }
     /**
-     * 格式化时间戳
+     * 格式化時間戳
      */
     formatTimestamp() {
         return new Date().toISOString();
     }
     /**
-     * 格式化日志消息
+     * 格式化日誌訊息
      */
     formatMessage(level, message, ...args) {
         const timestamp = this.formatTimestamp();
         const levelStr = level.toUpperCase().padEnd(5);
         let formattedMessage;
         if (this.colorsDisabled) {
-            // 无颜色模式（用于MCP）
+            // 無顏色模式（用於MCP）
             formattedMessage = `[${timestamp}] ${levelStr} ${message}`;
         }
         else {
-            // 有颜色模式（用于终端）
+            // 有顏色模式（用於終端）
             const color = LOG_COLORS[level];
             formattedMessage = `${color}[${timestamp}] ${levelStr}${RESET_COLOR} ${message}`;
         }
@@ -330,13 +330,13 @@ class Logger {
         return formattedMessage;
     }
     /**
-     * 输出日志
+     * 輸出日誌
      */
     log(level, message, ...args) {
         if (!this.shouldLog(level))
             return;
         const formattedMessage = this.formatMessage(level, message, ...args);
-        // 控制台输出 - 总是使用 stderr 避免污染 stdout（MCP JSON-RPC 协议需要纯净的 stdout）
+        // 控制台輸出 - 總是使用 stderr 避免污染 stdout（MCP JSON-RPC 協定需要純淨的 stdout）
         if (this.colorsDisabled) {
             // MCP 模式：使用 stderr 避免污染 stdout
             process.stderr.write(formattedMessage + '\n');
@@ -353,57 +353,57 @@ class Logger {
                 console.log(formattedMessage);
             }
         }
-        // 文件输出（去除颜色代码）
+        // 檔案輸出（去除顏色代碼）
         if (this.fileLoggingEnabled && this.logFile) {
             try {
                 const cleanMessage = this.removeColorCodes(formattedMessage);
                 fs.appendFileSync(this.logFile, cleanMessage + '\n');
             }
             catch (error) {
-                process.stderr.write(`写入日志文件失败: ${error}\n`);
+                process.stderr.write(`寫入日誌檔案失敗: ${error}\n`);
             }
         }
         // 寫入資料庫
         const context = args.length > 0 ? args : undefined;
         this.writeToDatabase(level, message, context);
-        // 发送MCP日志通知
+        // 傳送MCP日誌通知
         const mcpLevel = LOG_LEVEL_TO_MCP[level];
         const logData = args.length > 0 ? { message, args } : message;
         this.sendMCPLog(mcpLevel, message, logData);
     }
     /**
-     * 移除颜色代码
+     * 移除顏色代碼
      */
     removeColorCodes(text) {
         // eslint-disable-next-line no-control-regex -- strip ANSI color codes
         return text.replace(/\x1B\[[0-9;]*m/g, '');
     }
     /**
-     * 错误日志
+     * 錯誤日誌
      */
     error(message, ...args) {
         this.log('error', message, ...args);
     }
     /**
-     * 警告日志
+     * 警告日誌
      */
     warn(message, ...args) {
         this.log('warn', message, ...args);
     }
     /**
-     * 信息日志
+     * 資訊日誌
      */
     info(message, ...args) {
         this.log('info', message, ...args);
     }
     /**
-     * 调试日志
+     * 除錯日誌
      */
     debug(message, ...args) {
         this.log('debug', message, ...args);
     }
     /**
-     * 记录HTTP请求
+     * 記錄HTTP請求
      */
     request(method, url, statusCode, duration) {
         const parts = [method.toUpperCase(), url];
@@ -414,7 +414,7 @@ class Logger {
         this.info(`HTTP ${parts.join(' ')}`);
     }
     /**
-     * 记录WebSocket事件
+     * 記錄WebSocket事件
      */
     socket(event, sessionId, data) {
         const parts = ['WebSocket', event];
@@ -423,84 +423,84 @@ class Logger {
         this.debug(parts.join(' '), data);
     }
     /**
-     * 记录MCP工具调用
+     * 記錄MCP工具呼叫
      */
     mcp(tool, params, result) {
         this.info(`MCP Tool: ${tool}`, { params, result });
     }
     /**
-     * 发送MCP通知级别日志
+     * 傳送MCP通知級別日誌
      */
     mcpNotice(message, data) {
         this.sendMCPLog('notice', message, data);
     }
     /**
-     * 发送MCP警告级别日志
+     * 傳送MCP警告級別日誌
      */
     mcpWarning(message, data) {
         this.sendMCPLog('warning', message, data);
     }
     /**
-     * 发送MCP错误级别日志
+     * 傳送MCP錯誤級別日誌
      */
     mcpError(message, data) {
         this.sendMCPLog('error', message, data);
     }
     /**
-     * 发送MCP关键级别日志
+     * 傳送MCP關鍵級別日誌
      */
     mcpCritical(message, data) {
         this.sendMCPLog('critical', message, data);
     }
     /**
-     * 发送服务器启动信息到MCP客户端
+     * 傳送伺服器啟動資訊到MCP客戶端
      */
     mcpServerStarted(port, url) {
         const isRemote = isRemoteEnvironment();
-        this.mcpNotice('Web服务器已启动', {
+        this.mcpNotice('Web伺服器已啟動', {
             port: port,
             url: url,
             status: 'ready',
             remote_environment: isRemote
         });
         if (isRemote) {
-            this.mcpNotice('检测到远程环境，建议配置端口转发', {
+            this.mcpNotice('偵測到遠端環境，建議設定連接埠轉發', {
                 local_port: port,
                 forward_url: url,
-                vscode_tip: 'VSCode会自动提示端口转发，或手动在端口面板中添加'
+                vscode_tip: 'VSCode會自動提示連接埠轉發，或手動在連接埠面板中新增'
             });
         }
     }
     /**
-     * 发送反馈页面创建信息到MCP客户端
+     * 傳送回饋頁面建立資訊到MCP客戶端
      */
     mcpFeedbackPageCreated(sessionId, feedbackUrl, timeoutSeconds) {
         const isRemote = isRemoteEnvironment();
-        this.mcpNotice('反馈页面已创建', {
+        this.mcpNotice('回饋頁面已建立', {
             session_id: sessionId,
             feedback_url: feedbackUrl,
             expires_in: `${timeoutSeconds}秒`,
             remote_environment: isRemote
         });
         if (isRemote) {
-            this.mcpNotice('远程访问提示', {
+            this.mcpNotice('遠端存取提示', {
                 original_url: feedbackUrl,
-                access_tip: '请确保已配置端口转发，然后访问转发后的地址',
-                vscode_ports_panel: '查看VSCode底部的"端口"面板'
+                access_tip: '請確保已設定連接埠轉發，然後存取轉發後的位址',
+                vscode_ports_panel: '查看VSCode底部的"連接埠"面板'
             });
         }
     }
     /**
-     * 发送工具调用开始信息到MCP客户端
+     * 傳送工具呼叫開始資訊到MCP客戶端
      */
     mcpToolCallStarted(toolName, params) {
-        this.mcpNotice(`MCP工具调用: ${toolName}`, {
+        this.mcpNotice(`MCP工具呼叫: ${toolName}`, {
             tool: toolName,
             parameters: params,
             timestamp: new Date().toISOString()
         });
     }
 }
-// 创建全局日志实例
+// 建立全域日誌實例
 export const logger = new Logger();
 //# sourceMappingURL=logger.js.map

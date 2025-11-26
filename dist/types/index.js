@@ -1,7 +1,7 @@
 /**
- * user-feedback MCP Tools - 类型定义
+ * user-feedback MCP Tools - 類型定義
  */
-// 错误类型
+// 錯誤類型
 export class MCPError extends Error {
     code;
     details;

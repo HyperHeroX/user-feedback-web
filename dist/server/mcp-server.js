@@ -1,5 +1,5 @@
 /**
- * user-feedback MCP Tools - MCP服务器实现
+ * user-feedback MCP Tools - MCP伺服器實作
  */
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -9,7 +9,7 @@ import { MCPError } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { WebServer } from './web-server.js';
 /**
- * MCP服务器类
+ * MCP伺服器類別
  */
 export class MCPServer {
     mcpServer;
@@ -28,25 +28,25 @@ export class MCPServer {
                 logging: {} // 添加日志功能支持
             }
         });
-        // 设置初始化完成回调
+        // 設定初始化完成回呼
         this.mcpServer.server.oninitialized = () => {
             logger.info('MCP初始化完成');
         };
-        // 创建Web服务器实例
+        // 建立Web伺服器實例
         this.webServer = new WebServer(config);
-        // 注册MCP工具函数和日志处理
+        // 註冊MCP工具函式和日誌處理
         this.registerTools();
         this.setupLogging();
     }
     /**
-     * 注册MCP工具函数
+     * 註冊MCP工具函式
      */
     registerTools() {
-        // 注册collect_feedback工具 - 使用新的registerTool方法
+        // 註冊collect_feedback工具 - 使用新的registerTool方法
         this.mcpServer.registerTool('collect_feedback', {
             description: 'Collect feedback from users about AI work summary. This tool opens a web interface for users to provide feedback on the AI\'s work.',
             inputSchema: {
-                work_summary: z.string().describe('AI工作汇报内容，描述AI完成的工作和结果')
+                work_summary: z.string().describe('AI工作匯報內容，描述AI完成的工作和結果')
             }
         }, async (args) => {
             const params = {
@@ -100,7 +100,7 @@ export class MCPServer {
                 };
             }
             catch (error) {
-                logger.error('collect_feedback工具调用失败:', error);
+                logger.error('collect_feedback工具呼叫失敗:', error);
                 if (error instanceof MCPError) {
                     throw error;
                 }
@@ -108,30 +108,30 @@ export class MCPServer {
             }
         });
         if (logger.getLevel() !== 'silent') {
-            logger.info('MCP工具函数注册完成');
+            logger.info('MCP工具函式註冊完成');
         }
     }
     /**
-     * 设置MCP日志功能
+     * 設定MCP日誌功能
      */
     setupLogging() {
-        // 设置MCP日志回调
+        // 設定MCP日誌回呼
         logger.setMCPLogCallback((message) => {
             this.sendLogNotification(message).catch(() => {
-                // 静默处理错误，避免未处理的Promise拒绝
+                // 靜默處理錯誤，避免未處理的Promise拒絕
             });
         });
-        // 处理日志级别设置请求
+        // 處理日誌級別設定請求
         this.mcpServer.server.setRequestHandler(SetLevelRequestSchema, async (request) => {
             const level = request.params.level;
             logger.setMCPLogLevel(level);
-            logger.info(`MCP日志级别已设置为: ${level}`);
-            return {}; // 返回空结果表示成功
+            logger.info(`MCP日誌級別已設定為: ${level}`);
+            return {}; // 回傳空結果表示成功
         });
-        logger.info('MCP日志功能已设置');
+        logger.info('MCP日誌功能已設定');
     }
     /**
-     * 发送MCP日志通知
+     * 傳送MCP日誌通知
      */
     async sendLogNotification(message) {
         try {
@@ -145,153 +145,153 @@ export class MCPServer {
             });
         }
         catch (error) {
-            // 避免日志通知错误导致程序崩溃，但不要输出到控制台避免污染MCP输出
-            // console.error('发送MCP日志通知失败:', error);
+            // 避免日誌通知錯誤導致程式崩潰，但不要輸出到主控台避免汙染MCP輸出
+            // console.error('傳送MCP日誌通知失敗:', error);
         }
     }
     /**
-     * 实现collect_feedback功能
+     * 實作collect_feedback功能
      */
     async collectFeedback(params) {
         const { work_summary } = params;
         const timeout_seconds = this.config.dialogTimeout;
-        logger.info(`开始收集反馈，工作汇报长度: ${work_summary.length}字符，超时: ${timeout_seconds}秒`);
-        // 发送MCP工具调用开始通知
+        logger.info(`開始收集回饋，工作匯報長度: ${work_summary.length}字元，逾時: ${timeout_seconds}秒`);
+        // 傳送MCP工具呼叫開始通知
         logger.mcpToolCallStarted('collect_feedback', {
             work_summary_length: work_summary.length,
             timeout_seconds: timeout_seconds
         });
         try {
-            // 启动Web服务器（如果未运行）
+            // 啟動Web伺服器（如果未執行）
             if (!this.webServer.isRunning()) {
                 await this.webServer.start();
             }
-            // 收集用户反馈（webServer.collectFeedback 已回傳 { feedback, sessionId, feedbackUrl }）
+            // 收集使用者回饋（webServer.collectFeedback 已回傳 { feedback, sessionId, feedbackUrl }）
             const result = await this.webServer.collectFeedback(work_summary, timeout_seconds);
-            logger.info(`反馈收集流程已完成（可能为空），会话: ${result.sessionId}`);
+            logger.info(`回饋收集流程已完成（可能為空），會話: ${result.sessionId}`);
             return result;
         }
         catch (error) {
-            logger.error('反馈收集失败:', error);
+            logger.error('回饋收集失敗:', error);
             if (error instanceof MCPError)
                 throw error;
             throw new MCPError('Failed to collect user feedback', 'COLLECT_FEEDBACK_ERROR', error);
         }
     }
     /**
-     * 将反馈数据格式化为MCP内容（支持图片显示）
+     * 將回饋資料格式化為MCP內容（支援圖片顯示）
      */
     formatFeedbackForMCP(feedback) {
         if (feedback.length === 0) {
             return [{
                     type: 'text',
-                    text: '未收到用户反馈'
+                    text: '未收到使用者回饋'
                 }];
         }
         const content = [];
-        // 添加总结文本
+        // 新增總結文字
         content.push({
             type: 'text',
-            text: `收到 ${feedback.length} 条用户反馈：\n`
+            text: `收到 ${feedback.length} 條使用者回饋：\n`
         });
         feedback.forEach((item, index) => {
-            // 添加反馈标题
+            // 新增回饋標題
             content.push({
                 type: 'text',
-                text: `\n--- 反馈 ${index + 1} ---`
+                text: `\n--- 回饋 ${index + 1} ---`
             });
-            // 添加文字反馈
+            // 新增文字回饋
             if (item.text) {
                 content.push({
                     type: 'text',
-                    text: `文字反馈: ${item.text}`
+                    text: `文字回饋: ${item.text}`
                 });
             }
-            // 添加图片（转换为base64格式）
+            // 新增圖片（轉換為base64格式）
             if (item.images && item.images.length > 0) {
                 content.push({
                     type: 'text',
-                    text: `图片数量: ${item.images.length}`
+                    text: `圖片數量: ${item.images.length}`
                 });
                 item.images.forEach((img, imgIndex) => {
-                    // 添加图片信息
+                    // 新增圖片資訊
                     content.push({
                         type: 'text',
-                        text: `图片 ${imgIndex + 1}: ${img.name} (${img.type}, ${(img.size / 1024).toFixed(1)}KB)`
+                        text: `圖片 ${imgIndex + 1}: ${img.name} (${img.type}, ${(img.size / 1024).toFixed(1)}KB)`
                     });
-                    // 添加图片描述（如果有）
+                    // 新增圖片描述（如果有）
                     if (item.imageDescriptions && item.imageDescriptions[imgIndex]) {
                         content.push({
                             type: 'text',
-                            text: `图片描述: ${item.imageDescriptions[imgIndex]}`
+                            text: `圖片描述: ${item.imageDescriptions[imgIndex]}`
                         });
                     }
-                    // 添加图片内容（Cursor格式）
+                    // 新增圖片內容（Cursor格式）
                     if (img.data) {
-                        // 确保是纯净的base64数据（移除data:image/...;base64,前缀）
+                        // 確保是純淨的base64資料（移除data:image/...;base64,前綴）
                         const base64Data = img.data.replace(/^data:image\/[^;]+;base64,/, '');
                         content.push({
                             type: 'image',
-                            data: base64Data, // 纯净的base64字符串
+                            data: base64Data, // 純淨的base64字串
                             mimeType: img.type
                         });
                     }
                 });
             }
-            // 添加时间戳
+            // 新增時間戳
             content.push({
                 type: 'text',
-                text: `提交时间: ${new Date(item.timestamp).toLocaleString()}\n`
+                text: `提交時間: ${new Date(item.timestamp).toLocaleString()}\n`
             });
         });
         return content;
     }
     /**
-     * 将反馈数据格式化为文本（保留用于其他用途）
+     * 將回饋資料格式化為文字（保留用於其他用途）
      */
     formatFeedbackAsText(feedback) {
         if (feedback.length === 0) {
-            return '未收到用户反馈';
+            return '未收到使用者回饋';
         }
         const parts = [];
-        parts.push(`收到 ${feedback.length} 条用户反馈：\n`);
+        parts.push(`收到 ${feedback.length} 條使用者回饋：\n`);
         feedback.forEach((item, index) => {
-            parts.push(`--- 反馈 ${index + 1} ---`);
+            parts.push(`--- 回饋 ${index + 1} ---`);
             if (item.text) {
-                parts.push(`文字反馈: ${item.text}`);
+                parts.push(`文字回饋: ${item.text}`);
             }
             if (item.images && item.images.length > 0) {
-                parts.push(`图片数量: ${item.images.length}`);
+                parts.push(`圖片數量: ${item.images.length}`);
                 item.images.forEach((img, imgIndex) => {
-                    parts.push(`  图片 ${imgIndex + 1}: ${img.name} (${img.type}, ${(img.size / 1024).toFixed(1)}KB)`);
+                    parts.push(`  圖片 ${imgIndex + 1}: ${img.name} (${img.type}, ${(img.size / 1024).toFixed(1)}KB)`);
                 });
             }
-            parts.push(`提交时间: ${new Date(item.timestamp).toLocaleString()}`);
+            parts.push(`提交時間: ${new Date(item.timestamp).toLocaleString()}`);
             parts.push('');
         });
         return parts.join('\n');
     }
     /**
-     * 启动MCP服务器
+     * 啟動MCP伺服器
      */
     async start() {
         if (this.isRunning) {
-            logger.warn('MCP服务器已在运行中');
+            logger.warn('MCP伺服器已在執行中');
             return;
         }
         try {
-            logger.info('正在启动MCP服务器...');
-            // 连接MCP传输
+            logger.info('正在啟動MCP伺服器...');
+            // 連線 MCP傳輸
             const transport = new StdioServerTransport();
-            // 设置传输错误处理
+            // 設定傳輸錯誤處理
             transport.onerror = (error) => {
-                logger.error('MCP传输错误:', error);
+                logger.error('MCP傳輸錯誤:', error);
             };
             transport.onclose = () => {
-                logger.info('MCP传输连接已关闭');
+                logger.info('MCP傳輸連線已關閉');
                 this.isRunning = false;
             };
-            // 添加消息调试
+            // 新增訊息除錯
             const originalOnMessage = transport.onmessage;
             transport.onmessage = (message) => {
                 logger.debug('📥 收到MCP消息:', JSON.stringify(message, null, 2));
@@ -305,59 +305,59 @@ export class MCPServer {
                 return originalSend(message);
             };
             await this.mcpServer.connect(transport);
-            // 启动Web服务器（在MCP连接建立后）
+            // 啟動Web伺服器（在MCP連線建立後）
             await this.webServer.start();
             this.isRunning = true;
-            logger.info('MCP服务器启动成功');
+            logger.info('MCP伺服器啟動成功');
         }
         catch (error) {
-            logger.error('MCP服务器启动失败:', error);
+            logger.error('MCP伺服器啟動失敗:', error);
             throw new MCPError('Failed to start MCP server', 'SERVER_START_ERROR', error);
         }
     }
     /**
-     * 仅启动Web模式
+     * 僅啟動Web模式
      */
     async startWebOnly() {
         try {
-            logger.info('正在启动Web模式...');
-            // 仅启动Web服务器
+            logger.info('正在啟動Web模式...');
+            // 僅啟動Web伺服器
             await this.webServer.start();
             this.isRunning = true;
-            logger.info('Web服务器启动成功');
-            // 保持进程运行
+            logger.info('Web伺服器啟動成功');
+            // 保持處理程序執行
             process.stdin.resume();
         }
         catch (error) {
-            logger.error('Web服务器启动失败:', error);
+            logger.error('Web伺服器啟動失敗:', error);
             throw new MCPError('Failed to start web server', 'WEB_SERVER_START_ERROR', error);
         }
     }
     /**
-     * 停止服务器
+     * 停止伺服器
      */
     async stop() {
         if (!this.isRunning) {
             return;
         }
         try {
-            logger.info('正在停止服务器...');
-            // 停止Web服务器
+            logger.info('正在停止伺服器...');
+            // 停止Web伺服器
             await this.webServer.stop();
-            // 关闭MCP服务器
+            // 關閉MCP伺服器
             if (this.mcpServer) {
                 await this.mcpServer.close();
             }
             this.isRunning = false;
-            logger.info('服务器已停止');
+            logger.info('伺服器已停止');
         }
         catch (error) {
-            logger.error('停止服务器时出错:', error);
+            logger.error('停止伺服器時出錯:', error);
             throw new MCPError('Failed to stop server', 'SERVER_STOP_ERROR', error);
         }
     }
     /**
-     * 获取服务器状态
+     * 取得伺服器狀態
      */
     getStatus() {
         return {

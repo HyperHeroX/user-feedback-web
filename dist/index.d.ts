@@ -1,5 +1,5 @@
 /**
- * user-feedback MCP Tools - 主入口文件
+ * user-feedback MCP Tools - 主入口檔案
  */
 export { MCPServer } from './server/mcp-server.js';
 export { getConfig, createDefaultConfig, validateConfig } from './config/index.js';

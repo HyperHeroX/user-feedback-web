@@ -1,11 +1,11 @@
 /**
- * 端口管理器测试
+ * 連接埠管理器測試
  */
 
 import { PortManager } from '../utils/port-manager.js';
 import { MCPError } from '../types/index.js';
 
-describe('端口管理器', () => {
+describe('連接埠管理器', () => {
   let portManager: PortManager;
 
   beforeEach(() => {
@@ -13,17 +13,17 @@ describe('端口管理器', () => {
   });
 
   describe('isPortAvailable', () => {
-    test('应该检测端口可用性', async () => {
-      // 测试一个很可能可用的端口
+    test('應該檢測連接埠可用性', async () => {
+      // 測試一個很可能可用的連接埠
       const available = await portManager.isPortAvailable(65432);
       expect(typeof available).toBe('boolean');
     });
 
-    test('应该检测已占用端口', async () => {
-      // 创建一个服务器占用端口
+    test('應該檢測已佔用連接埠', async () => {
+      // 建立一個伺服器佔用連接埠
       const { createServer } = await import('net');
       const server = createServer();
-      
+
       await new Promise<void>((resolve) => {
         server.listen(0, () => {
           resolve();
@@ -32,30 +32,30 @@ describe('端口管理器', () => {
 
       const address = server.address();
       const port = typeof address === 'object' && address ? address.port : 0;
-      
+
       if (port > 0) {
         const available = await portManager.isPortAvailable(port);
         expect(available).toBe(false);
       }
-      
+
       server.close();
     });
   });
 
   describe('findAvailablePort', () => {
-    test('应该找到可用端口', async () => {
+    test('應該找到可用連接埠', async () => {
       const port = await portManager.findAvailablePort();
-      
+
       expect(port).toBeGreaterThan(0);
       expect(port).toBeLessThanOrEqual(65535);
     });
 
-    test('应该使用首选端口（如果可用）', async () => {
-      // 使用一个很可能可用的高端口
+    test('應該使用首選連接埠（如果可用）', async () => {
+      // 使用一個很可能可用的高連接埠
       const preferredPort = 65431;
       const port = await portManager.findAvailablePort(preferredPort);
-      
-      // 如果首选端口可用，应该返回该端口
+
+      // 如果首選連接埠可用，應該回傳該連接埠
       const isPreferredAvailable = await portManager.isPortAvailable(preferredPort);
       if (isPreferredAvailable) {
         expect(port).toBe(preferredPort);
@@ -65,37 +65,37 @@ describe('端口管理器', () => {
       }
     });
 
-    test('应该在首选端口不可用时找到替代端口', async () => {
-      // 使用一个很可能被占用的端口（如80）
+    test('應該在首選連接埠不可用時找到替代連接埠', async () => {
+      // 使用一個很可能被佔用的連接埠（如80）
       const preferredPort = 80;
       const port = await portManager.findAvailablePort(preferredPort);
-      
+
       expect(port).toBeGreaterThan(0);
       expect(port).toBeLessThanOrEqual(65535);
-      // 由于80端口通常被占用或需要管理员权限，应该返回其他端口
+      // 由於80連接埠通常被佔用或需要管理員權限，應該回傳其他連接埠
     });
   });
 
   describe('getPortInfo', () => {
-    test('应该返回端口信息', async () => {
+    test('應該回傳連接埠資訊', async () => {
       const port = 65430;
       const info = await portManager.getPortInfo(port);
-      
+
       expect(info).toMatchObject({
         port: port,
         available: expect.any(Boolean),
-        pid: undefined // 当前实现中PID检测未实现
+        pid: undefined // 目前實作中PID檢測未實現
       });
     });
   });
 
   describe('getPortRangeStatus', () => {
-    test('应该返回端口范围状态', async () => {
+    test('應該回傳連接埠範圍狀態', async () => {
       const status = await portManager.getPortRangeStatus();
-      
+
       expect(Array.isArray(status)).toBe(true);
-      expect(status.length).toBe(100); // 5000-5099 共100个端口
-      
+      expect(status.length).toBe(100); // 5000-5099 共100個連接埠
+
       for (const info of status) {
         expect(info).toMatchObject({
           port: expect.any(Number),
@@ -109,21 +109,21 @@ describe('端口管理器', () => {
   });
 
   describe('waitForPortRelease', () => {
-    test('应该在端口可用时立即返回', async () => {
+    test('應該在連接埠可用時立即回傳', async () => {
       const port = 65429;
       const startTime = Date.now();
-      
+
       await portManager.waitForPortRelease(port, 1000);
-      
+
       const duration = Date.now() - startTime;
-      expect(duration).toBeLessThan(500); // 应该很快返回
+      expect(duration).toBeLessThan(500); // 應該很快回傳
     });
 
-    test('应该在超时时抛出错误', async () => {
-      // 创建一个服务器占用端口
+    test('應該在逾時時拋出錯誤', async () => {
+      // 建立一個伺服器佔用連接埠
       const { createServer } = await import('net');
       const server = createServer();
-      
+
       await new Promise<void>((resolve) => {
         server.listen(0, () => {
           resolve();
@@ -132,27 +132,27 @@ describe('端口管理器', () => {
 
       const address = server.address();
       const port = typeof address === 'object' && address ? address.port : 0;
-      
+
       if (port > 0) {
         await expect(
           portManager.waitForPortRelease(port, 100)
         ).rejects.toThrow(MCPError);
       }
-      
+
       server.close();
     });
   });
 
-  describe('错误处理', () => {
-    test('应该在没有可用端口时抛出错误', async () => {
-      // 模拟所有端口都被占用的情况（通过mock）
+  describe('錯誤處理', () => {
+    test('應該在沒有可用連接埠時拋出錯誤', async () => {
+      // 模擬所有連接埠都被佔用的情況（透過mock）
       const originalIsPortAvailable = portManager.isPortAvailable;
       portManager.isPortAvailable = jest.fn().mockResolvedValue(false);
-      
+
       await expect(portManager.findAvailablePort()).rejects.toThrow(MCPError);
       await expect(portManager.findAvailablePort()).rejects.toThrow('No available ports found');
-      
-      // 恢复原方法
+
+      // 恢復原方法
       portManager.isPortAvailable = originalIsPortAvailable;
     });
   });

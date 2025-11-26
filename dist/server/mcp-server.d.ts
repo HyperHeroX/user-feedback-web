@@ -1,9 +1,9 @@
 /**
- * user-feedback MCP Tools - MCP服务器实现
+ * user-feedback MCP Tools - MCP伺服器實作
  */
 import { Config } from '../types/index.js';
 /**
- * MCP服务器类
+ * MCP伺服器類別
  */
 export declare class MCPServer {
     private mcpServer;
@@ -12,43 +12,43 @@ export declare class MCPServer {
     private isRunning;
     constructor(config: Config);
     /**
-     * 注册MCP工具函数
+     * 註冊MCP工具函式
      */
     private registerTools;
     /**
-     * 设置MCP日志功能
+     * 設定MCP日誌功能
      */
     private setupLogging;
     /**
-     * 发送MCP日志通知
+     * 傳送MCP日誌通知
      */
     private sendLogNotification;
     /**
-     * 实现collect_feedback功能
+     * 實作collect_feedback功能
      */
     private collectFeedback;
     /**
-     * 将反馈数据格式化为MCP内容（支持图片显示）
+     * 將回饋資料格式化為MCP內容（支援圖片顯示）
      */
     private formatFeedbackForMCP;
     /**
-     * 将反馈数据格式化为文本（保留用于其他用途）
+     * 將回饋資料格式化為文字（保留用於其他用途）
      */
     private formatFeedbackAsText;
     /**
-     * 启动MCP服务器
+     * 啟動MCP伺服器
      */
     start(): Promise<void>;
     /**
-     * 仅启动Web模式
+     * 僅啟動Web模式
      */
     startWebOnly(): Promise<void>;
     /**
-     * 停止服务器
+     * 停止伺服器
      */
     stop(): Promise<void>;
     /**
-     * 获取服务器状态
+     * 取得伺服器狀態
      */
     getStatus(): {
         running: boolean;

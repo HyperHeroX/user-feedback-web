@@ -1,11 +1,11 @@
 /**
- * 图片处理器测试
+ * 圖片處理器測試
  */
 
 import { ImageProcessor } from '../utils/image-processor.js';
 import { MCPError, ImageData } from '../types/index.js';
 
-describe('图片处理器', () => {
+describe('圖片處理器', () => {
   let imageProcessor: ImageProcessor;
 
   beforeEach(() => {
@@ -17,7 +17,7 @@ describe('图片处理器', () => {
   });
 
   describe('validateImageFormat', () => {
-    test('应该接受有效的图片格式', () => {
+    test('應該接受有效的圖片格式', () => {
       const validCases = [
         { filename: 'test.jpg', mimeType: 'image/jpeg' },
         { filename: 'test.jpeg', mimeType: 'image/jpeg' },
@@ -32,13 +32,13 @@ describe('图片处理器', () => {
       }
     });
 
-    test('应该拒绝无效的图片格式', () => {
+    test('應該拒絕無效的圖片格式', () => {
       const invalidCases = [
         { filename: 'test.txt', mimeType: 'text/plain' },
         { filename: 'test.pdf', mimeType: 'application/pdf' },
         { filename: 'test.mp4', mimeType: 'video/mp4' },
-        { filename: 'test.jpg', mimeType: 'text/plain' }, // 扩展名和MIME类型不匹配
-        { filename: 'test', mimeType: 'image/jpeg' } // 无扩展名
+        { filename: 'test.jpg', mimeType: 'text/plain' }, // 副檔名和MIME類型不匹配
+        { filename: 'test', mimeType: 'image/jpeg' } // 無副檔名
       ];
 
       for (const { filename, mimeType } of invalidCases) {
@@ -46,20 +46,20 @@ describe('图片处理器', () => {
       }
     });
 
-    test('应该处理大小写不敏感', () => {
+    test('應該處理大小寫不敏感', () => {
       expect(imageProcessor.validateImageFormat('TEST.JPG', 'IMAGE/JPEG')).toBe(true);
       expect(imageProcessor.validateImageFormat('test.PNG', 'image/png')).toBe(true);
     });
   });
 
   describe('validateImageSize', () => {
-    test('应该接受有效的文件大小', () => {
+    test('應該接受有效的檔案大小', () => {
       expect(imageProcessor.validateImageSize(1024)).toBe(true);
       expect(imageProcessor.validateImageSize(1024 * 1024)).toBe(true);
       expect(imageProcessor.validateImageSize(5 * 1024 * 1024 - 1)).toBe(true);
     });
 
-    test('应该拒绝无效的文件大小', () => {
+    test('應該拒絕無效的檔案大小', () => {
       expect(imageProcessor.validateImageSize(0)).toBe(false);
       expect(imageProcessor.validateImageSize(-1)).toBe(false);
       expect(imageProcessor.validateImageSize(5 * 1024 * 1024 + 1)).toBe(false);
@@ -67,7 +67,7 @@ describe('图片处理器', () => {
   });
 
   describe('getImageStats', () => {
-    test('应该计算图片统计信息', () => {
+    test('應該計算圖片統計資訊', () => {
       const images: ImageData[] = [
         {
           name: 'test1.jpg',
@@ -102,7 +102,7 @@ describe('图片处理器', () => {
       });
     });
 
-    test('应该处理空图片数组', () => {
+    test('應該處理空圖片陣列', () => {
       const stats = imageProcessor.getImageStats([]);
 
       expect(stats).toMatchObject({
@@ -115,7 +115,7 @@ describe('图片处理器', () => {
   });
 
   describe('validateAndProcessImage', () => {
-    test('应该拒绝缺少必要字段的图片数据', async () => {
+    test('應該拒絕缺少必要欄位的圖片資料', async () => {
       const invalidImages = [
         { name: '', data: 'test', size: 1024, type: 'image/jpeg' },
         { name: 'test.jpg', data: '', size: 1024, type: 'image/jpeg' },
@@ -128,7 +128,7 @@ describe('图片处理器', () => {
       }
     });
 
-    test('应该拒绝不支持的格式', async () => {
+    test('應該拒絕不支援的格式', async () => {
       const image: ImageData = {
         name: 'test.txt',
         data: 'data:text/plain;base64,test',
@@ -142,11 +142,11 @@ describe('图片处理器', () => {
         .rejects.toThrow('Unsupported image format');
     });
 
-    test('应该拒绝过大的文件', async () => {
+    test('應該拒絕過大的檔案', async () => {
       const image: ImageData = {
         name: 'test.jpg',
         data: 'data:image/jpeg;base64,test',
-        size: 10 * 1024 * 1024, // 10MB，超过5MB限制
+        size: 10 * 1024 * 1024, // 10MB，超過5MB限制
         type: 'image/jpeg'
       };
 
@@ -158,10 +158,10 @@ describe('图片处理器', () => {
   });
 
   describe('processImages', () => {
-    test('应该处理有效图片数组', async () => {
-      // 创建一个简单的1x1像素PNG图片的Base64数据
+    test('應該處理有效圖片陣列', async () => {
+      // 建立一個簡單的1x1像素PNG圖片的Base64資料
       const smallPngBase64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAI9jU77yQAAAABJRU5ErkJggg==';
-      
+
       const images: ImageData[] = [
         {
           name: 'test.png',
@@ -193,7 +193,7 @@ describe('图片处理器', () => {
       }
     });
 
-    test('应该在图片处理失败时抛出错误', async () => {
+    test('應該在圖片處理失敗時拋出錯誤', async () => {
       const images: ImageData[] = [
         {
           name: 'test.txt',
@@ -208,8 +208,8 @@ describe('图片处理器', () => {
     });
   });
 
-  describe('错误处理', () => {
-    test('应该处理无效的Base64数据', async () => {
+  describe('錯誤處理', () => {
+    test('應該處理無效的Base64資料', async () => {
       const image: ImageData = {
         name: 'test.jpg',
         data: 'invalid-base64-data',
@@ -221,7 +221,7 @@ describe('图片处理器', () => {
         .rejects.toThrow(MCPError);
     });
 
-    test('应该处理损坏的图片数据', async () => {
+    test('應該處理損壞的圖片資料', async () => {
       const image: ImageData = {
         name: 'test.jpg',
         data: 'data:image/jpeg;base64,invalid-image-data',

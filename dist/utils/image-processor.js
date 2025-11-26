@@ -1,16 +1,16 @@
 /**
- * user-feedback MCP Tools - 图片处理工具
- * 使用 Jimp 库进行图片处理和优化
+ * user-feedback MCP Tools - 圖片處理工具
+ * 使用 Jimp 庫進行圖片處理和最佳化
  */
 import Jimp from 'jimp';
 import { MCPError } from '../types/index.js';
 import { logger } from './logger.js';
 /**
- * 支持的图片格式
+ * 支援的圖片格式
  */
 const SUPPORTED_FORMATS = ['jpeg', 'jpg', 'png', 'gif', 'webp', 'bmp', 'tiff'];
 /**
- * 图片处理器类
+ * 圖片處理器類別
  */
 export class ImageProcessor {
     maxFileSize;
@@ -22,15 +22,15 @@ export class ImageProcessor {
         this.maxHeight = options.maxHeight || 2048;
     }
     /**
-     * 验证图片格式
+     * 驗證圖片格式
      */
     validateImageFormat(filename, mimeType) {
-        // 检查文件扩展名
+        // 檢查檔案副檔名
         const ext = filename.toLowerCase().split('.').pop();
         if (!ext || !SUPPORTED_FORMATS.includes(ext)) {
             return false;
         }
-        // 检查MIME类型
+        // 檢查MIME類型
         const validMimeTypes = [
             'image/jpeg',
             'image/jpg',
@@ -43,22 +43,22 @@ export class ImageProcessor {
         return validMimeTypes.includes(mimeType.toLowerCase());
     }
     /**
-     * 验证图片大小
+     * 驗證圖片大小
      */
     validateImageSize(size) {
         return size > 0 && size <= this.maxFileSize;
     }
     /**
-     * 从Base64数据中提取图片信息
+     * 從Base64資料中擷取圖片資訊
      */
     async getImageInfoFromBase64(base64Data) {
         try {
-            // 移除Base64前缀
+            // 移除Base64前綴
             const base64Content = base64Data.replace(/^data:image\/[^;]+;base64,/, '');
             const buffer = Buffer.from(base64Content, 'base64');
-            // 使用 Jimp 读取图片信息
+            // 使用 Jimp 讀取圖片資訊
             const image = await Jimp.read(buffer);
-            // 从 MIME 类型推断格式
+            // 從 MIME 類型推斷格式
             const mimeType = image.getMIME();
             const format = mimeType.split('/')[1] || 'unknown';
             return {
@@ -70,12 +70,12 @@ export class ImageProcessor {
             };
         }
         catch (error) {
-            logger.error('获取图片信息失败:', error);
+            logger.error('取得圖片資訊失敗:', error);
             throw new MCPError('Failed to get image information', 'IMAGE_INFO_ERROR', error);
         }
     }
     /**
-     * 压缩图片
+     * 壓縮圖片
      */
     async compressImage(base64Data, options = {}) {
         try {
@@ -84,11 +84,11 @@ export class ImageProcessor {
             const { maxWidth = this.maxWidth, maxHeight = this.maxHeight, quality = 85, format = 'jpeg' } = options;
             // 使用 Jimp 读取图片
             let image = await Jimp.read(buffer);
-            // 调整尺寸
+            // 調整尺寸
             const originalWidth = image.getWidth();
             const originalHeight = image.getHeight();
             if (originalWidth > maxWidth || originalHeight > maxHeight) {
-                // 计算缩放比例，保持宽高比
+                // 計算縮放比例，保持寬高比
                 const widthRatio = maxWidth / originalWidth;
                 const heightRatio = maxHeight / originalHeight;
                 const ratio = Math.min(widthRatio, heightRatio);
@@ -96,9 +96,9 @@ export class ImageProcessor {
                 const newHeight = Math.floor(originalHeight * ratio);
                 image = image.resize(newWidth, newHeight);
             }
-            // 设置质量
+            // 設定品質
             image = image.quality(quality);
-            // 转换格式和获取buffer
+            // 轉換格式和取得buffer
             let outputBuffer;
             let mimeType;
             switch (format) {
@@ -111,7 +111,7 @@ export class ImageProcessor {
                     mimeType = Jimp.MIME_PNG;
                     break;
                 case 'webp':
-                    // Jimp 可能不支持 WebP，降级到 JPEG
+                    // Jimp 可能不支援 WebP，降級到 JPEG
                     outputBuffer = await image.getBufferAsync(Jimp.MIME_JPEG);
                     mimeType = Jimp.MIME_JPEG;
                     break;
@@ -119,38 +119,38 @@ export class ImageProcessor {
                     outputBuffer = await image.getBufferAsync(Jimp.MIME_JPEG);
                     mimeType = Jimp.MIME_JPEG;
             }
-            // 转换回Base64
+            // 轉換回Base64
             const compressedBase64 = `data:${mimeType};base64,${outputBuffer.toString('base64')}`;
-            logger.debug(`图片压缩完成: ${buffer.length} -> ${outputBuffer.length} bytes`);
+            logger.debug(`圖片壓縮完成: ${buffer.length} -> ${outputBuffer.length} bytes`);
             return compressedBase64;
         }
         catch (error) {
-            logger.error('图片压缩失败:', error);
+            logger.error('圖片壓縮失敗:', error);
             throw new MCPError('Failed to compress image', 'IMAGE_COMPRESSION_ERROR', error);
         }
     }
     /**
-     * 验证和处理图片数据
+     * 驗證和處理圖片資料
      */
     async validateAndProcessImage(imageData) {
         try {
-            // 验证基本信息
+            // 驗證基本資訊
             if (!imageData.name || !imageData.data || !imageData.type) {
                 throw new MCPError('Invalid image data: missing required fields', 'INVALID_IMAGE_DATA');
             }
-            // 验证格式
+            // 驗證格式
             if (!this.validateImageFormat(imageData.name, imageData.type)) {
                 throw new MCPError(`Unsupported image format: ${imageData.type}`, 'UNSUPPORTED_FORMAT');
             }
-            // 验证大小
+            // 驗證大小
             if (!this.validateImageSize(imageData.size)) {
                 throw new MCPError(`Image size ${imageData.size} exceeds limit ${this.maxFileSize}`, 'IMAGE_TOO_LARGE');
             }
-            // 获取图片详细信息
+            // 取得圖片詳細資訊
             const info = await this.getImageInfoFromBase64(imageData.data);
-            // 检查图片尺寸
+            // 檢查圖片尺寸
             if (info.width > this.maxWidth || info.height > this.maxHeight) {
-                logger.info(`图片尺寸过大 (${info.width}x${info.height})，正在压缩...`);
+                logger.info(`圖片尺寸過大 (${info.width}x${info.height})，正在壓縮...`);
                 const compressedData = await this.compressImage(imageData.data, {
                     maxWidth: this.maxWidth,
                     maxHeight: this.maxHeight,
@@ -170,53 +170,53 @@ export class ImageProcessor {
             if (error instanceof MCPError) {
                 throw error;
             }
-            logger.error('图片验证和处理失败:', error);
+            logger.error('圖片驗證和處理失敗:', error);
             throw new MCPError('Failed to validate and process image', 'IMAGE_PROCESSING_ERROR', error);
         }
     }
     /**
-     * 批量处理图片
+     * 批量處理圖片
      */
     async processImages(images) {
         const results = [];
         for (let i = 0; i < images.length; i++) {
             try {
-                logger.debug(`处理图片 ${i + 1}/${images.length}: ${images[i]?.name}`);
+                logger.debug(`處理圖片 ${i + 1}/${images.length}: ${images[i]?.name}`);
                 const processedImage = await this.validateAndProcessImage(images[i]);
                 results.push(processedImage);
             }
             catch (error) {
-                logger.error(`处理图片 ${images[i]?.name} 失败:`, error);
-                // 继续处理其他图片，但记录错误
+                logger.error(`處理圖片 ${images[i]?.name} 失敗:`, error);
+                // 繼續處理其他圖片，但記錄錯誤
                 throw error;
             }
         }
-        logger.info(`成功处理 ${results.length}/${images.length} 张图片`);
+        logger.info(`成功處理 ${results.length}/${images.length} 張圖片`);
         return results;
     }
     /**
-     * 生成图片缩略图
+     * 產生圖片縮圖
      */
     async generateThumbnail(base64Data, size = 150) {
         try {
             const base64Content = base64Data.replace(/^data:image\/[^;]+;base64,/, '');
             const buffer = Buffer.from(base64Content, 'base64');
-            // 使用 Jimp 生成缩略图
+            // 使用 Jimp 產生縮圖
             const image = await Jimp.read(buffer);
-            // 裁剪为正方形并调整大小
+            // 裁剪為正方形並調整大小
             const thumbnail = image
-                .cover(size, size) // 类似 Sharp 的 fit: 'cover'
+                .cover(size, size) // 類似 Sharp 的 fit: 'cover'
                 .quality(80);
             const thumbnailBuffer = await thumbnail.getBufferAsync(Jimp.MIME_JPEG);
             return `data:image/jpeg;base64,${thumbnailBuffer.toString('base64')}`;
         }
         catch (error) {
-            logger.error('生成缩略图失败:', error);
+            logger.error('產生縮圖失敗:', error);
             throw new MCPError('Failed to generate thumbnail', 'THUMBNAIL_ERROR', error);
         }
     }
     /**
-     * 获取图片统计信息
+     * 取得圖片統計資訊
      */
     getImageStats(images) {
         const stats = {

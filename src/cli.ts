@@ -30,15 +30,15 @@ function getRuntimeFetch(): typeof fetch {
 }
 
 /**
- * 显示欢迎信息
+ * 顯示歡迎資訊
  */
 function showWelcome(): void {
   console.log('user-feedback MCP Tools v' + VERSION);
-  console.log('基于Node.js的现代化反馈收集器\n');
+  console.log('基於Node.js的現代化回饋收集器\n');
 }
 
 /**
- * 启动MCP服务器
+ * 啟動MCP伺服器
  */
 async function startMCPServer(options: {
   port?: number;
@@ -47,89 +47,89 @@ async function startMCPServer(options: {
   debug?: boolean;
 }): Promise<void> {
   try {
-    // 加载配置
+    // 載入設定
     const config = getConfig();
 
     if (!isMCPMode) {
-      // 交互模式：显示欢迎信息和设置日志级别
+      // 交互模式：顯示歡迎資訊和設定日誌級別
       showWelcome();
       logger.setLevel(config.logLevel as any);
     }
 
-    // 应用命令行参数
+    // 應用命令列參數
     if (options.port) {
       config.webPort = options.port;
     }
 
-    // 设置调试模式（仅在非MCP模式下）
+    // 設定除錯模式（僅在非MCP模式下）
     if (!isMCPMode && (options.debug || process.env['LOG_LEVEL'] === 'debug')) {
       config.logLevel = 'debug';
 
-      // 启用文件日志记录
+      // 啟用檔案日誌記錄
       logger.enableFileLogging();
       logger.setLevel('debug');
-      logger.debug('🐛 调试模式已启用，日志将保存到文件');
+      logger.debug('🐛 除錯模式已啟用，日誌將儲存到檔案');
     }
 
-    // 显示配置信息
+    // 顯示設定資訊
     if (logger.getLevel() === 'debug') {
       displayConfig(config);
       console.log('');
     }
 
-    // 创建并启动MCP服务器
+    // 建立並啟動MCP伺服器
     const server = new MCPServer(config);
 
     if (options.web) {
-      // 仅Web模式
-      logger.info('启动Web模式...');
+      // 僅Web模式
+      logger.info('啟動Web模式...');
       await server.startWebOnly();
     } else {
       // 完整MCP模式
-      logger.info('启动MCP服务器...');
+      logger.info('啟動MCP伺服器...');
       await server.start();
     }
 
-    // 注意：优雅关闭处理已在WebServer中实现，这里不需要重复处理
+    // 注意：優雅關閉處理已在WebServer中實作，這裡不需要重複處理
 
   } catch (error) {
     if (error instanceof MCPError) {
-      logger.error(`MCP错误 [${error.code}]: ${error.message}`);
+      logger.error(`MCP錯誤 [${error.code}]: ${error.message}`);
       if (error.details) {
-        logger.debug('错误详情:', error.details);
+        logger.debug('錯誤詳情:', error.details);
       }
     } else if (error instanceof Error) {
-      logger.error('启动失败:', error.message);
-      logger.debug('错误堆栈:', error.stack);
+      logger.error('啟動失敗:', error.message);
+      logger.debug('錯誤堆疊:', error.stack);
     } else {
-      logger.error('未知错误:', error);
+      logger.error('未知錯誤:', error);
     }
     process.exit(1);
   }
 }
 
 /**
- * 显示健康检查信息
+ * 顯示健康檢查資訊
  */
 async function healthCheck(): Promise<void> {
   try {
     const config = getConfig();
-    console.log('配置验证通过');
-    console.log(`API端点: ${config.apiBaseUrl}`);
-    console.log(`API密钥: ${config.apiKey ? '已配置' : '未配置'}`);
-    console.log(`Web端口: ${config.webPort}`);
-    console.log(`超时时间: ${config.dialogTimeout}秒`);
+    console.log('設定驗證通過');
+    console.log(`API端點: ${config.apiBaseUrl}`);
+    console.log(`API金鑰: ${config.apiKey ? '已設定' : '未設定'}`);
+    console.log(`Web連接埠: ${config.webPort}`);
+    console.log(`逾時時間: ${config.dialogTimeout}秒`);
 
-    // TODO: 添加更多健康检查项
-    // - 端口可用性检查
-    // - API连接测试
-    // - 依赖项检查
+    // TODO: 新增更多健康檢查項
+    // - 連接埠可用性檢查
+    // - API連線測試
+    // - 依賴項檢查
 
   } catch (error) {
     if (error instanceof MCPError) {
-      console.error(`配置错误 [${error.code}]: ${error.message}`);
+      console.error(`設定錯誤 [${error.code}]: ${error.message}`);
     } else {
-      console.error('健康检查失败:', error);
+      console.error('健康檢查失敗:', error);
     }
     process.exit(1);
   }
@@ -138,61 +138,61 @@ async function healthCheck(): Promise<void> {
 // 配置CLI命令
 program
   .name('user-web-feedback')
-  .description('基于Node.js的MCP反馈收集器')
+  .description('基於Node.js的MCP回饋收集器')
   .version(VERSION);
 
-// 主命令 - 启动服务器
+// 主命令 - 啟動伺服器
 program
   .command('start', { isDefault: true })
-  .description('启动MCP反馈收集器')
-  .option('-p, --port <number>', '指定Web服务器端口', parseInt)
-  .option('-w, --web', '仅启动Web模式（不启动MCP服务器）')
-  .option('-c, --config <path>', '指定配置文件路径')
-  .option('-d, --debug', '启用调试模式（显示详细的MCP通信日志）')
-  .option('--mcp-mode', '强制启用MCP模式（用于调试）')
+  .description('啟動MCP回饋收集器')
+  .option('-p, --port <number>', '指定Web伺服器連接埠', parseInt)
+  .option('-w, --web', '僅啟動Web模式（不啟動MCP伺服器）')
+  .option('-c, --config <path>', '指定設定檔路徑')
+  .option('-d, --debug', '啟用除錯模式（顯示詳細的MCP通訊日誌）')
+  .option('--mcp-mode', '強制啟用MCP模式（用於除錯）')
   .action(startMCPServer);
 
-// 健康检查命令
+// 健康檢查命令
 program
   .command('health')
-  .description('检查配置和系统状态')
+  .description('檢查設定和系統狀態')
   .action(healthCheck);
 
-// 配置显示命令
+// 設定顯示命令
 program
   .command('config')
-  .description('显示当前配置')
+  .description('顯示當前設定')
   .action(() => {
     try {
       const config = getConfig();
       displayConfig(config);
     } catch (error) {
-      console.error('配置加载失败:', error);
+      console.error('設定載入失敗:', error);
       process.exit(1);
     }
   });
 
-// 性能监控命令
+// 效能監控命令
 program
   .command('metrics')
-  .description('显示性能监控指标')
-  .option('-f, --format <format>', '输出格式 (json|text)', 'text')
+  .description('顯示效能監控指標')
+  .option('-f, --format <format>', '輸出格式 (json|text)', 'text')
   .action(async (options) => {
     try {
       showWelcome();
 
       const config = getConfig();
-      logger.setLevel('error'); // 减少日志输出
+      logger.setLevel('error'); // 減少日誌輸出
 
-      logger.info('🔍 获取性能监控指标...');
+      logger.info('🔍 取得效能監控指標...');
 
-      // 创建MCP服务器实例
+      // 建立MCP伺服器實例
       const server = new MCPServer(config);
 
-      // 启动Web服务器
+      // 啟動Web伺服器
       await server.startWebOnly();
 
-      // 等待服务器完全启动
+      // 等待伺服器完全啟動
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       try {
@@ -209,23 +209,23 @@ program
         }
 
       } catch (error) {
-        logger.error('获取性能指标失败:', error);
+        logger.error('取得效能指標失敗:', error);
       }
 
       await server.stop();
 
     } catch (error) {
-      logger.error('性能监控失败:', error);
+      logger.error('效能監控失敗:', error);
       process.exit(1);
     }
   });
 
-// 测试MCP工具函数命令
+// 測試MCP工具函式命令
 program
   .command('test-feedback')
-  .description('测试collect_feedback工具函数')
-  .option('-m, --message <message>', '测试工作汇报内容', '这是一个测试工作汇报，用于验证collect_feedback功能是否正常工作。')
-  .option('-t, --timeout <seconds>', '会话超时时间（秒）', '30')
+  .description('測試collect_feedback工具函式')
+  .option('-m, --message <message>', '測試工作匯報內容', '這是一個測試工作匯報，用於驗證collect_feedback功能是否正常運作。')
+  .option('-t, --timeout <seconds>', '會話逾時時間（秒）', '30')
   .action(async (options) => {
     try {
       showWelcome();
@@ -233,19 +233,19 @@ program
       const config = getConfig();
       logger.setLevel(config.logLevel as any);
 
-      logger.info('开始测试collect_feedback工具函数...');
+      logger.info('開始測試collect_feedback工具函式...');
 
-      // 创建MCP服务器实例
+      // 建立MCP伺服器實例
       const server = new MCPServer(config);
 
-      // 启动Web服务器
+      // 啟動Web伺服器
       await server.startWebOnly();
 
-      // 等待服务器完全启动
+      // 等待伺服器完全啟動
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // 创建测试会话
-      logger.info('创建测试会话...');
+      // 建立測試會話
+      logger.info('建立測試會話...');
 
       const timeoutSeconds = parseInt(options.timeout) || 30;
       const testParams = {
@@ -266,41 +266,41 @@ program
         const result = await response.json() as any;
 
         if (result.success) {
-          logger.info('测试会话创建成功');
-          logger.info(`会话ID: ${result.session_id}`);
-          logger.info(`反馈页面: ${result.feedback_url}`);
+          logger.info('測試會話建立成功');
+          logger.info(`會話ID: ${result.session_id}`);
+          logger.info(`回饋頁面: ${result.feedback_url}`);
 
-          // 自动打开浏览器
+          // 自動開啟瀏覽器
           try {
             const open = await import('open');
             await open.default(result.feedback_url);
-            logger.info('浏览器已自动打开反馈页面');
+            logger.info('瀏覽器已自動開啟回饋頁面');
           } catch (error) {
-            logger.warn('无法自动打开浏览器，请手动访问上述URL');
+            logger.warn('無法自動開啟瀏覽器，請手動存取上述URL');
           }
 
-          logger.info('现在您可以在浏览器中测试完整的反馈流程');
-          logger.info(`会话将在 ${timeoutSeconds} 秒后超时`);
+          logger.info('現在您可以在瀏覽器中測試完整的回饋流程');
+          logger.info(`會話將在 ${timeoutSeconds} 秒後逾時`);
 
         } else {
-          logger.error('测试会话创建失败:', result.error);
+          logger.error('測試會話建立失敗:', result.error);
         }
       } catch (error) {
-        logger.error('创建测试会话时出错:', error);
+        logger.error('建立測試會話時出錯:', error);
       }
 
-      // 保持进程运行
+      // 保持處理程序執行
       process.stdin.resume();
 
     } catch (error) {
-      logger.error('测试失败:', error);
+      logger.error('測試失敗:', error);
       if (error instanceof Error) {
-        logger.error('错误详情:', error.message);
-        logger.error('错误堆栈:', error.stack);
+        logger.error('錯誤詳情:', error.message);
+        logger.error('錯誤堆疊:', error.stack);
       }
       process.exit(1);
     }
   });
 
-// 解析命令行参数
+// 解析命令列參數
 program.parse();

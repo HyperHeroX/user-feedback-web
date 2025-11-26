@@ -120,32 +120,32 @@ function initSocketIO() {
       closeCountdownInterval = setInterval(() => {
         remaining--;
         countdownEl.textContent = remaining;
-        
+
         if (remaining <= 0) {
           clearInterval(closeCountdownInterval);
           closeCountdownInterval = null;
           console.log("提交成功，3秒後關閉頁面");
-          
+
           // 嘗試關閉頁面
           try {
             // 首先嘗試 window.close()
             window.close();
             // 如果 window.close() 成功，後續代碼不會執行
           } catch (error) {
-            console.warn('無法使用 window.close() 關閉頁面:', error);
+            console.warn("無法使用 window.close() 關閉頁面:", error);
           }
-          
+
           // 備用方案：如果 window.close() 失敗，等待 1 秒後嘗試其他方式
           setTimeout(() => {
             // 隱藏主容器，顯示完成訊息
-            const container = document.querySelector('.feedback-container');
+            const container = document.querySelector(".feedback-container");
             if (container) {
-              container.style.display = 'none';
+              container.style.display = "none";
             }
-            
+
             // 顯示完成訊息
             const body = document.body;
-            const completedMsg = document.createElement('div');
+            const completedMsg = document.createElement("div");
             completedMsg.style.cssText = `
               display: flex;
               flex-direction: column;
@@ -164,7 +164,7 @@ function initSocketIO() {
               <p style="margin: 0; font-size: 14px; opacity: 0.9;">您的反饋已成功提交</p>
               <p style="margin: 10px 0 0 0; font-size: 12px; opacity: 0.7;">此視窗可以安全關閉</p>
             `;
-            body.innerHTML = '';
+            body.innerHTML = "";
             body.appendChild(completedMsg);
           }, 1000);
         }
@@ -181,7 +181,7 @@ function initSocketIO() {
     console.error("反饋錯誤:", data);
     // 隱藏提醒彈窗（若有）並顯示錯誤
     hideAlertModal();
-  showToast("error", "錯誤", formatApiError(data));
+    showToast("error", "錯誤", formatApiError(data));
   });
 
   // 自動回覆事件
@@ -214,7 +214,7 @@ function initSocketIO() {
   socket.on("auto_reply_error", (data) => {
     console.error("自動回覆錯誤:", data);
     hideAutoReplyWarning();
-  showToast("error", "自動回覆失敗", formatApiError(data));
+    showToast("error", "自動回覆失敗", formatApiError(data));
   });
 
   socket.on("auto_reply_cancelled", () => {
@@ -252,7 +252,11 @@ function initEventListeners() {
     // 只有在計時器正在運作且尚未暫停的情況下執行
     if (autoReplyTimerInterval && !autoReplyTimerPaused) {
       pauseAutoReplyTimer(true);
-      showToast("info", "計時器已暫停", "已因聚焦文字輸入而暫停自動回覆倒數，點擊計時器以繼續。");
+      showToast(
+        "info",
+        "計時器已暫停",
+        "已因聚焦文字輸入而暫停自動回覆倒數，點擊計時器以繼續。"
+      );
     }
   });
 
@@ -363,13 +367,25 @@ function initEventListeners() {
     .addEventListener("click", cancelAutoReply);
 
   // 日誌檢視器按鈕
-  document.getElementById("logViewerBtn").addEventListener("click", openLogViewerModal);
-  document.getElementById("closeLogViewer").addEventListener("click", closeLogViewerModal);
+  document
+    .getElementById("logViewerBtn")
+    .addEventListener("click", openLogViewerModal);
+  document
+    .getElementById("closeLogViewer")
+    .addEventListener("click", closeLogViewerModal);
   document.getElementById("logSearchBtn").addEventListener("click", searchLogs);
-  document.getElementById("logRefreshBtn").addEventListener("click", () => loadLogs(1));
-  document.getElementById("logPrevPage").addEventListener("click", () => loadLogs(currentLogPage - 1));
-  document.getElementById("logNextPage").addEventListener("click", () => loadLogs(currentLogPage + 1));
-  document.getElementById("clearOldLogs").addEventListener("click", clearOldLogs);
+  document
+    .getElementById("logRefreshBtn")
+    .addEventListener("click", () => loadLogs(1));
+  document
+    .getElementById("logPrevPage")
+    .addEventListener("click", () => loadLogs(currentLogPage - 1));
+  document
+    .getElementById("logNextPage")
+    .addEventListener("click", () => loadLogs(currentLogPage + 1));
+  document
+    .getElementById("clearOldLogs")
+    .addEventListener("click", clearOldLogs);
   document.getElementById("logSearch").addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -389,7 +405,11 @@ function initEventListeners() {
         showToast("info", "計時器已繼續", "自動回覆倒數已恢復。");
       } else {
         pauseAutoReplyTimer(false);
-        showToast("info", "計時器已暫停", "已手動暫停自動回覆倒數，點擊可繼續。");
+        showToast(
+          "info",
+          "計時器已暫停",
+          "已手動暫停自動回覆倒數，點擊可繼續。"
+        );
       }
     });
   }
@@ -506,7 +526,7 @@ async function loadAISettings() {
 
     if (data.success) {
       aiSettings = data.settings;
-      
+
       // 讀取自動回覆計時器秒數設定
       if (aiSettings.autoReplyTimerSeconds !== undefined) {
         AUTO_REPLY_TIMER_SECONDS = aiSettings.autoReplyTimerSeconds;
@@ -988,7 +1008,7 @@ async function togglePinPrompt(id) {
         data.prompt.isPinned ? "已釘選提示詞" : "已取消釘選"
       );
     } else {
-    showToast("error", "錯誤", formatApiError(data));
+      showToast("error", "錯誤", formatApiError(data));
     }
   } catch (error) {
     console.error("切換釘選狀態失敗:", error);
@@ -1027,7 +1047,7 @@ async function deletePrompt(id) {
       await loadPrompts();
       showToast("success", "成功", "提示詞已刪除");
     } else {
-  showToast("error", "錯誤", formatApiError(data));
+      showToast("error", "錯誤", formatApiError(data));
     }
   } catch (error) {
     console.error("刪除提示詞失敗:", error);
@@ -1098,7 +1118,7 @@ async function savePrompt() {
         isEditingPrompt ? "提示詞已更新" : "提示詞已創建"
       );
     } else {
-  showToast("error", "錯誤", formatApiError(data));
+      showToast("error", "錯誤", formatApiError(data));
     }
   } catch (error) {
     console.error("保存提示詞失敗:", error);
@@ -1119,7 +1139,7 @@ function openAISettingsModal() {
     document.getElementById("temperature").value =
       aiSettings.temperature || 0.7;
     document.getElementById("maxTokens").value = aiSettings.maxTokens || 1000;
-    document.getElementById("autoReplyTimerSeconds").value = 
+    document.getElementById("autoReplyTimerSeconds").value =
       aiSettings.autoReplyTimerSeconds || 300;
   }
 
@@ -1137,7 +1157,9 @@ async function saveAISettings() {
   const systemPrompt = document.getElementById("systemPrompt").value.trim();
   const temperature = parseFloat(document.getElementById("temperature").value);
   const maxTokens = parseInt(document.getElementById("maxTokens").value);
-  const autoReplyTimerSeconds = parseInt(document.getElementById("autoReplyTimerSeconds").value);
+  const autoReplyTimerSeconds = parseInt(
+    document.getElementById("autoReplyTimerSeconds").value
+  );
 
   const settingsData = {
     apiUrl: apiUrl || undefined,
@@ -1166,14 +1188,14 @@ async function saveAISettings() {
     } catch (e) {
       // 不是 JSON 回應，讀取純文字
       const text = await response.text();
-      console.error('非 JSON 回應:', text);
-      showToast('error', '錯誤', `儲存失敗：${text}`);
+      console.error("非 JSON 回應:", text);
+      showToast("error", "錯誤", `儲存失敗：${text}`);
       return;
     }
 
     if (data && data.success) {
       aiSettings = data.settings;
-      
+
       // 更新自動回覆計時器秒數
       if (aiSettings.autoReplyTimerSeconds !== undefined) {
         AUTO_REPLY_TIMER_SECONDS = aiSettings.autoReplyTimerSeconds;
@@ -1185,11 +1207,16 @@ async function saveAISettings() {
       // 儘可能顯示詳細錯誤資訊
       const detailParts = [];
       if (data.error) detailParts.push(data.error);
-      if (data.details) detailParts.push(typeof data.details === 'string' ? data.details : JSON.stringify(data.details));
+      if (data.details)
+        detailParts.push(
+          typeof data.details === "string"
+            ? data.details
+            : JSON.stringify(data.details)
+        );
       if (data.stack) detailParts.push(data.stack);
-      const message = detailParts.join(' \n ');
-      console.error('儲存 AI 設定失敗:', data);
-      showToast("error", "錯誤", message || '儲存 AI 設定失敗');
+      const message = detailParts.join(" \n ");
+      console.error("儲存 AI 設定失敗:", data);
+      showToast("error", "錯誤", message || "儲存 AI 設定失敗");
     }
   } catch (error) {
     console.error("儲存 AI 設定失敗:", error);
@@ -1197,14 +1224,18 @@ async function saveAISettings() {
     if (error && error.response) {
       try {
         const text = await error.response.text();
-        showToast('error', '錯誤', `儲存失敗：${text}`);
+        showToast("error", "錯誤", `儲存失敗：${text}`);
         return;
       } catch (e) {
         // ignore
       }
     }
 
-    showToast("error", "錯誤", error instanceof Error ? error.message : '儲存失敗');
+    showToast(
+      "error",
+      "錯誤",
+      error instanceof Error ? error.message : "儲存失敗"
+    );
   }
 }
 
@@ -1221,7 +1252,7 @@ async function testAPIKey() {
 
   try {
     const requestBody = { model };
-    
+
     // 判斷是否使用新輸入的 API Key：
     // 1. API Key 不為空
     // 2. API Key 不是遮罩格式（不以 *** 開頭）
@@ -1655,14 +1686,19 @@ function getToastIcon(type) {
 
 // 將 API 回傳的錯誤物件格式化為字串（包含 details 與 stack）
 function formatApiError(data) {
-  if (!data) return '未知錯誤';
-  if (typeof data === 'string') return data;
+  if (!data) return "未知錯誤";
+  if (typeof data === "string") return data;
   try {
     const parts = [];
     if (data.error) parts.push(data.error);
-    if (data.details) parts.push(typeof data.details === 'string' ? data.details : JSON.stringify(data.details));
+    if (data.details)
+      parts.push(
+        typeof data.details === "string"
+          ? data.details
+          : JSON.stringify(data.details)
+      );
     if (data.stack) parts.push(data.stack);
-    return parts.join('\n') || JSON.stringify(data);
+    return parts.join("\n") || JSON.stringify(data);
   } catch (e) {
     return String(data);
   }
@@ -1706,10 +1742,10 @@ async function openLogViewerModal() {
   const modal = document.getElementById("logViewerModal");
   if (modal) {
     modal.classList.add("show");
-    
+
     // 載入日誌來源列表
     await loadLogSources();
-    
+
     // 載入第一頁日誌
     await loadLogs(1);
   }
@@ -1728,13 +1764,13 @@ async function loadLogSources() {
     if (response.ok) {
       const data = await response.json();
       logSources = data.sources || [];
-      
+
       // 更新來源下拉選單
       const sourceFilter = document.getElementById("logSourceFilter");
       if (sourceFilter) {
         // 保留第一個選項
         sourceFilter.innerHTML = '<option value="">全部來源</option>';
-        logSources.forEach(source => {
+        logSources.forEach((source) => {
           const option = document.createElement("option");
           option.value = source;
           option.textContent = source;
@@ -1750,41 +1786,42 @@ async function loadLogSources() {
 async function loadLogs(page = 1) {
   const container = document.getElementById("logEntriesContainer");
   if (!container) return;
-  
+
   // 顯示載入中
-  container.innerHTML = '<div class="log-loading"><div class="spinner"></div>載入中...</div>';
-  
+  container.innerHTML =
+    '<div class="log-loading"><div class="spinner"></div>載入中...</div>';
+
   try {
     // 收集篩選參數
     const params = new URLSearchParams();
     params.set("page", page.toString());
     params.set("limit", "50");
-    
+
     const level = document.getElementById("logLevelFilter").value;
     if (level) params.set("level", level);
-    
+
     const source = document.getElementById("logSourceFilter").value;
     if (source) params.set("source", source);
-    
+
     const search = document.getElementById("logSearch").value.trim();
     if (search) params.set("search", search);
-    
+
     const startDate = document.getElementById("logStartDate").value;
     if (startDate) params.set("startDate", startDate);
-    
+
     const endDate = document.getElementById("logEndDate").value;
     if (endDate) params.set("endDate", endDate);
-    
+
     const response = await fetch(`/api/logs?${params.toString()}`);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    
+
     const data = await response.json();
     const logs = data.logs || [];
     currentLogPage = data.page || 1;
     totalLogPages = data.totalPages || 1;
-    
+
     // 渲染日誌條目
     if (logs.length === 0) {
       container.innerHTML = `
@@ -1794,12 +1831,11 @@ async function loadLogs(page = 1) {
         </div>
       `;
     } else {
-      container.innerHTML = logs.map(log => renderLogEntry(log)).join("");
+      container.innerHTML = logs.map((log) => renderLogEntry(log)).join("");
     }
-    
+
     // 更新分頁控制
     updateLogPagination();
-    
   } catch (error) {
     console.error("載入日誌失敗:", error);
     container.innerHTML = `
@@ -1819,35 +1855,40 @@ function renderLogEntry(log) {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    hour12: false
+    hour12: false,
   });
-  
+
   const levelClass = `log-level-${log.level}`;
   const searchTerm = document.getElementById("logSearch").value.trim();
-  
+
   // 高亮搜尋詞
   let message = escapeHtml(log.message);
   if (searchTerm) {
     const regex = new RegExp(`(${escapeRegex(searchTerm)})`, "gi");
     message = message.replace(regex, "<mark>$1</mark>");
   }
-  
+
   // 格式化 meta 資訊
   let metaHtml = "";
   if (log.meta) {
     try {
-      const metaObj = typeof log.meta === "string" ? JSON.parse(log.meta) : log.meta;
+      const metaObj =
+        typeof log.meta === "string" ? JSON.parse(log.meta) : log.meta;
       if (Object.keys(metaObj).length > 0) {
-        metaHtml = `<div class="log-meta"><pre>${escapeHtml(JSON.stringify(metaObj, null, 2))}</pre></div>`;
+        metaHtml = `<div class="log-meta"><pre>${escapeHtml(
+          JSON.stringify(metaObj, null, 2)
+        )}</pre></div>`;
       }
     } catch (e) {
       // 如果無法解析，顯示原始字串
       if (log.meta) {
-        metaHtml = `<div class="log-meta">${escapeHtml(String(log.meta))}</div>`;
+        metaHtml = `<div class="log-meta">${escapeHtml(
+          String(log.meta)
+        )}</div>`;
       }
     }
   }
-  
+
   return `
     <div class="log-entry">
       <div class="log-entry-header">
@@ -1865,15 +1906,15 @@ function updateLogPagination() {
   const pageInfo = document.getElementById("logPageInfo");
   const prevBtn = document.getElementById("logPrevPage");
   const nextBtn = document.getElementById("logNextPage");
-  
+
   if (pageInfo) {
     pageInfo.textContent = `${currentLogPage} / ${totalLogPages}`;
   }
-  
+
   if (prevBtn) {
     prevBtn.disabled = currentLogPage <= 1;
   }
-  
+
   if (nextBtn) {
     nextBtn.disabled = currentLogPage >= totalLogPages;
   }
@@ -1888,28 +1929,34 @@ async function clearOldLogs() {
   const daysToKeep = 7;
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
-  
+
   if (!confirm(`確定要清除 ${daysToKeep} 天前的所有日誌嗎？此操作無法復原。`)) {
     return;
   }
-  
+
   try {
     showLoadingOverlay("清除舊日誌中...");
-    
-    const response = await fetch(`/api/logs?endDate=${cutoffDate.toISOString().split("T")[0]}`, {
-      method: "DELETE"
-    });
-    
+
+    const response = await fetch(
+      `/api/logs?endDate=${cutoffDate.toISOString().split("T")[0]}`,
+      {
+        method: "DELETE",
+      }
+    );
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    
+
     const data = await response.json();
-    showToast("success", "清除成功", `已刪除 ${data.deletedCount || 0} 條舊日誌`);
-    
+    showToast(
+      "success",
+      "清除成功",
+      `已刪除 ${data.deletedCount || 0} 條舊日誌`
+    );
+
     // 重新載入日誌
     await loadLogs(1);
-    
   } catch (error) {
     console.error("清除舊日誌失敗:", error);
     showToast("error", "清除失敗", error.message);

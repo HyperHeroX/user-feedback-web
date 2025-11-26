@@ -1,12 +1,12 @@
 /**
- * user-feedback MCP Tools - 主入口文件
+ * user-feedback MCP Tools - 主入口檔案
  */
-// 导出主要类和函数
+// 匯出主要類別和函式
 export { MCPServer } from './server/mcp-server.js';
 export { getConfig, createDefaultConfig, validateConfig } from './config/index.js';
 export { logger } from './utils/logger.js';
-// 导出类型定义
+// 匯出類型定義
 export * from './types/index.js';
-// 导出版本信息
+// 匯出版本資訊
 export const VERSION = '2.1.3';
 //# sourceMappingURL=index.js.map

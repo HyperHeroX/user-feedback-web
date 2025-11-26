@@ -1,8 +1,8 @@
 /**
- * user-feedback MCP Tools - 性能监控工具
+ * user-feedback MCP Tools - 效能監控工具
  */
 /**
- * 性能指标接口
+ * 效能指標介面
  */
 export interface PerformanceMetrics {
     memoryUsage: {
@@ -36,7 +36,7 @@ export interface PerformanceMetrics {
     };
 }
 /**
- * 性能监控器类
+ * 效能監控器類別
  */
 export declare class PerformanceMonitor {
     private startTime;
@@ -45,55 +45,55 @@ export declare class PerformanceMonitor {
     private sessionStats;
     constructor();
     /**
-     * 记录HTTP请求
+     * 記錄HTTP請求
      */
     recordRequest(responseTime: number, success: boolean): void;
     /**
-     * 记录WebSocket连接
+     * 記錄WebSocket連線
      */
     recordWebSocketConnection(): void;
     /**
-     * 记录WebSocket断开连接
+     * 記錄WebSocket斷開連線
      */
     recordWebSocketDisconnection(): void;
     /**
-     * 记录WebSocket消息
+     * 記錄WebSocket訊息
      */
     recordWebSocketMessage(direction: 'received' | 'sent'): void;
     /**
-     * 记录会话创建
+     * 記錄會話建立
      */
     recordSessionCreated(): void;
     /**
-     * 记录会话完成
+     * 記錄會話完成
      */
     recordSessionCompleted(): void;
     /**
-     * 记录会话超时
+     * 記錄會話逾時
      */
     recordSessionTimeout(): void;
     /**
-     * 获取当前性能指标
+     * 取得目前效能指標
      */
     getMetrics(): PerformanceMetrics;
     /**
-     * 计算平均响应时间
+     * 計算平均回應時間
      */
     private calculateAverageResponseTime;
     /**
-     * 获取格式化的性能报告
+     * 取得格式化的效能報告
      */
     getFormattedReport(): string;
     /**
-     * 检查性能警告
+     * 檢查效能警告
      */
     checkPerformanceWarnings(): string[];
     /**
-     * 启动定期性能监控
+     * 啟動定期效能監控
      */
     startPeriodicMonitoring(intervalMs?: number): NodeJS.Timeout;
     /**
-     * 重置统计数据
+     * 重置統計資料
      */
     reset(): void;
 }

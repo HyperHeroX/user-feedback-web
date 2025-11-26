@@ -1,6 +1,6 @@
 /**
- * 会话存储管理器
- * 提供内存存储和可选的持久化存储
+ * 會話儲存管理器
+ * 提供記憶體儲存和可選的持久化儲存
  */
 
 import { logger } from './logger.js';
@@ -19,31 +19,31 @@ export class SessionStorage {
   private sessions = new Map<string, SessionData>();
   private cleanupInterval: NodeJS.Timeout | null = null;
 
-  constructor(private cleanupIntervalMs: number = 60000) { // 1分钟清理一次
+  constructor(private cleanupIntervalMs: number = 60000) { // 1分鐘清理一次
     this.startCleanupTimer();
   }
 
   /**
-   * 创建会话
+   * 建立會話
    */
   createSession(sessionId: string, data: SessionData): void {
     this.sessions.set(sessionId, data);
-    logger.debug(`会话已创建: ${sessionId}`);
+    logger.debug(`會話已建立: ${sessionId}`);
   }
 
   /**
-   * 获取会话
+   * 取得會話
    */
   getSession(sessionId: string): SessionData | undefined {
     const session = this.sessions.get(sessionId);
 
     if (session) {
-      // 检查会话是否过期
+      // 檢查會話是否過期
       const now = Date.now();
       const elapsed = now - session.startTime;
 
       if (elapsed > session.timeout) {
-        logger.debug(`会话已过期: ${sessionId}`);
+        logger.debug(`會話已過期: ${sessionId}`);
         this.deleteSession(sessionId);
         return undefined;
       }
@@ -53,7 +53,7 @@ export class SessionStorage {
   }
 
   /**
-   * 更新会话
+   * 更新會話
    */
   updateSession(sessionId: string, updates: Partial<SessionData>): boolean {
     const session = this.sessions.get(sessionId);
@@ -63,30 +63,30 @@ export class SessionStorage {
 
     Object.assign(session, updates);
     this.sessions.set(sessionId, session);
-    logger.debug(`会话已更新: ${sessionId}`);
+    logger.debug(`會話已更新: ${sessionId}`);
     return true;
   }
 
   /**
-   * 删除会话
+   * 刪除會話
    */
   deleteSession(sessionId: string): boolean {
     const deleted = this.sessions.delete(sessionId);
     if (deleted) {
-      logger.debug(`会话已删除: ${sessionId}`);
+      logger.debug(`會話已刪除: ${sessionId}`);
     }
     return deleted;
   }
 
   /**
-   * 获取所有活跃会话
+   * 取得所有活躍會話
    */
   getAllSessions(): Map<string, SessionData> {
     return new Map(this.sessions);
   }
 
   /**
-   * 获取活跃会话数量
+   * 取得活躍會話數量
    */
   getSessionCount(): number {
     return this.sessions.size;
@@ -133,7 +133,7 @@ export class SessionStorage {
   }
 
   /**
-   * 启动清理定时器
+   * 啟動清理計時器
    */
   private startCleanupTimer(): void {
     this.cleanupInterval = setInterval(() => {
@@ -142,7 +142,7 @@ export class SessionStorage {
   }
 
   /**
-   * 停止清理定时器
+   * 停止清理計時器
    */
   stopCleanupTimer(): void {
     if (this.cleanupInterval) {
@@ -183,11 +183,11 @@ export class SessionStorage {
     }
 
     this.sessions.clear();
-    logger.info('所有会话已清理');
+    logger.info('所有會話已清理');
   }
 
   /**
-   * 获取会话统计信息
+   * 取得會話統計資訊
    */
   getStats(): {
     totalSessions: number;

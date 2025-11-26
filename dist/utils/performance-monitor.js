@@ -1,9 +1,9 @@
 /**
- * user-feedback MCP Tools - 性能监控工具
+ * user-feedback MCP Tools - 效能監控工具
  */
 import { logger } from './logger.js';
 /**
- * 性能监控器类
+ * 效能監控器類別
  */
 export class PerformanceMonitor {
     startTime;
@@ -29,7 +29,7 @@ export class PerformanceMonitor {
         this.startTime = Date.now();
     }
     /**
-     * 记录HTTP请求
+     * 記錄HTTP請求
      */
     recordRequest(responseTime, success) {
         this.requestStats.total++;
@@ -40,26 +40,26 @@ export class PerformanceMonitor {
         else {
             this.requestStats.failed++;
         }
-        // 保持最近1000个响应时间记录
+        // 保持最近1000個回應時間記錄
         if (this.requestStats.responseTimes.length > 1000) {
             this.requestStats.responseTimes = this.requestStats.responseTimes.slice(-1000);
         }
     }
     /**
-     * 记录WebSocket连接
+     * 記錄WebSocket連線
      */
     recordWebSocketConnection() {
         this.websocketStats.activeConnections++;
         this.websocketStats.totalConnections++;
     }
     /**
-     * 记录WebSocket断开连接
+     * 記錄WebSocket斷開連線
      */
     recordWebSocketDisconnection() {
         this.websocketStats.activeConnections = Math.max(0, this.websocketStats.activeConnections - 1);
     }
     /**
-     * 记录WebSocket消息
+     * 記錄WebSocket訊息
      */
     recordWebSocketMessage(direction) {
         if (direction === 'received') {
@@ -70,28 +70,28 @@ export class PerformanceMonitor {
         }
     }
     /**
-     * 记录会话创建
+     * 記錄會話建立
      */
     recordSessionCreated() {
         this.sessionStats.activeSessions++;
         this.sessionStats.totalSessions++;
     }
     /**
-     * 记录会话完成
+     * 記錄會話完成
      */
     recordSessionCompleted() {
         this.sessionStats.activeSessions = Math.max(0, this.sessionStats.activeSessions - 1);
         this.sessionStats.completedSessions++;
     }
     /**
-     * 记录会话超时
+     * 記錄會話逾時
      */
     recordSessionTimeout() {
         this.sessionStats.activeSessions = Math.max(0, this.sessionStats.activeSessions - 1);
         this.sessionStats.timeoutSessions++;
     }
     /**
-     * 获取当前性能指标
+     * 取得目前效能指標
      */
     getMetrics() {
         const memoryUsage = process.memoryUsage();
@@ -119,7 +119,7 @@ export class PerformanceMonitor {
         };
     }
     /**
-     * 计算平均响应时间
+     * 計算平均回應時間
      */
     calculateAverageResponseTime() {
         if (this.requestStats.responseTimes.length === 0) {
@@ -129,84 +129,84 @@ export class PerformanceMonitor {
         return sum / this.requestStats.responseTimes.length;
     }
     /**
-     * 获取格式化的性能报告
+     * 取得格式化的效能報告
      */
     getFormattedReport() {
         const metrics = this.getMetrics();
         return `
-📊 性能监控报告
+📊 效能監控報告
 ================
 
-💾 内存使用:
-  - 堆内存使用: ${(metrics.memoryUsage.heapUsed / 1024 / 1024).toFixed(2)} MB
-  - 堆内存总量: ${(metrics.memoryUsage.heapTotal / 1024 / 1024).toFixed(2)} MB
-  - 外部内存: ${(metrics.memoryUsage.external / 1024 / 1024).toFixed(2)} MB
+💾 記憶體使用:
+  - 堆積記憶體使用: ${(metrics.memoryUsage.heapUsed / 1024 / 1024).toFixed(2)} MB
+  - 堆積記憶體總量: ${(metrics.memoryUsage.heapTotal / 1024 / 1024).toFixed(2)} MB
+  - 外部記憶體: ${(metrics.memoryUsage.external / 1024 / 1024).toFixed(2)} MB
   - RSS: ${(metrics.memoryUsage.rss / 1024 / 1024).toFixed(2)} MB
 
-⏱️ 运行时间: ${(metrics.uptime / 1000).toFixed(2)} 秒
+⏱️ 執行時間: ${(metrics.uptime / 1000).toFixed(2)} 秒
 
-🌐 HTTP请求统计:
-  - 总请求数: ${metrics.requestStats.total}
-  - 成功请求: ${metrics.requestStats.successful}
-  - 失败请求: ${metrics.requestStats.failed}
-  - 平均响应时间: ${metrics.requestStats.averageResponseTime.toFixed(2)} ms
+🌐 HTTP請求統計:
+  - 總請求數: ${metrics.requestStats.total}
+  - 成功請求: ${metrics.requestStats.successful}
+  - 失敗請求: ${metrics.requestStats.failed}
+  - 平均回應時間: ${metrics.requestStats.averageResponseTime.toFixed(2)} ms
 
-🔌 WebSocket统计:
-  - 活跃连接: ${metrics.websocketStats.activeConnections}
-  - 总连接数: ${metrics.websocketStats.totalConnections}
-  - 接收消息: ${metrics.websocketStats.messagesReceived}
-  - 发送消息: ${metrics.websocketStats.messagesSent}
+🔌 WebSocket統計:
+  - 活躍連線: ${metrics.websocketStats.activeConnections}
+  - 總連線數: ${metrics.websocketStats.totalConnections}
+  - 接收訊息: ${metrics.websocketStats.messagesReceived}
+  - 傳送訊息: ${metrics.websocketStats.messagesSent}
 
-📋 会话统计:
-  - 活跃会话: ${metrics.sessionStats.activeSessions}
-  - 总会话数: ${metrics.sessionStats.totalSessions}
-  - 完成会话: ${metrics.sessionStats.completedSessions}
-  - 超时会话: ${metrics.sessionStats.timeoutSessions}
+📋 會話統計:
+  - 活躍會話: ${metrics.sessionStats.activeSessions}
+  - 總會話數: ${metrics.sessionStats.totalSessions}
+  - 完成會話: ${metrics.sessionStats.completedSessions}
+  - 逾時會話: ${metrics.sessionStats.timeoutSessions}
 `;
     }
     /**
-     * 检查性能警告
+     * 檢查效能警告
      */
     checkPerformanceWarnings() {
         const metrics = this.getMetrics();
         const warnings = [];
-        // 内存使用警告
+        // 記憶體使用警告
         const heapUsedMB = metrics.memoryUsage.heapUsed / 1024 / 1024;
         if (heapUsedMB > 200) {
-            warnings.push(`内存使用过高: ${heapUsedMB.toFixed(2)} MB`);
+            warnings.push(`記憶體使用過高: ${heapUsedMB.toFixed(2)} MB`);
         }
-        // 响应时间警告
+        // 回應時間警告
         if (metrics.requestStats.averageResponseTime > 2000) {
-            warnings.push(`平均响应时间过长: ${metrics.requestStats.averageResponseTime.toFixed(2)} ms`);
+            warnings.push(`平均回應時間過長: ${metrics.requestStats.averageResponseTime.toFixed(2)} ms`);
         }
-        // 失败率警告
+        // 失敗率警告
         const failureRate = metrics.requestStats.total > 0
             ? (metrics.requestStats.failed / metrics.requestStats.total) * 100
             : 0;
         if (failureRate > 5) {
-            warnings.push(`请求失败率过高: ${failureRate.toFixed(2)}%`);
+            warnings.push(`請求失敗率過高: ${failureRate.toFixed(2)}%`);
         }
-        // 会话超时警告
+        // 會話逾時警告
         const timeoutRate = metrics.sessionStats.totalSessions > 0
             ? (metrics.sessionStats.timeoutSessions / metrics.sessionStats.totalSessions) * 100
             : 0;
         if (timeoutRate > 20) {
-            warnings.push(`会话超时率过高: ${timeoutRate.toFixed(2)}%`);
+            warnings.push(`會話逾時率過高: ${timeoutRate.toFixed(2)}%`);
         }
         return warnings;
     }
     /**
-     * 启动定期性能监控
+     * 啟動定期效能監控
      */
     startPeriodicMonitoring(intervalMs = 60000) {
         return setInterval(() => {
             const warnings = this.checkPerformanceWarnings();
             if (warnings.length > 0) {
-                logger.warn('性能警告:', warnings);
+                logger.warn('效能警告:', warnings);
             }
-            // 记录性能指标到日志
+            // 記錄效能指標到日誌
             const metrics = this.getMetrics();
-            logger.debug('性能指标:', {
+            logger.debug('效能指標:', {
                 memoryMB: (metrics.memoryUsage.heapUsed / 1024 / 1024).toFixed(2),
                 uptime: (metrics.uptime / 1000).toFixed(2),
                 requests: metrics.requestStats.total,
@@ -217,7 +217,7 @@ export class PerformanceMonitor {
         }, intervalMs);
     }
     /**
-     * 重置统计数据
+     * 重置統計資料
      */
     reset() {
         this.startTime = Date.now();
@@ -241,6 +241,6 @@ export class PerformanceMonitor {
         };
     }
 }
-// 全局性能监控实例
+// 全域效能監控實例
 export const performanceMonitor = new PerformanceMonitor();
 //# sourceMappingURL=performance-monitor.js.map

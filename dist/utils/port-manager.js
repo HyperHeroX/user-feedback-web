@@ -1,25 +1,25 @@
 /**
- * user-feedback MCP Tools - 端口管理工具
+ * user-feedback MCP Tools - 連接埠管理工具
  */
 import { createServer } from 'net';
 import { MCPError } from '../types/index.js';
 import { logger } from './logger.js';
 import { processManager } from './process-manager.js';
 /**
- * 端口管理器
+ * 連接埠管理器
  */
 export class PortManager {
     PORT_RANGE_START = 5000;
     PORT_RANGE_END = 5099;
     MAX_RETRIES = 20;
     /**
-     * 检查端口是否可用（增强版本）
+     * 檢查連接埠是否可用（增強版本）
      */
     async isPortAvailable(port) {
         return new Promise((resolve) => {
             const server = createServer();
             let resolved = false;
-            // 设置超时，避免长时间等待
+            // 設定逾時，避免長時間等待
             const timeout = setTimeout(() => {
                 if (!resolved) {
                     resolved = true;
@@ -32,7 +32,7 @@ export class PortManager {
                 if (!resolved) {
                     resolved = true;
                     clearTimeout(timeout);
-                    // 端口可用，立即关闭测试服务器
+                    // 連接埠可用，立即關閉測試伺服器
                     server.close(() => {
                         resolve(true);
                     });
@@ -42,85 +42,85 @@ export class PortManager {
                 if (!resolved) {
                     resolved = true;
                     clearTimeout(timeout);
-                    // 端口不可用
+                    // 連接埠不可用
                     resolve(false);
                 }
             });
         });
     }
     /**
-     * 深度检查端口是否真正可用（包括进程检测）
+     * 深度檢查連接埠是否真正可用（包括處理程序偵測）
      */
     async isPortTrulyAvailable(port) {
-        // 首先进行基础检查
+        // 首先進行基礎檢查
         const basicCheck = await this.isPortAvailable(port);
         if (!basicCheck) {
             return false;
         }
-        // 检查是否有进程占用该端口
+        // 檢查是否有處理程序佔用該連接埠
         const processInfo = await processManager.getPortProcess(port);
         if (processInfo) {
-            logger.debug(`端口 ${port} 被进程占用:`, processInfo);
+            logger.debug(`連接埠 ${port} 被處理程序佔用:`, processInfo);
             return false;
         }
         return true;
     }
     /**
-     * 智能端口冲突解决
+     * 智慧連接埠衝突解決
      */
     async resolvePortConflict(port) {
-        logger.info(`开始解决端口 ${port} 的冲突`);
-        // 1. 检查端口是否可用
+        logger.info(`開始解決連接埠 ${port} 的衝突`);
+        // 1. 檢查連接埠是否可用
         if (await this.isPortAvailable(port)) {
-            logger.info(`端口 ${port} 可用，直接使用`);
+            logger.info(`連接埠 ${port} 可用，直接使用`);
             return port;
         }
-        // 2. 获取占用进程信息
+        // 2. 取得佔用處理程序資訊
         const processInfo = await processManager.getPortProcess(port);
         if (!processInfo) {
-            // 端口被占用但找不到进程，等待释放
-            logger.info(`端口 ${port} 被占用但找不到进程，等待释放...`);
+            // 連接埠被佔用但找不到處理程序，等待釋放
+            logger.info(`連接埠 ${port} 被佔用但找不到處理程序，等待釋放...`);
             if (await processManager.waitForPortRelease(port, 5000)) {
-                logger.info(`端口 ${port} 已自动释放`);
+                logger.info(`連接埠 ${port} 已自動釋放`);
                 return port;
             }
-            logger.warn(`端口 ${port} 释放超时，寻找其他端口`);
+            logger.warn(`連接埠 ${port} 釋放逾時，尋找其他連接埠`);
             return await this.findAlternativePort(port);
         }
-        // 3. 检查是否是自己的进程
+        // 3. 檢查是否是自己的處理程序
         if (processManager.isOwnProcess(processInfo)) {
-            logger.info(`发现自己的僵尸进程，尝试清理: PID ${processInfo.pid}`);
+            logger.info(`發現自己的僵屍處理程序，嘗試清理: PID ${processInfo.pid}`);
             if (await processManager.forceReleasePort(port)) {
-                logger.info(`成功清理僵尸进程，端口 ${port} 已释放`);
+                logger.info(`成功清理僵屍處理程序，連接埠 ${port} 已釋放`);
                 return port;
             }
             else {
-                logger.error('无法清理僵尸进程，寻找其他端口');
+                logger.error('無法清理僵屍處理程序，尋找其他連接埠');
                 return await this.findAlternativePort(port);
             }
         }
-        // 4. 检查是否是安全进程
+        // 4. 檢查是否是安全處理程序
         if (processManager.isSafeToKill(processInfo)) {
-            logger.warn(`尝试终止安全进程: ${processInfo.name} (PID: ${processInfo.pid})`);
+            logger.warn(`嘗試終止安全處理程序: ${processInfo.name} (PID: ${processInfo.pid})`);
             if (await processManager.forceReleasePort(port)) {
-                logger.info(`成功终止进程，端口 ${port} 已释放`);
+                logger.info(`成功終止處理程序，連接埠 ${port} 已釋放`);
                 return port;
             }
             else {
-                logger.error('无法终止进程，寻找其他端口');
+                logger.error('無法終止處理程序，尋找其他連接埠');
                 return await this.findAlternativePort(port);
             }
         }
-        // 5. 无法清理，寻找其他端口
-        logger.warn(`无法清理端口 ${port} (进程: ${processInfo.name})，寻找其他可用端口`);
+        // 5. 無法清理，尋找其他連接埠
+        logger.warn(`無法清理連接埠 ${port} (處理程序: ${processInfo.name})，尋找其他可用連接埠`);
         return await this.findAlternativePort(port);
     }
     /**
-     * 寻找替代端口
+     * 尋找替代連接埠
      */
     async findAlternativePort(preferredPort) {
-        logger.info(`寻找端口 ${preferredPort} 的替代方案`);
-        // 尝试相近的端口
+        logger.info(`尋找連接埠 ${preferredPort} 的替代方案`);
+        // 嘗試相近的連接埠
         const nearbyPorts = [
             preferredPort + 1,
             preferredPort + 2,
@@ -131,7 +131,7 @@ export class PortManager {
         ].filter(p => p > 1024 && p < 65535);
         for (const port of nearbyPorts) {
             if (await this.isPortAvailable(port)) {
-                logger.info(`找到相近的可用端口: ${port}`);
+                logger.info(`找到相近的可用連接埠: ${port}`);
                 return port;
             }
         }
@@ -139,35 +139,35 @@ export class PortManager {
         return await this.findAvailablePort();
     }
     /**
-     * 查找可用端口（传统方法）
+     * 查找可用連接埠（傳統方法）
      */
     async findAvailablePort(preferredPort) {
-        // 如果指定了首选端口，先尝试该端口
+        // 如果指定了首選連接埠，先嘗試該連接埠
         if (preferredPort) {
-            logger.debug(`检查首选端口: ${preferredPort}`);
+            logger.debug(`檢查首選連接埠: ${preferredPort}`);
             const available = await this.isPortAvailable(preferredPort);
             if (available) {
-                logger.info(`使用首选端口: ${preferredPort}`);
+                logger.info(`使用首選連接埠: ${preferredPort}`);
                 return preferredPort;
             }
             else {
-                logger.warn(`首选端口 ${preferredPort} 不可用，寻找其他端口...`);
+                logger.warn(`首選連接埠 ${preferredPort} 不可用，尋找其他連接埠...`);
             }
         }
-        // 在端口范围内查找可用端口
+        // 在連接埠範圍內查找可用連接埠
         for (let port = this.PORT_RANGE_START; port <= this.PORT_RANGE_END; port++) {
-            logger.debug(`检查端口: ${port}`);
+            logger.debug(`檢查連接埠: ${port}`);
             if (await this.isPortAvailable(port)) {
-                logger.info(`找到可用端口: ${port}`);
+                logger.info(`找到可用連接埠: ${port}`);
                 return port;
             }
         }
-        // 如果范围内没有可用端口，随机尝试
+        // 如果範圍內沒有可用連接埠，隨機嘗試
         for (let i = 0; i < this.MAX_RETRIES; i++) {
             const randomPort = Math.floor(Math.random() * (65535 - 1024) + 1024);
-            logger.debug(`尝试随机端口: ${randomPort}`);
+            logger.debug(`嘗試隨機連接埠: ${randomPort}`);
             if (await this.isPortAvailable(randomPort)) {
-                logger.info(`找到随机可用端口: ${randomPort}`);
+                logger.info(`找到隨機可用連接埠: ${randomPort}`);
                 return randomPort;
             }
         }
@@ -179,19 +179,19 @@ export class PortManager {
         });
     }
     /**
-     * 获取端口信息
+     * 取得連接埠資訊
      */
     async getPortInfo(port) {
         const available = await this.isPortAvailable(port);
         return {
             port,
             available,
-            // TODO: 添加PID检测（需要跨平台实现）
+            // TODO: 新增PID偵測（需要跨平台實作）
             pid: undefined
         };
     }
     /**
-     * 获取端口范围内的所有端口状态
+     * 取得連接埠範圍內的所有連接埠狀態
      */
     async getPortRangeStatus() {
         const results = [];
@@ -202,118 +202,118 @@ export class PortManager {
         return results;
     }
     /**
-     * 清理僵尸进程（跨平台实现）
+     * 清理僵屍處理程序（跨平台實作）
      */
     async cleanupZombieProcesses() {
-        logger.info('开始清理僵尸进程...');
+        logger.info('開始清理僵屍處理程序...');
         try {
-            // TODO: 实现跨平台的进程清理
+            // TODO: 實作跨平台的處理程序清理
             // Windows: tasklist, taskkill
             // Unix/Linux: ps, kill
-            logger.info('僵尸进程清理完成');
+            logger.info('僵屍處理程序清理完成');
         }
         catch (error) {
-            logger.warn('清理僵尸进程时出错:', error);
+            logger.warn('清理僵屍處理程序時出錯:', error);
         }
     }
     /**
-     * 强制使用指定端口
+     * 強制使用指定連接埠
      */
     async forcePort(port, killProcess = false) {
-        logger.info(`强制使用端口: ${port}`);
-        // 检查端口是否可用
+        logger.info(`強制使用連接埠: ${port}`);
+        // 檢查連接埠是否可用
         const available = await this.isPortAvailable(port);
         if (available) {
-            logger.info(`端口 ${port} 可用，直接使用`);
+            logger.info(`連接埠 ${port} 可用，直接使用`);
             return port;
         }
         if (!killProcess) {
             throw new MCPError(`Port ${port} is occupied and killProcess is disabled`, 'PORT_OCCUPIED', { port, killProcess });
         }
-        // 尝试强制释放端口
-        logger.warn(`端口 ${port} 被占用，尝试强制释放...`);
+        // 嘗試強制釋放連接埠
+        logger.warn(`連接埠 ${port} 被佔用，嘗試強制釋放...`);
         const released = await processManager.forceReleasePort(port);
         if (!released) {
             throw new MCPError(`Failed to force release port ${port}`, 'PORT_FORCE_RELEASE_FAILED', { port });
         }
-        // 再次检查端口是否可用
+        // 再次檢查連接埠是否可用
         const finalCheck = await this.isPortAvailable(port);
         if (!finalCheck) {
             throw new MCPError(`Port ${port} is still occupied after force release`, 'PORT_STILL_OCCUPIED', { port });
         }
-        logger.info(`端口 ${port} 强制释放成功`);
+        logger.info(`連接埠 ${port} 強制釋放成功`);
         return port;
     }
     /**
-     * 等待端口释放（增强版本）
+     * 等待連接埠釋放（增強版本）
      */
     async waitForPortRelease(port, timeoutMs = 10000) {
         const startTime = Date.now();
-        logger.info(`等待端口 ${port} 释放，超时时间: ${timeoutMs}ms`);
+        logger.info(`等待連接埠 ${port} 釋放，逾時時間: ${timeoutMs}ms`);
         while (Date.now() - startTime < timeoutMs) {
-            // 使用深度检查确保端口真正可用
+            // 使用深度檢查確保連接埠真正可用
             if (await this.isPortTrulyAvailable(port)) {
-                logger.info(`端口 ${port} 已完全释放`);
+                logger.info(`連接埠 ${port} 已完全釋放`);
                 return;
             }
-            // 等待200ms后重试（增加等待时间）
+            // 等待200ms後重試（增加等待時間）
             await new Promise(resolve => setTimeout(resolve, 200));
         }
         throw new MCPError(`Port ${port} was not released within ${timeoutMs}ms`, 'PORT_RELEASE_TIMEOUT', { port, timeoutMs });
     }
     /**
-     * 清理指定端口（强制释放并等待）
+     * 清理指定連接埠（強制釋放並等待）
      */
     async cleanupPort(port) {
-        logger.info(`开始清理端口: ${port}`);
-        // 检查端口是否被占用
+        logger.info(`開始清理連接埠: ${port}`);
+        // 檢查連接埠是否被佔用
         const processInfo = await processManager.getPortProcess(port);
         if (!processInfo) {
-            logger.info(`端口 ${port} 未被占用，无需清理`);
+            logger.info(`連接埠 ${port} 未被佔用，無需清理`);
             return;
         }
-        logger.info(`发现占用端口 ${port} 的进程:`, {
+        logger.info(`發現佔用連接埠 ${port} 的處理程序:`, {
             pid: processInfo.pid,
             name: processInfo.name,
             command: processInfo.command
         });
-        // 检查是否是安全的进程
+        // 檢查是否是安全的處理程序
         if (!processManager.isSafeToKill(processInfo)) {
-            logger.warn(`端口 ${port} 被不安全的进程占用，跳过清理: ${processInfo.name}`);
+            logger.warn(`連接埠 ${port} 被不安全的處理程序佔用，跳過清理: ${processInfo.name}`);
             return;
         }
-        // 尝试终止进程
-        logger.info(`尝试终止占用端口 ${port} 的进程: ${processInfo.pid}`);
+        // 嘗試終止處理程序
+        logger.info(`嘗試終止佔用連接埠 ${port} 的處理程序: ${processInfo.pid}`);
         const killed = await processManager.killProcess(processInfo.pid, false);
         if (killed) {
-            // 等待端口释放
+            // 等待連接埠釋放
             try {
                 await this.waitForPortRelease(port, 5000);
-                logger.info(`端口 ${port} 清理成功`);
+                logger.info(`連接埠 ${port} 清理成功`);
             }
             catch (error) {
-                logger.warn(`端口 ${port} 清理后仍未释放，可能需要更多时间`);
+                logger.warn(`連接埠 ${port} 清理後仍未釋放，可能需要更多時間`);
             }
         }
         else {
-            logger.warn(`无法终止占用端口 ${port} 的进程: ${processInfo.pid}`);
+            logger.warn(`無法終止佔用連接埠 ${port} 的處理程序: ${processInfo.pid}`);
         }
     }
     /**
-     * 强制释放端口（杀死占用进程）
+     * 強制釋放連接埠（終止佔用處理程序）
      */
     async forceReleasePort(port) {
-        logger.warn(`强制释放端口: ${port}`);
+        logger.warn(`強制釋放連接埠: ${port}`);
         try {
-            // TODO: 实现跨平台的进程杀死
-            // 1. 找到占用端口的进程PID
-            // 2. 杀死该进程
-            // 3. 等待端口释放
+            // TODO: 實作跨平台的處理程序終止
+            // 1. 找到佔用連接埠的處理程序PID
+            // 2. 終止該處理程序
+            // 3. 等待連接埠釋放
             await this.waitForPortRelease(port, 3000);
-            logger.info(`端口 ${port} 强制释放成功`);
+            logger.info(`連接埠 ${port} 強制釋放成功`);
         }
         catch (error) {
-            logger.error(`强制释放端口 ${port} 失败:`, error);
+            logger.error(`強制釋放連接埠 ${port} 失敗:`, error);
             throw new MCPError(`Failed to force release port ${port}`, 'FORCE_RELEASE_FAILED', error);
         }
     }

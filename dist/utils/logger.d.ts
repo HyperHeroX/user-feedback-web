@@ -1,5 +1,5 @@
 /**
- * user-feedback MCP Tools - 日志工具
+ * user-feedback MCP Tools - 日誌工具
  */
 import { LogLevel, MCPLogLevel, MCPLogMessage } from '../types/index.js';
 declare class Logger {
@@ -25,11 +25,11 @@ declare class Logger {
      */
     setSource(source: string): void;
     /**
-     * 啟用/禁用資料庫日誌
+     * 啟用/停用資料庫日誌
      */
     setDatabaseLogging(enabled: boolean): void;
     /**
-     * 延遲載入 database 函數
+     * 延遲載入 database 函式
      */
     private loadDatabaseFunctions;
     /**
@@ -45,119 +45,119 @@ declare class Logger {
      */
     private checkAndCleanupOldLogs;
     /**
-     * 设置日志级别
+     * 設定日誌級別
      */
     setLevel(level: LogLevel): void;
     /**
-     * 获取当前日志级别
+     * 取得目前日誌級別
      */
     getLevel(): LogLevel;
     /**
-     * 禁用颜色输出（用于MCP模式）
+     * 停用顏色輸出（用於MCP模式）
      */
     disableColors(): void;
     /**
-     * 设置MCP日志级别
+     * 設定MCP日誌級別
      */
     setMCPLogLevel(level: MCPLogLevel): void;
     /**
-     * 获取MCP日志级别
+     * 取得MCP日誌級別
      */
     getMCPLogLevel(): MCPLogLevel;
     /**
-     * 设置MCP日志回调函数
+     * 設定MCP日誌回呼函式
      */
     setMCPLogCallback(callback: (message: MCPLogMessage) => void): void;
     /**
-     * 清除MCP日志回调函数
+     * 清除MCP日誌回呼函式
      */
     clearMCPLogCallback(): void;
     /**
-     * 启用文件日志记录
+     * 啟用檔案日誌記錄
      */
     enableFileLogging(logDir?: string): void;
     /**
-     * 检查是否应该输出指定级别的日志
+     * 檢查是否應該輸出指定級別的日誌
      */
     private shouldLog;
     /**
-     * 检查是否应该发送MCP日志
+     * 檢查是否應該傳送MCP日誌
      */
     private shouldSendMCPLog;
     /**
-     * 发送MCP日志通知
+     * 傳送MCP日誌通知
      */
     private sendMCPLog;
     /**
-     * 格式化时间戳
+     * 格式化時間戳
      */
     private formatTimestamp;
     /**
-     * 格式化日志消息
+     * 格式化日誌訊息
      */
     private formatMessage;
     /**
-     * 输出日志
+     * 輸出日誌
      */
     private log;
     /**
-     * 移除颜色代码
+     * 移除顏色代碼
      */
     private removeColorCodes;
     /**
-     * 错误日志
+     * 錯誤日誌
      */
     error(message: string, ...args: unknown[]): void;
     /**
-     * 警告日志
+     * 警告日誌
      */
     warn(message: string, ...args: unknown[]): void;
     /**
-     * 信息日志
+     * 資訊日誌
      */
     info(message: string, ...args: unknown[]): void;
     /**
-     * 调试日志
+     * 除錯日誌
      */
     debug(message: string, ...args: unknown[]): void;
     /**
-     * 记录HTTP请求
+     * 記錄HTTP請求
      */
     request(method: string, url: string, statusCode?: number, duration?: number): void;
     /**
-     * 记录WebSocket事件
+     * 記錄WebSocket事件
      */
     socket(event: string, sessionId?: string, data?: unknown): void;
     /**
-     * 记录MCP工具调用
+     * 記錄MCP工具呼叫
      */
     mcp(tool: string, params?: unknown, result?: unknown): void;
     /**
-     * 发送MCP通知级别日志
+     * 傳送MCP通知級別日誌
      */
     mcpNotice(message: string, data?: unknown): void;
     /**
-     * 发送MCP警告级别日志
+     * 傳送MCP警告級別日誌
      */
     mcpWarning(message: string, data?: unknown): void;
     /**
-     * 发送MCP错误级别日志
+     * 傳送MCP錯誤級別日誌
      */
     mcpError(message: string, data?: unknown): void;
     /**
-     * 发送MCP关键级别日志
+     * 傳送MCP關鍵級別日誌
      */
     mcpCritical(message: string, data?: unknown): void;
     /**
-     * 发送服务器启动信息到MCP客户端
+     * 傳送伺服器啟動資訊到MCP客戶端
      */
     mcpServerStarted(port: number, url: string): void;
     /**
-     * 发送反馈页面创建信息到MCP客户端
+     * 傳送回饋頁面建立資訊到MCP客戶端
      */
     mcpFeedbackPageCreated(sessionId: string, feedbackUrl: string, timeoutSeconds: number): void;
     /**
-     * 发送工具调用开始信息到MCP客户端
+     * 傳送工具呼叫開始資訊到MCP客戶端
      */
     mcpToolCallStarted(toolName: string, params: unknown): void;
 }

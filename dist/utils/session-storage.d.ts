@@ -1,6 +1,6 @@
 /**
- * 会话存储管理器
- * 提供内存存储和可选的持久化存储
+ * 會話儲存管理器
+ * 提供記憶體儲存和可選的持久化儲存
  */
 import { FeedbackData } from '../types/index.js';
 export interface SessionData {
@@ -17,27 +17,27 @@ export declare class SessionStorage {
     private cleanupInterval;
     constructor(cleanupIntervalMs?: number);
     /**
-     * 创建会话
+     * 建立會話
      */
     createSession(sessionId: string, data: SessionData): void;
     /**
-     * 获取会话
+     * 取得會話
      */
     getSession(sessionId: string): SessionData | undefined;
     /**
-     * 更新会话
+     * 更新會話
      */
     updateSession(sessionId: string, updates: Partial<SessionData>): boolean;
     /**
-     * 删除会话
+     * 刪除會話
      */
     deleteSession(sessionId: string): boolean;
     /**
-     * 获取所有活跃会话
+     * 取得所有活躍會話
      */
     getAllSessions(): Map<string, SessionData>;
     /**
-     * 获取活跃会话数量
+     * 取得活躍會話數量
      */
     getSessionCount(): number;
     /**
@@ -45,11 +45,11 @@ export declare class SessionStorage {
      */
     cleanupExpiredSessions(): number;
     /**
-     * 启动清理定时器
+     * 啟動清理計時器
      */
     private startCleanupTimer;
     /**
-     * 停止清理定时器
+     * 停止清理計時器
      */
     stopCleanupTimer(): void;
     /**
@@ -57,7 +57,7 @@ export declare class SessionStorage {
      */
     clear(): void;
     /**
-     * 获取会话统计信息
+     * 取得會話統計資訊
      */
     getStats(): {
         totalSessions: number;

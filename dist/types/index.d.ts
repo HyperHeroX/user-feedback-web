@@ -1,5 +1,5 @@
 /**
- * user-feedback MCP Tools - 类型定义
+ * user-feedback MCP Tools - 類型定義
  */
 export interface Config {
     apiKey?: string | undefined;
