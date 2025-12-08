@@ -245,6 +245,28 @@ body {
     margin-bottom: var(--spacing-md);
 }
 
+/* AI 工作匯報區塊連結樣式 */
+.ai-message-content a {
+    color: var(--accent-yellow);
+    text-decoration: underline;
+    transition: color 0.2s ease;
+}
+
+.ai-message-content a:hover {
+    color: #ffeb3b;
+}
+
+/* 淺色模式下使用預設連結顏色 */
+@media (prefers-color-scheme: light) {
+    .ai-message-content a {
+        color: var(--accent-blue);
+    }
+    
+    .ai-message-content a:hover {
+        color: #005a9e;
+    }
+}
+
 /* ============ 中間：使用者互動區 ============ */
 
 .user-panel {

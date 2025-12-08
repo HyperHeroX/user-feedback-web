@@ -31,6 +31,7 @@
     "url": "https://github.com/sanshao85/user-web-feedback-web/issues"
   },
   "scripts": {
+    "postinstall": "npm rebuild better-sqlite3 || true",
     "build": "tsc && npm run copy-static",
     "copy-static": "node ./scripts/copy-static.cjs",
     "dev": "tsx watch --clear-screen=false src/cli.ts",
@@ -61,8 +62,9 @@
     "jimp": "^0.22.10",
     "marked": "^16.4.1",
     "open": "^9.1.0",
-    "tslib": "^2.6.2",
-    "socket.io": "^4.7.2"
+    "socket.io": "^4.7.2",
+    "sql.js": "^1.13.0",
+    "tslib": "^2.6.2"
   },
   "devDependencies": {
     "@types/compression": "^1.7.3",

@@ -1,24 +1,3 @@
-<!-- OPENSPEC:START -->
-# OpenSpec Instructions
-
-These instructions are for AI assistants working in this project.
-
-Always open `@/openspec/AGENTS.md` when the request:
-- Mentions planning or proposals (words like proposal, spec, change, plan)
-- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
-- Sounds ambiguous and you need the authoritative spec before coding
-
-Use `@/openspec/AGENTS.md` to learn:
-- How to create and apply change proposals
-- Spec format and conventions
-- Project structure and guidelines
-
-Keep this managed block so 'openspec update' can refresh the instructions.
-
-<!-- OPENSPEC:END -->
-
----
-
 ## 🚨 Non-Negotiable 核心指令
 
 ### 1. 強制使用 Serena MCP 工具進行原始碼探索
@@ -58,7 +37,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - 發送 MCP 後，收到 'continue' 或類似命令時立即恢復任務
 - 只有明確指示暫停時才中斷
 - **任務完成且無報告條件時自動進行下一個任務**
-- **任務完成後立即開始下一個待辦項，除非遇到攔截者**
+- **T 任務完成後立即開始下一個待辦項，除非遇到攔截者**
 
 ### 5. 行動導向: 立即行動
 
@@ -83,3 +62,5 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - ❌ **不要過度防禦性編碼** - 不在已驗證路徑添加不必要的 try/catch 區塊或防禦性檢查
 - ❌ **不要強制轉型繞過類型問題** - 不為了解決類型錯誤而進行不安全的強制轉換
 - ❌ **不要破壞程式碼風格一致性** - 不提交與當前文件風格不一致的程式碼
+
+---

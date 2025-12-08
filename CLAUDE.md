@@ -1,21 +1,6 @@
-<!-- OPENSPEC:START -->
-# OpenSpec Instructions
+# AI 開發憲法 - user-feedback-web
 
-These instructions are for AI assistants working in this project.
-
-Always open `@/openspec/AGENTS.md` when the request:
-- Mentions planning or proposals (words like proposal, spec, change, plan)
-- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
-- Sounds ambiguous and you need the authoritative spec before coding
-
-Use `@/openspec/AGENTS.md` to learn:
-- How to create and apply change proposals
-- Spec format and conventions
-- Project structure and guidelines
-
-Keep this managed block so 'openspec update' can refresh the instructions.
-
-<!-- OPENSPEC:END -->
+本文件定義了所有 AI 助手在此專案中必須遵守的核心規則。
 
 ---
 
@@ -83,3 +68,37 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - ❌ **不要過度防禦性編碼** - 不在已驗證路徑添加不必要的 try/catch 區塊或防禦性檢查
 - ❌ **不要強制轉型繞過類型問題** - 不為了解決類型錯誤而進行不安全的強制轉換
 - ❌ **不要破壞程式碼風格一致性** - 不提交與當前文件風格不一致的程式碼
+
+---
+
+## 📚 專案特定指南
+
+### 技術堆疊
+
+- **後端**: Node.js + TypeScript + Express
+- **資料庫**: SQLite (better-sqlite3)
+- **前端**: 原生 HTML/CSS/JavaScript
+- **通訊**: Socket.IO (WebSocket)
+- **MCP**: Model Context Protocol SDK
+
+### 開發指令
+
+```bash
+# 開發模式
+npm run dev
+
+# 構建
+npm run build
+
+# 測試
+npm test
+
+# 啟動
+npm start
+```
+
+### 注意事項
+
+1. **資料庫模組**: 使用 `better-sqlite3`，已配置 `postinstall` 腳本自動重建以適應不同 Node.js 版本
+2. **加密**: API Key 使用 AES-256-GCM 加密存儲
+3. **靜態文件**: 位於 `src/static/`，構建時自動複製到 `dist/static/`
