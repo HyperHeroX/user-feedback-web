@@ -111,6 +111,9 @@
                 <button id="logViewerBtn" class="btn btn-ghost" title="系統日誌">
                     <span class="icon">📋</span>
                 </button>
+                <button id="mcpServersBtn" class="btn btn-ghost" title="MCP Servers">
+                    <span class="icon">🔌</span>
+                </button>
                 <button id="aiSettingsBtn" class="btn btn-ghost" title="AI 設定">
                     <span class="icon">⚙️</span>
                 </button>
@@ -223,6 +226,115 @@
                     <span class="icon">💾</span>
                     儲存設定
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MCP Servers 彈窗 -->
+    <div id="mcpServersModal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <span class="icon">🔌</span>
+                    MCP Servers
+                </h2>
+                <button class="modal-close" id="closeMcpServers">
+                    <span class="icon">✖️</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- MCP Server 列表 -->
+                <div id="mcpServerList" class="mcp-server-list">
+                    <div class="placeholder">
+                        <span class="icon">🔌</span>
+                        <p>尚無 MCP Server</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="connectAllMcpServers" class="btn btn-secondary">
+                    <span class="icon">🔗</span>
+                    全部連接
+                </button>
+                <button type="button" id="disconnectAllMcpServers" class="btn btn-secondary">
+                    <span class="icon">🔌</span>
+                    全部斷開
+                </button>
+                <button type="button" id="addMcpServer" class="btn btn-primary">
+                    <span class="icon">➕</span>
+                    新增 Server
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新增/編輯 MCP Server 彈窗 -->
+    <div id="mcpServerEditModal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <span class="icon">🔌</span>
+                    <span id="mcpServerEditTitle">新增 MCP Server</span>
+                </h2>
+                <button class="modal-close" id="closeMcpServerEdit">
+                    <span class="icon">✖️</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="mcpServerForm">
+                    <input type="hidden" id="mcpServerId">
+                    <div class="form-group">
+                        <label for="mcpServerName">名稱</label>
+                        <input type="text" id="mcpServerName" class="form-control" placeholder="MCP Server 名稱" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="mcpServerTransport">傳輸方式</label>
+                        <select id="mcpServerTransport" class="form-control">
+                            <option value="stdio">stdio (本地程序)</option>
+                            <option value="sse">SSE (Server-Sent Events)</option>
+                            <option value="streamable-http">Streamable HTTP</option>
+                        </select>
+                    </div>
+
+                    <!-- stdio 設定 -->
+                    <div id="stdioSettings" class="transport-settings">
+                        <div class="form-group">
+                            <label for="mcpServerCommand">命令</label>
+                            <input type="text" id="mcpServerCommand" class="form-control" placeholder="例如: npx 或 node">
+                        </div>
+                        <div class="form-group">
+                            <label for="mcpServerArgs">參數 (每行一個)</label>
+                            <textarea id="mcpServerArgs" class="form-control" rows="3" placeholder="例如:\n-y\n@anthropic/mcp-server-time"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="mcpServerEnv">環境變數 (KEY=VALUE，每行一個)</label>
+                            <textarea id="mcpServerEnv" class="form-control" rows="2" placeholder="例如:\nAPI_KEY=xxx"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- SSE/HTTP 設定 -->
+                    <div id="httpSettings" class="transport-settings" style="display: none;">
+                        <div class="form-group">
+                            <label for="mcpServerUrl">伺服器 URL</label>
+                            <input type="url" id="mcpServerUrl" class="form-control" placeholder="http://localhost:3000/mcp">
+                        </div>
+                    </div>
+
+                    <div class="form-check">
+                        <input type="checkbox" id="mcpServerEnabled" class="form-check-input" checked>
+                        <label for="mcpServerEnabled" class="form-check-label">
+                            <span class="icon">✅</span>
+                            啟用此 Server
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="cancelMcpServer" class="btn btn-secondary">取消</button>
+                <button type="button" id="saveMcpServer" class="btn btn-primary">儲存</button>
             </div>
         </div>
     </div>

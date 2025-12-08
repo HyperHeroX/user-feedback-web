@@ -19,7 +19,11 @@ import type {
     LogQueryOptions,
     LogQueryResult,
     LogDeleteOptions,
-    LogLevel
+    LogLevel,
+    MCPServerConfig,
+    CreateMCPServerRequest,
+    UpdateMCPServerRequest,
+    MCPTransportType
 } from '../types/index.js';
 
 const DB_DIR = path.join(process.cwd(), 'data');
@@ -166,6 +170,27 @@ function createTables(): void {
   `);
     db.exec(`
     CREATE INDEX IF NOT EXISTS idx_logs_source ON logs(source)
+  `);
+
+    // MCP Servers 表
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS mcp_servers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      transport TEXT NOT NULL,
+      command TEXT,
+      args TEXT,
+      env TEXT,
+      url TEXT,
+      enabled INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+    // MCP Servers 索引
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled)
   `);
 }
 
@@ -876,3 +901,214 @@ export function getLogSources(): string[] {
     }
 }
 
+// ============ MCP Servers 管理 ============
+
+/**
+ * 獲取所有 MCP Servers
+ */
+export function getAllMCPServers(): MCPServerConfig[] {
+    const db = tryGetDb();
+    if (!db) return [];
+
+    const rows = db.prepare(`
+        SELECT 
+            id, name, transport, command, args, env, url,
+            enabled,
+            created_at as createdAt,
+            updated_at as updatedAt
+        FROM mcp_servers
+        ORDER BY id ASC
+    `).all() as any[];
+
+    return rows.map(row => ({
+        ...row,
+        enabled: Boolean(row.enabled),
+        args: row.args ? JSON.parse(row.args) : undefined,
+        env: row.env ? JSON.parse(row.env) : undefined
+    }));
+}
+
+/**
+ * 獲取已啟用的 MCP Servers
+ */
+export function getEnabledMCPServers(): MCPServerConfig[] {
+    const db = tryGetDb();
+    if (!db) return [];
+
+    const rows = db.prepare(`
+        SELECT 
+            id, name, transport, command, args, env, url,
+            enabled,
+            created_at as createdAt,
+            updated_at as updatedAt
+        FROM mcp_servers
+        WHERE enabled = 1
+        ORDER BY id ASC
+    `).all() as any[];
+
+    return rows.map(row => ({
+        ...row,
+        enabled: Boolean(row.enabled),
+        args: row.args ? JSON.parse(row.args) : undefined,
+        env: row.env ? JSON.parse(row.env) : undefined
+    }));
+}
+
+/**
+ * 根據 ID 獲取 MCP Server
+ */
+export function getMCPServerById(id: number): MCPServerConfig | null {
+    const db = tryGetDb();
+    if (!db) return null;
+
+    const row = db.prepare(`
+        SELECT 
+            id, name, transport, command, args, env, url,
+            enabled,
+            created_at as createdAt,
+            updated_at as updatedAt
+        FROM mcp_servers
+        WHERE id = ?
+    `).get(id) as any;
+
+    if (!row) return null;
+
+    return {
+        ...row,
+        enabled: Boolean(row.enabled),
+        args: row.args ? JSON.parse(row.args) : undefined,
+        env: row.env ? JSON.parse(row.env) : undefined
+    };
+}
+
+/**
+ * 創建 MCP Server
+ */
+export function createMCPServer(data: CreateMCPServerRequest): MCPServerConfig {
+    const db = tryGetDb();
+    if (!db) throw new Error('Database unavailable');
+
+    const result = db.prepare(`
+        INSERT INTO mcp_servers (name, transport, command, args, env, url, enabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+        data.name,
+        data.transport,
+        data.command || null,
+        data.args ? JSON.stringify(data.args) : null,
+        data.env ? JSON.stringify(data.env) : null,
+        data.url || null,
+        data.enabled !== false ? 1 : 0
+    );
+
+    const server = getMCPServerById(result.lastInsertRowid as number);
+    if (!server) throw new Error('Failed to create MCP Server');
+
+    logger.info(`創建 MCP Server: ${data.name} (ID: ${server.id})`);
+    return server;
+}
+
+/**
+ * 更新 MCP Server
+ */
+export function updateMCPServer(id: number, data: UpdateMCPServerRequest): MCPServerConfig {
+    const db = tryGetDb();
+    if (!db) throw new Error('Database unavailable');
+
+    const existing = getMCPServerById(id);
+    if (!existing) throw new Error(`MCP Server ${id} 不存在`);
+
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (data.name !== undefined) {
+        updates.push('name = ?');
+        params.push(data.name);
+    }
+    if (data.transport !== undefined) {
+        updates.push('transport = ?');
+        params.push(data.transport);
+    }
+    if (data.command !== undefined) {
+        updates.push('command = ?');
+        params.push(data.command || null);
+    }
+    if (data.args !== undefined) {
+        updates.push('args = ?');
+        params.push(data.args ? JSON.stringify(data.args) : null);
+    }
+    if (data.env !== undefined) {
+        updates.push('env = ?');
+        params.push(data.env ? JSON.stringify(data.env) : null);
+    }
+    if (data.url !== undefined) {
+        updates.push('url = ?');
+        params.push(data.url || null);
+    }
+    if (data.enabled !== undefined) {
+        updates.push('enabled = ?');
+        params.push(data.enabled ? 1 : 0);
+    }
+
+    if (updates.length === 0) {
+        return existing;
+    }
+
+    updates.push('updated_at = CURRENT_TIMESTAMP');
+    params.push(id);
+
+    db.prepare(`
+        UPDATE mcp_servers
+        SET ${updates.join(', ')}
+        WHERE id = ?
+    `).run(...params);
+
+    const updated = getMCPServerById(id);
+    if (!updated) throw new Error('Failed to update MCP Server');
+
+    logger.info(`更新 MCP Server: ${updated.name} (ID: ${id})`);
+    return updated;
+}
+
+/**
+ * 刪除 MCP Server
+ */
+export function deleteMCPServer(id: number): boolean {
+    const db = tryGetDb();
+    if (!db) return false;
+
+    const existing = getMCPServerById(id);
+    if (!existing) return false;
+
+    const result = db.prepare('DELETE FROM mcp_servers WHERE id = ?').run(id);
+
+    if (result.changes > 0) {
+        logger.info(`刪除 MCP Server: ${existing.name} (ID: ${id})`);
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * 切換 MCP Server 啟用狀態
+ */
+export function toggleMCPServerEnabled(id: number): MCPServerConfig {
+    const db = tryGetDb();
+    if (!db) throw new Error('Database unavailable');
+
+    const existing = getMCPServerById(id);
+    if (!existing) throw new Error(`MCP Server ${id} 不存在`);
+
+    db.prepare(`
+        UPDATE mcp_servers
+        SET enabled = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    `).run(existing.enabled ? 0 : 1, id);
+
+    const updated = getMCPServerById(id);
+    if (!updated) throw new Error('Failed to toggle MCP Server');
+
+    logger.info(`切換 MCP Server 啟用狀態: ${updated.name} (ID: ${id}) -> ${updated.enabled ? '啟用' : '停用'}`);
+    return updated;
+}

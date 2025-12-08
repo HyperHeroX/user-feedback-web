@@ -18,9 +18,10 @@ import { ImageToTextService } from '../utils/image-to-text-service.js';
 import { performanceMonitor } from '../utils/performance-monitor.js';
 import { SessionStorage } from '../utils/session-storage.js';
 import { VERSION } from '../index.js';
-import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs } from '../utils/database.js';
+import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled } from '../utils/database.js';
 import { maskApiKey } from '../utils/crypto-helper.js';
 import { generateAIReply, validateAPIKey } from '../utils/ai-service.js';
+import { mcpClientManager } from '../utils/mcp-client-manager.js';
 /**
  * Web伺服器類別
  */
@@ -776,6 +777,348 @@ export class WebServer {
                 res.status(500).json({
                     success: false,
                     error: error instanceof Error ? error.message : '清理過期日誌失敗'
+                });
+            }
+        });
+        // ============ MCP Servers API ============
+        // 獲取所有 MCP Servers
+        this.app.get('/api/mcp-servers', (req, res) => {
+            try {
+                const servers = getAllMCPServers();
+                const states = mcpClientManager.getAllStates();
+                const serversWithState = servers.map(server => ({
+                    ...server,
+                    state: states.find(s => s.id === server.id) || {
+                        id: server.id,
+                        status: 'disconnected',
+                        tools: [],
+                        resources: [],
+                        prompts: []
+                    }
+                }));
+                res.json({ success: true, servers: serversWithState });
+            }
+            catch (error) {
+                logger.error('獲取 MCP Servers 失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '獲取 MCP Servers 失敗'
+                });
+            }
+        });
+        // 獲取單一 MCP Server
+        this.app.get('/api/mcp-servers/:id', (req, res) => {
+            try {
+                const id = parseInt(req.params.id);
+                if (isNaN(id)) {
+                    res.status(400).json({ success: false, error: '無效的 Server ID' });
+                    return;
+                }
+                const server = getMCPServerById(id);
+                if (!server) {
+                    res.status(404).json({ success: false, error: 'MCP Server 不存在' });
+                    return;
+                }
+                const state = mcpClientManager.getState(id);
+                res.json({
+                    success: true,
+                    server: {
+                        ...server,
+                        state: state || {
+                            id: server.id,
+                            status: 'disconnected',
+                            tools: [],
+                            resources: [],
+                            prompts: []
+                        }
+                    }
+                });
+            }
+            catch (error) {
+                logger.error('獲取 MCP Server 失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '獲取 MCP Server 失敗'
+                });
+            }
+        });
+        // 創建 MCP Server
+        this.app.post('/api/mcp-servers', (req, res) => {
+            try {
+                const data = req.body;
+                if (!data.name || !data.transport) {
+                    res.status(400).json({
+                        success: false,
+                        error: '名稱和傳輸方式為必填欄位'
+                    });
+                    return;
+                }
+                if (data.transport === 'stdio' && !data.command) {
+                    res.status(400).json({
+                        success: false,
+                        error: 'stdio 傳輸方式需要指定 command'
+                    });
+                    return;
+                }
+                if ((data.transport === 'sse' || data.transport === 'streamable-http') && !data.url) {
+                    res.status(400).json({
+                        success: false,
+                        error: `${data.transport} 傳輸方式需要指定 url`
+                    });
+                    return;
+                }
+                const server = createMCPServer(data);
+                logger.info(`創建 MCP Server 成功: ${server.name} (ID: ${server.id})`);
+                res.json({ success: true, server });
+            }
+            catch (error) {
+                logger.error('創建 MCP Server 失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '創建 MCP Server 失敗'
+                });
+            }
+        });
+        // 更新 MCP Server
+        this.app.put('/api/mcp-servers/:id', async (req, res) => {
+            try {
+                const id = parseInt(req.params.id);
+                if (isNaN(id)) {
+                    res.status(400).json({ success: false, error: '無效的 Server ID' });
+                    return;
+                }
+                const data = req.body;
+                const server = updateMCPServer(id, data);
+                if (mcpClientManager.isConnected(id)) {
+                    await mcpClientManager.disconnect(id);
+                    if (server.enabled) {
+                        await mcpClientManager.connect(server);
+                    }
+                }
+                const state = mcpClientManager.getState(id);
+                logger.info(`更新 MCP Server 成功: ${server.name} (ID: ${id})`);
+                res.json({
+                    success: true,
+                    server: {
+                        ...server,
+                        state: state || { id, status: 'disconnected', tools: [], resources: [], prompts: [] }
+                    }
+                });
+            }
+            catch (error) {
+                logger.error('更新 MCP Server 失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '更新 MCP Server 失敗'
+                });
+            }
+        });
+        // 刪除 MCP Server
+        this.app.delete('/api/mcp-servers/:id', async (req, res) => {
+            try {
+                const id = parseInt(req.params.id);
+                if (isNaN(id)) {
+                    res.status(400).json({ success: false, error: '無效的 Server ID' });
+                    return;
+                }
+                await mcpClientManager.disconnect(id);
+                const deleted = deleteMCPServer(id);
+                if (deleted) {
+                    logger.info(`刪除 MCP Server 成功: ID ${id}`);
+                    res.json({ success: true });
+                }
+                else {
+                    res.status(404).json({ success: false, error: 'MCP Server 不存在' });
+                }
+            }
+            catch (error) {
+                logger.error('刪除 MCP Server 失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '刪除 MCP Server 失敗'
+                });
+            }
+        });
+        // 切換 MCP Server 啟用狀態
+        this.app.put('/api/mcp-servers/:id/toggle', async (req, res) => {
+            try {
+                const id = parseInt(req.params.id);
+                if (isNaN(id)) {
+                    res.status(400).json({ success: false, error: '無效的 Server ID' });
+                    return;
+                }
+                const server = toggleMCPServerEnabled(id);
+                if (server.enabled) {
+                    await mcpClientManager.connect(server);
+                }
+                else {
+                    await mcpClientManager.disconnect(id);
+                }
+                const state = mcpClientManager.getState(id);
+                logger.info(`切換 MCP Server 啟用狀態: ${server.name} -> ${server.enabled ? '啟用' : '停用'}`);
+                res.json({
+                    success: true,
+                    server: {
+                        ...server,
+                        state: state || { id, status: 'disconnected', tools: [], resources: [], prompts: [] }
+                    }
+                });
+            }
+            catch (error) {
+                logger.error('切換 MCP Server 啟用狀態失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '切換 MCP Server 啟用狀態失敗'
+                });
+            }
+        });
+        // 連接 MCP Server
+        this.app.post('/api/mcp-servers/:id/connect', async (req, res) => {
+            try {
+                const id = parseInt(req.params.id);
+                if (isNaN(id)) {
+                    res.status(400).json({ success: false, error: '無效的 Server ID' });
+                    return;
+                }
+                const server = getMCPServerById(id);
+                if (!server) {
+                    res.status(404).json({ success: false, error: 'MCP Server 不存在' });
+                    return;
+                }
+                const state = await mcpClientManager.connect(server);
+                logger.info(`連接 MCP Server: ${server.name} -> ${state.status}`);
+                res.json({ success: state.status === 'connected', state });
+            }
+            catch (error) {
+                logger.error('連接 MCP Server 失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '連接 MCP Server 失敗'
+                });
+            }
+        });
+        // 斷開 MCP Server
+        this.app.post('/api/mcp-servers/:id/disconnect', async (req, res) => {
+            try {
+                const id = parseInt(req.params.id);
+                if (isNaN(id)) {
+                    res.status(400).json({ success: false, error: '無效的 Server ID' });
+                    return;
+                }
+                await mcpClientManager.disconnect(id);
+                logger.info(`斷開 MCP Server: ID ${id}`);
+                res.json({ success: true });
+            }
+            catch (error) {
+                logger.error('斷開 MCP Server 失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '斷開 MCP Server 失敗'
+                });
+            }
+        });
+        // 獲取 MCP Server 工具列表
+        this.app.get('/api/mcp-servers/:id/tools', async (req, res) => {
+            try {
+                const id = parseInt(req.params.id);
+                if (isNaN(id)) {
+                    res.status(400).json({ success: false, error: '無效的 Server ID' });
+                    return;
+                }
+                const state = mcpClientManager.getState(id);
+                if (!state || state.status !== 'connected') {
+                    res.status(400).json({ success: false, error: 'MCP Server 未連接' });
+                    return;
+                }
+                const tools = await mcpClientManager.refreshTools(id);
+                res.json({ success: true, tools });
+            }
+            catch (error) {
+                logger.error('獲取 MCP Server 工具列表失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '獲取工具列表失敗'
+                });
+            }
+        });
+        // 獲取所有已連接 MCP Servers 的工具
+        this.app.get('/api/mcp-tools', (req, res) => {
+            try {
+                const tools = mcpClientManager.getAllTools();
+                res.json({ success: true, tools });
+            }
+            catch (error) {
+                logger.error('獲取 MCP 工具列表失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '獲取工具列表失敗'
+                });
+            }
+        });
+        // 呼叫 MCP 工具
+        this.app.post('/api/mcp-servers/:id/tools/:toolName/call', async (req, res) => {
+            try {
+                const id = parseInt(req.params.id);
+                const toolName = req.params.toolName;
+                if (isNaN(id)) {
+                    res.status(400).json({ success: false, error: '無效的 Server ID' });
+                    return;
+                }
+                const args = req.body.arguments || {};
+                const result = await mcpClientManager.callTool(id, toolName, args);
+                if (result.success) {
+                    logger.info(`MCP 工具呼叫成功: ${toolName}`);
+                }
+                else {
+                    logger.warn(`MCP 工具呼叫失敗: ${toolName} - ${result.error}`);
+                }
+                res.json(result);
+            }
+            catch (error) {
+                logger.error('MCP 工具呼叫失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '工具呼叫失敗'
+                });
+            }
+        });
+        // 自動連接已啟用的 MCP Servers
+        this.app.post('/api/mcp-servers/connect-all', async (req, res) => {
+            try {
+                const enabledServers = getEnabledMCPServers();
+                const results = [];
+                for (const server of enabledServers) {
+                    const state = await mcpClientManager.connect(server);
+                    results.push({
+                        id: server.id,
+                        name: server.name,
+                        success: state.status === 'connected',
+                        error: state.error
+                    });
+                }
+                logger.info(`自動連接 MCP Servers 完成: ${results.filter(r => r.success).length}/${results.length} 成功`);
+                res.json({ success: true, results });
+            }
+            catch (error) {
+                logger.error('自動連接 MCP Servers 失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '自動連接失敗'
+                });
+            }
+        });
+        // 斷開所有 MCP Servers
+        this.app.post('/api/mcp-servers/disconnect-all', async (req, res) => {
+            try {
+                await mcpClientManager.disconnectAll();
+                logger.info('已斷開所有 MCP Servers');
+                res.json({ success: true });
+            }
+            catch (error) {
+                logger.error('斷開所有 MCP Servers 失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '斷開失敗'
                 });
             }
         });

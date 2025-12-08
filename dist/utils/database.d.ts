@@ -3,7 +3,7 @@
  * 使用 better-sqlite3 進行資料持久化
  */
 import Database from 'better-sqlite3';
-import type { Prompt, CreatePromptRequest, UpdatePromptRequest, AISettings, AISettingsRequest, UserPreferences, LogEntry, LogQueryOptions, LogQueryResult, LogDeleteOptions } from '../types/index.js';
+import type { Prompt, CreatePromptRequest, UpdatePromptRequest, AISettings, AISettingsRequest, UserPreferences, LogEntry, LogQueryOptions, LogQueryResult, LogDeleteOptions, MCPServerConfig, CreateMCPServerRequest, UpdateMCPServerRequest } from '../types/index.js';
 /**
  * 初始化資料庫
  * 創建資料目錄和資料表
@@ -93,4 +93,32 @@ export declare function cleanupOldLogs(retentionDays?: number): number;
  * 獲取日誌來源列表（用於篩選下拉選單）
  */
 export declare function getLogSources(): string[];
+/**
+ * 獲取所有 MCP Servers
+ */
+export declare function getAllMCPServers(): MCPServerConfig[];
+/**
+ * 獲取已啟用的 MCP Servers
+ */
+export declare function getEnabledMCPServers(): MCPServerConfig[];
+/**
+ * 根據 ID 獲取 MCP Server
+ */
+export declare function getMCPServerById(id: number): MCPServerConfig | null;
+/**
+ * 創建 MCP Server
+ */
+export declare function createMCPServer(data: CreateMCPServerRequest): MCPServerConfig;
+/**
+ * 更新 MCP Server
+ */
+export declare function updateMCPServer(id: number, data: UpdateMCPServerRequest): MCPServerConfig;
+/**
+ * 刪除 MCP Server
+ */
+export declare function deleteMCPServer(id: number): boolean;
+/**
+ * 切換 MCP Server 啟用狀態
+ */
+export declare function toggleMCPServerEnabled(id: number): MCPServerConfig;
 //# sourceMappingURL=database.d.ts.map

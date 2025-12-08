@@ -252,4 +252,93 @@ export interface LogDeleteOptions {
     beforeDate?: string;
     level?: LogLevel | undefined;
 }
+export type MCPTransportType = 'stdio' | 'sse' | 'streamable-http';
+export interface MCPServerConfig {
+    id: number;
+    name: string;
+    transport: MCPTransportType;
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+    url?: string;
+    enabled: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+export type MCPConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+export interface MCPServerState {
+    id: number;
+    status: MCPConnectionStatus;
+    error?: string | undefined;
+    tools: MCPToolInfo[];
+    resources: MCPResourceInfo[];
+    prompts: MCPPromptInfo[];
+    connectedAt?: string | undefined;
+}
+export interface MCPToolInfo {
+    name: string;
+    description: string;
+    inputSchema: Record<string, unknown>;
+}
+export interface MCPResourceInfo {
+    uri: string;
+    name: string;
+    description: string;
+    mimeType?: string | undefined;
+}
+export interface MCPPromptInfo {
+    name: string;
+    description: string;
+    arguments?: Array<{
+        name: string;
+        description: string;
+        required: boolean;
+    }> | undefined;
+}
+export interface CreateMCPServerRequest {
+    name: string;
+    transport: MCPTransportType;
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+    url?: string;
+    enabled?: boolean;
+}
+export interface UpdateMCPServerRequest {
+    name?: string;
+    transport?: MCPTransportType;
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+    url?: string;
+    enabled?: boolean;
+}
+export interface MCPToolCallRequest {
+    serverId: number;
+    toolName: string;
+    arguments?: Record<string, unknown>;
+}
+export interface MCPToolCallResult {
+    success: boolean;
+    content?: MCPContent[] | undefined;
+    error?: string | undefined;
+}
+export interface MCPServersResponse {
+    success: boolean;
+    servers?: MCPServerConfig[];
+    error?: string;
+}
+export interface MCPServerStateResponse {
+    success: boolean;
+    state?: MCPServerState;
+    error?: string;
+}
+export interface AllMCPToolsResponse {
+    success: boolean;
+    tools?: Array<MCPToolInfo & {
+        serverId: number;
+        serverName: string;
+    }>;
+    error?: string;
+}
 //# sourceMappingURL=index.d.ts.map

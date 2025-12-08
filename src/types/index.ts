@@ -327,3 +327,122 @@ export interface LogDeleteOptions {
   beforeDate?: string;
   level?: LogLevel | undefined;
 }
+
+// ============ MCP Server Configuration Types ============
+
+// MCP Server 傳輸類型
+export type MCPTransportType = 'stdio' | 'sse' | 'streamable-http';
+
+// MCP Server 配置
+export interface MCPServerConfig {
+  id: number;
+  name: string;
+  transport: MCPTransportType;
+  // stdio 傳輸設定
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  // SSE/HTTP 傳輸設定
+  url?: string;
+  // 通用設定
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// MCP Server 連接狀態
+export type MCPConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+// MCP Server 運行時狀態
+export interface MCPServerState {
+  id: number;
+  status: MCPConnectionStatus;
+  error?: string | undefined;
+  tools: MCPToolInfo[];
+  resources: MCPResourceInfo[];
+  prompts: MCPPromptInfo[];
+  connectedAt?: string | undefined;
+}
+
+// MCP Tool 資訊
+export interface MCPToolInfo {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+}
+
+// MCP Resource 資訊
+export interface MCPResourceInfo {
+  uri: string;
+  name: string;
+  description: string;
+  mimeType?: string | undefined;
+}
+
+// MCP Prompt 資訊
+export interface MCPPromptInfo {
+  name: string;
+  description: string;
+  arguments?: Array<{
+    name: string;
+    description: string;
+    required: boolean;
+  }> | undefined;
+}
+
+// 創建 MCP Server 請求
+export interface CreateMCPServerRequest {
+  name: string;
+  transport: MCPTransportType;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  enabled?: boolean;
+}
+
+// 更新 MCP Server 請求
+export interface UpdateMCPServerRequest {
+  name?: string;
+  transport?: MCPTransportType;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  enabled?: boolean;
+}
+
+// MCP Tool 呼叫請求
+export interface MCPToolCallRequest {
+  serverId: number;
+  toolName: string;
+  arguments?: Record<string, unknown>;
+}
+
+// MCP Tool 呼叫結果
+export interface MCPToolCallResult {
+  success: boolean;
+  content?: MCPContent[] | undefined;
+  error?: string | undefined;
+}
+
+// MCP 伺服器列表響應
+export interface MCPServersResponse {
+  success: boolean;
+  servers?: MCPServerConfig[];
+  error?: string;
+}
+
+// MCP 伺服器狀態響應
+export interface MCPServerStateResponse {
+  success: boolean;
+  state?: MCPServerState;
+  error?: string;
+}
+
+// 所有 MCP 伺服器的工具彙總
+export interface AllMCPToolsResponse {
+  success: boolean;
+  tools?: Array<MCPToolInfo & { serverId: number; serverName: string }>;
+  error?: string;
+}
