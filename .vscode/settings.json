@@ -1,0 +1,51 @@
+{
+  "windowColor.mainColor": "#453de1",
+  "window.title": "e:\\01-Devops\\HyperHeroX\\user-feedback-web",
+  "workbench.colorCustomizations": {
+    "statusBarItem.warningBackground": "#453de1",
+    "statusBarItem.warningForeground": "#ffffff",
+    "statusBarItem.warningHoverBackground": "#453de1",
+    "statusBarItem.warningHoverForeground": "#ffffff90",
+    "statusBarItem.remoteHoverBackground": "#5f57fb",
+    "statusBarItem.remoteHoverForeground": "#ffffff90",
+    "statusBar.noFolderBackground": "#453de1",
+    "statusBar.noFolderForeground": "#ffffff",
+    "statusBar.noFolderBorder": "#453de1",
+    "statusBar.prominentBackground": "#453de1",
+    "statusBar.prominentForeground": "#ffffff",
+    "statusBar.prominentHoverBackground": "#453de1",
+    "statusBar.prominentHoverForeground": "#ffffff90",
+    "focusBorder": "#453de199",
+    "progressBar.background": "#453de1",
+    "textLink.foreground": "#857dff",
+    "textLink.activeForeground": "#928aff",
+    "selection.background": "#3830d4",
+    "list.highlightForeground": "#453de1",
+    "list.focusAndSelectionOutline": "#453de199",
+    "button.background": "#453de1",
+    "button.foreground": "#ffffff",
+    "button.hoverBackground": "#524aee",
+    "tab.activeBorderTop": "#524aee",
+    "pickerGroup.foreground": "#524aee",
+    "list.activeSelectionBackground": "#453de14d",
+    "panelTitle.activeBorder": "#524aee",
+    "activityBar.activeBorder": "#453de1",
+    "statusBarItem.remoteBackground": "#524aee",
+    "statusBarItem.remoteForeground": "#ffffff",
+    "statusBar.background": "#453de1",
+    "statusBar.foreground": "#ffffff",
+    "statusBar.border": "#453de1",
+    "statusBar.debuggingBackground": "#453de1",
+    "statusBar.debuggingForeground": "#ffffff",
+    "statusBar.debuggingBorder": "#453de1",
+    "activityBarBadge.foreground": "#ffffff",
+    "activityBarBadge.background": "#453de1"
+  },
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+  "chat.useAgentsMdFile": true,
+  "github.copilot.chat.reviewSelection.instructions": [
+    {
+      "file": ".github/copilot-instructions.md"
+    }
+  ]
+}
