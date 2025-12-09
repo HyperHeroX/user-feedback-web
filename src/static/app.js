@@ -2047,7 +2047,7 @@ async function loadMCPServers() {
 
 function renderMCPServerList() {
   const container = document.getElementById("mcpServerList");
-  
+
   if (!mcpServers || mcpServers.length === 0) {
     container.innerHTML = `
       <div class="placeholder">
@@ -2058,62 +2058,103 @@ function renderMCPServerList() {
     return;
   }
 
-  container.innerHTML = mcpServers.map(server => {
-    const state = server.state || { status: "disconnected", tools: [] };
-    const toolsCount = state.tools?.length || 0;
-    const statusText = getStatusText(state.status);
-    
-    return `
+  container.innerHTML = mcpServers
+    .map((server) => {
+      const state = server.state || { status: "disconnected", tools: [] };
+      const toolsCount = state.tools?.length || 0;
+      const statusText = getStatusText(state.status);
+
+      return `
       <div class="mcp-server-item" data-id="${server.id}">
-        <div class="mcp-server-status ${state.status}" title="${statusText}"></div>
+        <div class="mcp-server-status ${
+          state.status
+        }" title="${statusText}"></div>
         <div class="mcp-server-info">
           <div class="mcp-server-name">${escapeHtml(server.name)}</div>
           <div class="mcp-server-details">
             <span class="mcp-server-transport">${server.transport}</span>
-            ${state.status === 'connected' ? `<span class="mcp-server-tools-count">${toolsCount} 工具</span>` : ''}
-            ${!server.enabled ? '<span style="color: var(--text-muted)">已停用</span>' : ''}
+            ${
+              state.status === "connected"
+                ? `<span class="mcp-server-tools-count">${toolsCount} 工具</span>`
+                : ""
+            }
+            ${
+              !server.enabled
+                ? '<span style="color: var(--text-muted)">已停用</span>'
+                : ""
+            }
           </div>
-          ${state.error ? `<div class="mcp-server-error">錯誤: ${escapeHtml(state.error)}</div>` : ''}
-          ${state.status === 'connected' && toolsCount > 0 ? renderToolsList(state.tools) : ''}
+          ${
+            state.error
+              ? `<div class="mcp-server-error">錯誤: ${escapeHtml(
+                  state.error
+                )}</div>`
+              : ""
+          }
+          ${
+            state.status === "connected" && toolsCount > 0
+              ? renderToolsList(state.tools)
+              : ""
+          }
         </div>
         <div class="mcp-server-actions">
-          ${state.status === 'connected' 
-            ? `<button class="btn btn-ghost btn-disconnect" onclick="disconnectMCPServer(${server.id})" title="斷開">🔌</button>`
-            : `<button class="btn btn-ghost btn-connect" onclick="connectMCPServer(${server.id})" title="連接" ${!server.enabled ? 'disabled' : ''}>🔗</button>`
+          ${
+            state.status === "connected"
+              ? `<button class="btn btn-ghost btn-disconnect" onclick="disconnectMCPServer(${server.id})" title="斷開">🔌</button>`
+              : `<button class="btn btn-ghost btn-connect" onclick="connectMCPServer(${
+                  server.id
+                })" title="連接" ${
+                  !server.enabled ? "disabled" : ""
+                }>🔗</button>`
           }
-          <button class="btn btn-ghost btn-edit" onclick="editMCPServer(${server.id})" title="編輯">✏️</button>
-          <button class="btn btn-ghost btn-delete" onclick="deleteMCPServerConfirm(${server.id})" title="刪除">🗑️</button>
+          <button class="btn btn-ghost btn-edit" onclick="editMCPServer(${
+            server.id
+          })" title="編輯">✏️</button>
+          <button class="btn btn-ghost btn-delete" onclick="deleteMCPServerConfirm(${
+            server.id
+          })" title="刪除">🗑️</button>
         </div>
       </div>
     `;
-  }).join('');
+    })
+    .join("");
 }
 
 function renderToolsList(tools) {
-  if (!tools || tools.length === 0) return '';
-  
+  if (!tools || tools.length === 0) return "";
+
   const displayTools = tools.slice(0, 5);
   const remaining = tools.length - 5;
-  
+
   return `
     <div class="mcp-tools-list">
-      ${displayTools.map(tool => `
+      ${displayTools
+        .map(
+          (tool) => `
         <div class="mcp-tool-item">
           <span class="mcp-tool-name">${escapeHtml(tool.name)}</span>
-          <span class="mcp-tool-desc">${escapeHtml(tool.description || '')}</span>
+          <span class="mcp-tool-desc">${escapeHtml(
+            tool.description || ""
+          )}</span>
         </div>
-      `).join('')}
-      ${remaining > 0 ? `<div class="mcp-tool-item" style="color: var(--text-muted)">...還有 ${remaining} 個工具</div>` : ''}
+      `
+        )
+        .join("")}
+      ${
+        remaining > 0
+          ? `<div class="mcp-tool-item" style="color: var(--text-muted)">...還有 ${remaining} 個工具</div>`
+          : ""
+      }
     </div>
   `;
 }
 
 function getStatusText(status) {
   const texts = {
-    'disconnected': '未連接',
-    'connecting': '連接中...',
-    'connected': '已連接',
-    'error': '連接錯誤'
+    disconnected: "未連接",
+    connecting: "連接中...",
+    connected: "已連接",
+    error: "連接錯誤",
   };
   return texts[status] || status;
 }
@@ -2129,19 +2170,27 @@ function closeMCPServersModal() {
 
 function openMCPServerEditModal(server = null) {
   editingMcpServerId = server?.id || null;
-  
-  document.getElementById("mcpServerEditTitle").textContent = 
-    server ? "編輯 MCP Server" : "新增 MCP Server";
+
+  document.getElementById("mcpServerEditTitle").textContent = server
+    ? "編輯 MCP Server"
+    : "新增 MCP Server";
   document.getElementById("mcpServerId").value = server?.id || "";
   document.getElementById("mcpServerName").value = server?.name || "";
-  document.getElementById("mcpServerTransport").value = server?.transport || "stdio";
+  document.getElementById("mcpServerTransport").value =
+    server?.transport || "stdio";
   document.getElementById("mcpServerCommand").value = server?.command || "";
-  document.getElementById("mcpServerArgs").value = (server?.args || []).join("\n");
-  document.getElementById("mcpServerEnv").value = 
-    server?.env ? Object.entries(server.env).map(([k, v]) => `${k}=${v}`).join("\n") : "";
+  document.getElementById("mcpServerArgs").value = (server?.args || []).join(
+    "\n"
+  );
+  document.getElementById("mcpServerEnv").value = server?.env
+    ? Object.entries(server.env)
+        .map(([k, v]) => `${k}=${v}`)
+        .join("\n")
+    : "";
   document.getElementById("mcpServerUrl").value = server?.url || "";
-  document.getElementById("mcpServerEnabled").checked = server?.enabled !== false;
-  
+  document.getElementById("mcpServerEnabled").checked =
+    server?.enabled !== false;
+
   onTransportChange();
   document.getElementById("mcpServerEditModal").classList.add("show");
 }
@@ -2155,7 +2204,7 @@ function onTransportChange() {
   const transport = document.getElementById("mcpServerTransport").value;
   const stdioSettings = document.getElementById("stdioSettings");
   const httpSettings = document.getElementById("httpSettings");
-  
+
   if (transport === "stdio") {
     stdioSettings.style.display = "block";
     httpSettings.style.display = "none";
@@ -2190,15 +2239,23 @@ async function saveMCPServer() {
     return;
   }
 
-  const args = argsText ? argsText.split("\n").filter(a => a.trim()) : undefined;
-  const env = envText ? Object.fromEntries(
-    envText.split("\n")
-      .filter(line => line.includes("="))
-      .map(line => {
-        const idx = line.indexOf("=");
-        return [line.substring(0, idx).trim(), line.substring(idx + 1).trim()];
-      })
-  ) : undefined;
+  const args = argsText
+    ? argsText.split("\n").filter((a) => a.trim())
+    : undefined;
+  const env = envText
+    ? Object.fromEntries(
+        envText
+          .split("\n")
+          .filter((line) => line.includes("="))
+          .map((line) => {
+            const idx = line.indexOf("=");
+            return [
+              line.substring(0, idx).trim(),
+              line.substring(idx + 1).trim(),
+            ];
+          })
+      )
+    : undefined;
 
   const data = {
     name,
@@ -2207,26 +2264,30 @@ async function saveMCPServer() {
     args: transport === "stdio" ? args : undefined,
     env: transport === "stdio" ? env : undefined,
     url: transport !== "stdio" ? url : undefined,
-    enabled
+    enabled,
   };
 
   try {
     showLoadingOverlay("儲存中...");
-    
+
     const response = await fetch(
       id ? `/api/mcp-servers/${id}` : "/api/mcp-servers",
       {
         method: id ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
       }
     );
 
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
+
     const result = await response.json();
     if (result.success) {
-      showToast("success", "成功", id ? "MCP Server 已更新" : "MCP Server 已建立");
+      showToast(
+        "success",
+        "成功",
+        id ? "MCP Server 已更新" : "MCP Server 已建立"
+      );
       closeMCPServerEditModal();
       await loadMCPServers();
     } else {
@@ -2243,9 +2304,11 @@ async function saveMCPServer() {
 async function connectMCPServer(id) {
   try {
     showLoadingOverlay("連接中...");
-    const response = await fetch(`/api/mcp-servers/${id}/connect`, { method: "POST" });
+    const response = await fetch(`/api/mcp-servers/${id}/connect`, {
+      method: "POST",
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
+
     const result = await response.json();
     if (result.success) {
       showToast("success", "成功", "MCP Server 已連接");
@@ -2264,9 +2327,11 @@ async function connectMCPServer(id) {
 async function disconnectMCPServer(id) {
   try {
     showLoadingOverlay("斷開中...");
-    const response = await fetch(`/api/mcp-servers/${id}/disconnect`, { method: "POST" });
+    const response = await fetch(`/api/mcp-servers/${id}/disconnect`, {
+      method: "POST",
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
+
     showToast("success", "成功", "MCP Server 已斷開");
     await loadMCPServers();
   } catch (error) {
@@ -2278,25 +2343,27 @@ async function disconnectMCPServer(id) {
 }
 
 function editMCPServer(id) {
-  const server = mcpServers.find(s => s.id === id);
+  const server = mcpServers.find((s) => s.id === id);
   if (server) {
     openMCPServerEditModal(server);
   }
 }
 
 async function deleteMCPServerConfirm(id) {
-  const server = mcpServers.find(s => s.id === id);
+  const server = mcpServers.find((s) => s.id === id);
   if (!server) return;
-  
+
   if (!confirm(`確定要刪除 MCP Server "${server.name}" 嗎？此操作無法復原。`)) {
     return;
   }
-  
+
   try {
     showLoadingOverlay("刪除中...");
-    const response = await fetch(`/api/mcp-servers/${id}`, { method: "DELETE" });
+    const response = await fetch(`/api/mcp-servers/${id}`, {
+      method: "DELETE",
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
+
     showToast("success", "成功", "MCP Server 已刪除");
     await loadMCPServers();
   } catch (error) {
@@ -2310,14 +2377,20 @@ async function deleteMCPServerConfirm(id) {
 async function connectAllMCPServers() {
   try {
     showLoadingOverlay("連接所有 MCP Servers...");
-    const response = await fetch("/api/mcp-servers/connect-all", { method: "POST" });
+    const response = await fetch("/api/mcp-servers/connect-all", {
+      method: "POST",
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
+
     const result = await response.json();
     if (result.success) {
-      const succeeded = result.results.filter(r => r.success).length;
+      const succeeded = result.results.filter((r) => r.success).length;
       const total = result.results.length;
-      showToast("success", "完成", `已連接 ${succeeded}/${total} 個 MCP Servers`);
+      showToast(
+        "success",
+        "完成",
+        `已連接 ${succeeded}/${total} 個 MCP Servers`
+      );
     }
     await loadMCPServers();
   } catch (error) {
@@ -2331,9 +2404,11 @@ async function connectAllMCPServers() {
 async function disconnectAllMCPServers() {
   try {
     showLoadingOverlay("斷開所有 MCP Servers...");
-    const response = await fetch("/api/mcp-servers/disconnect-all", { method: "POST" });
+    const response = await fetch("/api/mcp-servers/disconnect-all", {
+      method: "POST",
+    });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    
+
     showToast("success", "成功", "已斷開所有 MCP Servers");
     await loadMCPServers();
   } catch (error) {

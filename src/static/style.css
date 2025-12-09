@@ -631,6 +631,64 @@ body {
     color: var(--text-primary);
 }
 
+/* Icon 按鈕樣式 - 更明顯的功能按鈕 */
+.btn-icon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    min-width: 50px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+}
+
+.btn-icon:hover:not(:disabled) {
+    background: var(--bg-hover);
+    border-color: var(--accent-blue);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.btn-icon .icon {
+    font-size: 18px;
+    margin-bottom: 2px;
+}
+
+.btn-icon .btn-label {
+    font-size: 9px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* 高亮按鈕 - MCP Server 等重要功能 */
+.btn-icon.btn-highlight {
+    background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-blue) 100%);
+    border-color: transparent;
+    color: white;
+}
+
+.btn-icon.btn-highlight:hover:not(:disabled) {
+    background: linear-gradient(135deg, #7c3aed 0%, #0066cc 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
+.btn-icon.btn-highlight .btn-label {
+    color: white;
+}
+
+/* Header actions 容器 */
+.header-actions {
+    display: flex;
+    gap: var(--spacing-xs);
+    align-items: center;
+}
+
 .btn-sm {
     padding: 4px 8px;
     font-size: 11px;
