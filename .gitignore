@@ -134,3 +134,4 @@ data/
 
 .playwright-mcp/
 openspec/
+ai-config-*.zip
