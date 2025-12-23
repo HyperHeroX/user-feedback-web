@@ -5,11 +5,53 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { encrypt, decrypt } from './crypto-helper.js';
 import { logger } from './logger.js';
 const DB_DIR = path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DB_DIR, 'feedback.db');
 let db = null;
+const SYSTEM_PROMPT_VERSIONS = {
+    'v1': `你是一個有幫助的 AI 助手，專門協助使用者回應 AI 工作匯報。
+請根據 AI 的工作匯報內容，生成簡潔、專業且有建設性的回應。
+回應應該：
+1. 確認 AI 完成的工作
+2. 提供必要的反饋或建議
+3. 如有需要，提出後續任務或改進方向
+
+保持回應簡短（2-3句話），除非需要更詳細的說明。`,
+    'v2': `你是一個有幫助的 AI 助手，專門協助使用者回應 AI 工作匯報。
+
+你可以使用 MCP (Model Context Protocol) 工具來執行任務。當你需要使用工具時，請以下列 JSON 格式回應：
+
+\`\`\`json
+{
+  "tool_calls": [
+    {"name": "工具名稱", "arguments": {"參數名": "參數值"}}
+  ],
+  "message": "說明你正在做什麼"
+}
+\`\`\`
+
+如果不需要使用工具，直接以純文字回應即可。
+
+請根據 AI 的工作匯報內容，生成簡潔、專業且有建設性的回應。
+回應應該：
+1. 確認 AI 完成的工作
+2. 提供必要的反饋或建議
+3. 如有需要，提出後續任務或改進方向
+
+保持回應簡短（2-3句話），除非需要更詳細的說明。`
+};
+const CURRENT_PROMPT_VERSION = 'v2';
+function hashPrompt(prompt) {
+    return crypto.createHash('sha256').update(prompt.trim()).digest('hex').substring(0, 16);
+}
+function getOldVersionHashes() {
+    return Object.entries(SYSTEM_PROMPT_VERSIONS)
+        .filter(([version]) => version !== CURRENT_PROMPT_VERSION)
+        .map(([, prompt]) => hashPrompt(prompt));
+}
 /**
  * 嘗試取得已初始化的資料庫，若無法載入 native 模組（例如在無法編譯 native addon 的環境），
  * 則回傳 null，呼叫端需妥善處理回傳為 null 的情況以降級處理。
@@ -47,6 +89,8 @@ export function initDatabase() {
     createTables();
     // 插入預設設定
     initDefaultSettings();
+    // 遷移系統提示詞（若使用舊版未修改的提示詞）
+    migrateSystemPromptIfNeeded();
     return db;
 }
 /**
@@ -200,6 +244,20 @@ function initDefaultSettings() {
       INSERT INTO user_preferences (auto_reply_timeout, enable_auto_reply, theme)
       VALUES (?, ?, ?)
     `).run(300, 0, 'light');
+    }
+}
+function migrateSystemPromptIfNeeded() {
+    if (!db)
+        return;
+    const row = db.prepare('SELECT id, system_prompt FROM ai_settings ORDER BY id DESC LIMIT 1').get();
+    if (!row)
+        return;
+    const currentHash = hashPrompt(row.system_prompt);
+    const oldHashes = getOldVersionHashes();
+    if (oldHashes.includes(currentHash)) {
+        const newPrompt = SYSTEM_PROMPT_VERSIONS[CURRENT_PROMPT_VERSION];
+        db.prepare('UPDATE ai_settings SET system_prompt = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newPrompt, row.id);
+        logger.info(`[Database] 系統提示詞已自動升級至 ${CURRENT_PROMPT_VERSION}`);
     }
 }
 /**
