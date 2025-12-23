@@ -1048,6 +1048,47 @@ textarea.form-control {
     font-size: 14px;
 }
 
+/* ============ AI 工具執行進度 ============ */
+
+.ai-tool-progress {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    text-align: center;
+}
+
+.progress-round {
+    color: var(--accent-blue);
+    font-weight: 600;
+    font-size: 12px;
+    margin-bottom: var(--spacing-xs);
+}
+
+.progress-status {
+    color: var(--text-primary);
+    font-size: 13px;
+    margin-bottom: var(--spacing-sm);
+}
+
+.tool-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    justify-content: center;
+}
+
+.tool-tag {
+    display: inline-block;
+    background: var(--accent-blue);
+    color: white;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-family: monospace;
+}
+
 /* ============ 滾動條樣式 ============ */
 
 ::-webkit-scrollbar {

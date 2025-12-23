@@ -273,10 +273,10 @@ function initEventListeners() {
     .getElementById("submitBtn")
     .addEventListener("click", submitFeedback);
 
-  // AI 回覆按鈕
+  // AI 回覆按鈕 - 使用支援 MCP 工具的版本
   document
     .getElementById("aiReplyBtn")
-    .addEventListener("click", generateAIReply);
+    .addEventListener("click", generateAIReplyWithTools);
 
   // 圖片區域
   const imageDropZone = document.getElementById("imageDropZone");
@@ -712,6 +712,281 @@ async function generateAIReply() {
     showToast("error", "錯誤", "無法生成 AI 回覆");
   } finally {
     hideLoadingOverlay();
+  }
+}
+
+// ============ MCP AI 工具呼叫整合 ============
+
+const MAX_TOOL_ROUNDS = 5;
+
+/**
+ * 解析 AI 回覆中的 tool_calls JSON
+ * @param {string} aiResponse - AI 的原始回覆
+ * @returns {{hasToolCalls: boolean, toolCalls: Array<{name: string, arguments: Object}>, message: string|null}}
+ */
+function parseToolCalls(aiResponse) {
+  // 嘗試從 markdown code block 中提取 JSON
+  const jsonBlockMatch = aiResponse.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+  let jsonContent = null;
+
+  if (jsonBlockMatch && jsonBlockMatch[1]) {
+    jsonContent = jsonBlockMatch[1].trim();
+  } else {
+    // 嘗試直接匹配 JSON
+    const jsonMatch = aiResponse.match(/\{[\s\S]*"tool_calls"[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonContent = jsonMatch[0];
+    }
+  }
+
+  if (!jsonContent) {
+    return { hasToolCalls: false, toolCalls: [], message: aiResponse };
+  }
+
+  try {
+    const parsed = JSON.parse(jsonContent);
+
+    if (!Array.isArray(parsed.tool_calls)) {
+      return { hasToolCalls: false, toolCalls: [], message: aiResponse };
+    }
+
+    // 驗證每個 tool call 的結構
+    for (const call of parsed.tool_calls) {
+      if (typeof call.name !== "string" || typeof call.arguments !== "object") {
+        return { hasToolCalls: false, toolCalls: [], message: aiResponse };
+      }
+    }
+
+    return {
+      hasToolCalls: parsed.tool_calls.length > 0,
+      toolCalls: parsed.tool_calls,
+      message: parsed.message || null,
+    };
+  } catch {
+    return { hasToolCalls: false, toolCalls: [], message: aiResponse };
+  }
+}
+
+/**
+ * 執行 MCP 工具並返回結果
+ * @param {Array<{name: string, arguments: Object}>} toolCalls
+ * @returns {Promise<Array<{name: string, success: boolean, result?: any, error?: string}>>}
+ */
+async function executeMCPTools(toolCalls) {
+  const response = await fetch("/api/mcp/execute-tools", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tools: toolCalls }),
+  });
+
+  const data = await response.json();
+  return data.results || [];
+}
+
+/**
+ * 格式化工具執行結果為文字
+ * @param {Array<{name: string, success: boolean, result?: any, error?: string}>} results
+ * @returns {string}
+ */
+function formatToolResults(results) {
+  const lines = ["Tool execution results:"];
+  for (const result of results) {
+    if (result.success) {
+      lines.push(`- ${result.name}: SUCCESS`);
+      if (result.result !== undefined) {
+        const resultStr =
+          typeof result.result === "string"
+            ? result.result
+            : JSON.stringify(result.result, null, 2);
+        lines.push(`  Result: ${resultStr}`);
+      }
+    } else {
+      lines.push(`- ${result.name}: FAILED`);
+      if (result.error) {
+        lines.push(`  Error: ${result.error}`);
+      }
+    }
+  }
+  return lines.join("\n");
+}
+
+/**
+ * 更新工具執行進度 UI
+ * @param {number} round - 當前輪次
+ * @param {string} status - 狀態: 'thinking', 'executing', 'done', 'error'
+ * @param {string} message - 訊息
+ * @param {Array} toolCalls - 當前執行的工具
+ */
+function updateToolProgressUI(round, status, message, toolCalls = []) {
+  let progressContainer = document.getElementById("ai-tool-progress");
+
+  if (!progressContainer) {
+    progressContainer = document.createElement("div");
+    progressContainer.id = "ai-tool-progress";
+    progressContainer.className = "ai-tool-progress";
+
+    // 插入到 loading overlay 中或建立獨立顯示
+    const overlay = document.getElementById("loadingOverlay");
+    if (overlay) {
+      const existingMsg = overlay.querySelector(".loading-message");
+      if (existingMsg) {
+        existingMsg.appendChild(progressContainer);
+      }
+    }
+  }
+
+  const statusIcons = {
+    thinking: "🤔",
+    executing: "⏳",
+    done: "✅",
+    error: "❌",
+  };
+
+  let toolsHtml = "";
+  if (toolCalls.length > 0) {
+    toolsHtml = `<div class="tool-list">${toolCalls
+      .map((t) => `<span class="tool-tag">${t.name}</span>`)
+      .join("")}</div>`;
+  }
+
+  progressContainer.innerHTML = `
+    <div class="progress-round">Round ${round}/${MAX_TOOL_ROUNDS}</div>
+    <div class="progress-status">${statusIcons[status] || "⏳"} ${message}</div>
+    ${toolsHtml}
+  `;
+}
+
+/**
+ * 顯示第 5 輪確認對話框
+ * @returns {Promise<boolean>} - true 繼續，false 取消
+ */
+function showRound5Confirmation() {
+  return new Promise((resolve) => {
+    showAlertModal(
+      "工具呼叫已達最大輪次",
+      "AI 已執行 5 輪工具呼叫，是否繼續讓 AI 完成回覆？\n\n點擊「確定」繼續，點擊「取消」停止。",
+      () => resolve(true),
+      () => resolve(false)
+    );
+  });
+}
+
+/**
+ * 帶 MCP 工具呼叫支援的 AI 回覆生成
+ */
+async function generateAIReplyWithTools() {
+  if (!workSummary) {
+    showToast("error", "錯誤", "無法取得 AI 訊息");
+    return;
+  }
+
+  const userContext = document.getElementById("feedbackText").value;
+
+  // 檢查是否有可用的 MCP 工具
+  let hasMCPTools = false;
+  try {
+    const toolsResponse = await fetch("/api/mcp-tools");
+    const toolsData = await toolsResponse.json();
+    hasMCPTools = toolsData.success && toolsData.tools && toolsData.tools.length > 0;
+  } catch {
+    hasMCPTools = false;
+  }
+
+  if (!hasMCPTools) {
+    // 沒有 MCP 工具，使用普通 AI 回覆
+    return generateAIReply();
+  }
+
+  showLoadingOverlay("正在生成 AI 回覆...");
+
+  let round = 0;
+  let toolResults = "";
+
+  try {
+    while (round < MAX_TOOL_ROUNDS) {
+      round++;
+      updateToolProgressUI(round, "thinking", "AI 思考中...");
+
+      // 呼叫 AI API，帶入 MCP 工具描述和先前工具結果
+      const response = await fetch("/api/ai-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          aiMessage: workSummary,
+          userContext: userContext,
+          includeMCPTools: true,
+          toolResults: toolResults || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        showToast("error", "AI 回覆失敗", data.error);
+        return;
+      }
+
+      // 解析 AI 回覆
+      const parsed = parseToolCalls(data.reply);
+
+      if (!parsed.hasToolCalls) {
+        // AI 沒有要求工具呼叫，直接使用回覆
+        updateToolProgressUI(round, "done", "完成!");
+
+        const pinnedPromptsContent = await getPinnedPromptsContent();
+        let finalReply = parsed.message || data.reply;
+        if (pinnedPromptsContent) {
+          finalReply = pinnedPromptsContent + "\n\n" + finalReply;
+        }
+
+        document.getElementById("feedbackText").value = finalReply;
+        updateCharCount();
+        showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
+        return;
+      }
+
+      // 顯示工具執行狀態
+      updateToolProgressUI(round, "executing", "執行工具中...", parsed.toolCalls);
+
+      if (parsed.message) {
+        // 顯示 AI 的中間訊息
+        console.log(`[Round ${round}] AI: ${parsed.message}`);
+      }
+
+      // 執行工具
+      const results = await executeMCPTools(parsed.toolCalls);
+      toolResults = formatToolResults(results);
+
+      // 第 5 輪時顯示確認對話框
+      if (round === MAX_TOOL_ROUNDS) {
+        updateToolProgressUI(round, "done", "已達最大輪次");
+
+        const shouldContinue = await showRound5Confirmation();
+        if (!shouldContinue) {
+          // 使用者取消，顯示當前結果
+          const pinnedPromptsContent = await getPinnedPromptsContent();
+          let finalReply = parsed.message || "AI 工具呼叫已達最大輪次，請手動完成回覆。\n\n" + toolResults;
+          if (pinnedPromptsContent) {
+            finalReply = pinnedPromptsContent + "\n\n" + finalReply;
+          }
+          document.getElementById("feedbackText").value = finalReply;
+          updateCharCount();
+          return;
+        }
+        // 重置輪次計數允許繼續
+        round = 0;
+      }
+    }
+  } catch (error) {
+    console.error("MCP AI 回覆失敗:", error);
+    showToast("error", "錯誤", "無法生成 AI 回覆");
+  } finally {
+    hideLoadingOverlay();
+    // 清除進度 UI
+    const progressContainer = document.getElementById("ai-tool-progress");
+    if (progressContainer) {
+      progressContainer.remove();
+    }
   }
 }
 

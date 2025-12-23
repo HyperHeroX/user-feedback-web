@@ -247,6 +247,8 @@ export interface AISettingsResponse {
 export interface AIReplyRequest {
   aiMessage: string;
   userContext?: string;
+  includeMCPTools?: boolean;
+  toolResults?: string;
 }
 
 // AI 回覆響應類型
@@ -369,6 +371,7 @@ export interface MCPToolInfo {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  serverId?: number;
 }
 
 // MCP Resource 資訊

@@ -163,9 +163,13 @@ class MCPClientManager {
     }
     getAllTools() {
         const tools = [];
-        for (const instance of this.clients.values()) {
+        for (const [serverId, instance] of this.clients.entries()) {
             if (instance.state.status === 'connected') {
-                tools.push(...instance.state.tools);
+                const toolsWithServerId = instance.state.tools.map(tool => ({
+                    ...tool,
+                    serverId
+                }));
+                tools.push(...toolsWithServerId);
             }
         }
         return tools;

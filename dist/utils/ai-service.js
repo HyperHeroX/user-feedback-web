@@ -5,6 +5,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getAISettings } from './database.js';
 import { logger } from './logger.js';
+import { buildToolsPrompt } from './mcp-tool-parser.js';
+import { mcpClientManager } from './mcp-client-manager.js';
 // 重試配置
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [1000, 2000, 4000]; // 毫秒
@@ -17,14 +19,16 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 分鐘
  */
 export async function generateAIReply(request) {
     try {
-        // 檢查快取
+        // 檢查快取（不包含工具結果時才使用）
         const cacheKey = `${request.aiMessage}:${request.userContext || ''}`;
-        const cached = cache.get(cacheKey);
-        if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-            return {
-                success: true,
-                reply: cached.reply
-            };
+        if (!request.toolResults) {
+            const cached = cache.get(cacheKey);
+            if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+                return {
+                    success: true,
+                    reply: cached.reply
+                };
+            }
         }
         // 獲取 AI 設定
         const settings = getAISettings();
@@ -34,15 +38,28 @@ export async function generateAIReply(request) {
                 error: '請先在設定中配置 AI API Key'
             };
         }
+        // 獲取 MCP 工具描述（如果啟用）
+        let mcpToolsPrompt = '';
+        if (request.includeMCPTools) {
+            try {
+                const allTools = mcpClientManager.getAllTools();
+                mcpToolsPrompt = buildToolsPrompt(allTools);
+            }
+            catch {
+                logger.warn('Failed to get MCP tools for AI prompt');
+            }
+        }
         // 生成回覆（帶重試機制）
-        const reply = await generateWithRetry(settings.apiKey, settings.model, settings.systemPrompt, request.aiMessage, request.userContext, settings.temperature, settings.maxTokens);
-        // 存入快取
-        cache.set(cacheKey, {
-            reply,
-            timestamp: Date.now()
-        });
-        // 清理過期快取
-        cleanExpiredCache();
+        const reply = await generateWithRetry(settings.apiKey, settings.model, settings.systemPrompt, request.aiMessage, request.userContext, settings.temperature, settings.maxTokens, 0, mcpToolsPrompt, request.toolResults);
+        // 存入快取（不包含工具結果時）
+        if (!request.toolResults) {
+            cache.set(cacheKey, {
+                reply,
+                timestamp: Date.now()
+            });
+            // 清理過期快取
+            cleanExpiredCache();
+        }
         return {
             success: true,
             reply
@@ -59,7 +76,7 @@ export async function generateAIReply(request) {
 /**
  * 帶重試機制的 AI 生成
  */
-async function generateWithRetry(apiKey, model, systemPrompt, aiMessage, userContext, temperature, maxTokens, retryCount = 0) {
+async function generateWithRetry(apiKey, model, systemPrompt, aiMessage, userContext, temperature, maxTokens, retryCount = 0, mcpToolsPrompt = '', toolResults) {
     try {
         const genAI = new GoogleGenerativeAI(apiKey);
         const generativeModel = genAI.getGenerativeModel({
@@ -70,7 +87,7 @@ async function generateWithRetry(apiKey, model, systemPrompt, aiMessage, userCon
             }
         });
         // 構建提示詞
-        const prompt = buildPrompt(systemPrompt, aiMessage, userContext);
+        const prompt = buildPrompt(systemPrompt, aiMessage, userContext, mcpToolsPrompt, toolResults);
         // 生成內容
         const result = await generativeModel.generateContent(prompt);
         const response = await result.response;
@@ -89,7 +106,7 @@ async function generateWithRetry(apiKey, model, systemPrompt, aiMessage, userCon
                     // 等待後重試
                     const delay = RETRY_DELAYS[retryCount] || 4000;
                     await sleep(delay);
-                    return generateWithRetry(apiKey, model, systemPrompt, aiMessage, userContext, temperature, maxTokens, retryCount + 1);
+                    return generateWithRetry(apiKey, model, systemPrompt, aiMessage, userContext, temperature, maxTokens, retryCount + 1, mcpToolsPrompt, toolResults);
                 }
                 throw new Error('API 配額已用盡或速率限制，請稍後再試');
             }
@@ -101,7 +118,7 @@ async function generateWithRetry(apiKey, model, systemPrompt, aiMessage, userCon
             if (retryCount < MAX_RETRIES) {
                 const delay = RETRY_DELAYS[retryCount] || 4000;
                 await sleep(delay);
-                return generateWithRetry(apiKey, model, systemPrompt, aiMessage, userContext, temperature, maxTokens, retryCount + 1);
+                return generateWithRetry(apiKey, model, systemPrompt, aiMessage, userContext, temperature, maxTokens, retryCount + 1, mcpToolsPrompt, toolResults);
             }
         }
         throw error;
@@ -110,11 +127,17 @@ async function generateWithRetry(apiKey, model, systemPrompt, aiMessage, userCon
 /**
  * 構建提示詞
  */
-function buildPrompt(systemPrompt, aiMessage, userContext) {
+function buildPrompt(systemPrompt, aiMessage, userContext, mcpToolsPrompt = '', toolResults) {
     let prompt = `${systemPrompt}\n\n`;
+    if (mcpToolsPrompt) {
+        prompt += mcpToolsPrompt + '\n\n';
+    }
     prompt += `AI 工作匯報：\n${aiMessage}\n\n`;
     if (userContext) {
         prompt += `使用者上下文：\n${userContext}\n\n`;
+    }
+    if (toolResults) {
+        prompt += `先前工具執行結果：\n${toolResults}\n\n`;
     }
     prompt += '請生成一個簡潔、專業的回應：';
     return prompt;

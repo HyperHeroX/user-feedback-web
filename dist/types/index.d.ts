@@ -192,6 +192,8 @@ export interface AISettingsResponse {
 export interface AIReplyRequest {
     aiMessage: string;
     userContext?: string;
+    includeMCPTools?: boolean;
+    toolResults?: string;
 }
 export interface AIReplyResponse {
     success: boolean;
@@ -279,6 +281,7 @@ export interface MCPToolInfo {
     name: string;
     description: string;
     inputSchema: Record<string, unknown>;
+    serverId?: number;
 }
 export interface MCPResourceInfo {
     uri: string;

@@ -1056,6 +1056,90 @@ export class WebServer {
                 });
             }
         });
+        // ============ MCP 工具執行 API (AI Integration) ============
+        // 執行單一 MCP 工具 (by tool name, auto-find server)
+        this.app.post('/api/mcp/execute-tool', async (req, res) => {
+            try {
+                const { name, arguments: args } = req.body;
+                if (!name) {
+                    res.status(400).json({ success: false, error: '缺少工具名稱' });
+                    return;
+                }
+                const allTools = mcpClientManager.getAllTools();
+                const toolInfo = allTools.find(t => t.name === name);
+                if (!toolInfo || toolInfo.serverId === undefined) {
+                    res.status(404).json({ success: false, error: `工具 ${name} 不存在或未連接` });
+                    return;
+                }
+                const result = await mcpClientManager.callTool(toolInfo.serverId, name, args || {});
+                if (result.success) {
+                    logger.info(`MCP 工具執行成功: ${name}`);
+                }
+                else {
+                    logger.warn(`MCP 工具執行失敗: ${name} - ${result.error}`);
+                }
+                res.json(result);
+            }
+            catch (error) {
+                logger.error('MCP 工具執行失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '工具執行失敗'
+                });
+            }
+        });
+        // 批次執行多個 MCP 工具
+        this.app.post('/api/mcp/execute-tools', async (req, res) => {
+            try {
+                const { tools } = req.body;
+                if (!Array.isArray(tools) || tools.length === 0) {
+                    res.status(400).json({ success: false, error: '缺少工具列表' });
+                    return;
+                }
+                const allMcpTools = mcpClientManager.getAllTools();
+                const results = [];
+                for (const tool of tools) {
+                    const { name, arguments: args } = tool;
+                    if (!name) {
+                        results.push({ name: 'unknown', success: false, error: '缺少工具名稱' });
+                        continue;
+                    }
+                    const toolInfo = allMcpTools.find(t => t.name === name);
+                    if (!toolInfo || toolInfo.serverId === undefined) {
+                        results.push({ name, success: false, error: `工具 ${name} 不存在或未連接` });
+                        continue;
+                    }
+                    try {
+                        const result = await mcpClientManager.callTool(toolInfo.serverId, name, args || {});
+                        const entry = {
+                            name,
+                            success: result.success,
+                            result: result.content
+                        };
+                        if (result.error) {
+                            entry.error = result.error;
+                        }
+                        results.push(entry);
+                    }
+                    catch (err) {
+                        results.push({
+                            name,
+                            success: false,
+                            error: err instanceof Error ? err.message : '執行失敗'
+                        });
+                    }
+                }
+                logger.info(`批次執行 MCP 工具完成: ${results.filter(r => r.success).length}/${results.length} 成功`);
+                res.json({ success: true, results });
+            }
+            catch (error) {
+                logger.error('批次執行 MCP 工具失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '批次執行失敗'
+                });
+            }
+        });
         // 呼叫 MCP 工具
         this.app.post('/api/mcp-servers/:id/tools/:toolName/call', async (req, res) => {
             try {
