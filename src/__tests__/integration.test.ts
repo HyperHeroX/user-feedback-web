@@ -240,4 +240,55 @@ describe('整合測試', () => {
       expect(memoryIncrease).toBeLessThan(50 * 1024 * 1024);
     }, 30000);
   });
+
+  describe('MCP 工具 API 測試', () => {
+    test('獲取 MCP 工具列表應該回傳空陣列（無連接）', async () => {
+      const status = mcpServer.getStatus();
+      const response = await fetch(`http://localhost:${status.webPort}/api/mcp-tools`);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data).toMatchObject({
+        tools: expect.any(Array)
+      });
+    });
+
+    test('批次執行工具應該處理不存在的工具', async () => {
+      const status = mcpServer.getStatus();
+      const response = await fetch(`http://localhost:${status.webPort}/api/mcp/execute-tools`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toolCalls: [{ name: 'nonexistent_tool', arguments: {} }]
+        })
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.results).toHaveLength(1);
+      expect(data.results[0]).toMatchObject({
+        name: 'nonexistent_tool',
+        success: false,
+        error: expect.stringContaining('不存在')
+      });
+    });
+
+    test('AI 回覆 API 應該支援 includeMCPTools 參數', async () => {
+      const status = mcpServer.getStatus();
+      const response = await fetch(`http://localhost:${status.webPort}/api/ai-reply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: '測試',
+          context: '測試上下文',
+          includeMCPTools: true
+        })
+      });
+      const data = await response.json();
+
+      // 可能因為沒有 API key 而失敗，但應該是預期的錯誤格式
+      expect(response.status).toBe(200);
+      expect(data).toHaveProperty('success');
+    });
+  });
 });
