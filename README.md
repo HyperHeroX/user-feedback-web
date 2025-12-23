@@ -111,7 +111,57 @@ npx user-web-feedback
 # 或者全局安裝
 npm install -g user-web-feedback
 user-web-feedback
+
+# 檢查版本
+user-web-feedback --version
 ```
+
+---
+
+## 📦 NPM 發行版本使用指南
+
+### 從 npm 安裝
+
+```bash
+# 全局安裝（推薦）
+npm install -g user-web-feedback
+
+# 專案內安裝
+npm install user-web-feedback
+```
+
+### 使用 npx 運行（無需安裝）
+
+```bash
+# 運行最新版本
+npx user-web-feedback
+
+# 指定版本
+npx user-web-feedback@2.2.0
+
+# 帶參數運行
+npx user-web-feedback --port 8080
+```
+
+### 程式化使用
+
+```javascript
+// ESM 模組
+import { MCPServer, getConfig } from 'user-web-feedback';
+
+const config = getConfig();
+const server = new MCPServer(config);
+await server.start();
+```
+
+### 發行版本特性
+
+- ✅ **獨立運行**：編譯後的 `dist/` 目錄可獨立執行，無需原始碼
+- ✅ **安全發行**：不包含敏感資訊、開發檔案或原始碼
+- ✅ **版本一致**：CLI、API、Web 介面版本號自動同步
+- ✅ **跨平台**：支援 Windows、macOS、Linux
+
+---
 
 ### 環境變數配置
 

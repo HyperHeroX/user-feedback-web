@@ -50,6 +50,9 @@ Thumbs.db
 *.swp
 *.swo
 
+# Documentation (may contain sensitive examples)
+.docs/
+
 # Git files
 .git/
 .gitignore

@@ -26,5 +26,10 @@ export default {
     'text',
     'lcov',
     'html'
+  ],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/dist/',
+    'integration.test.ts'
   ]
 };

@@ -68,6 +68,15 @@ body {
     box-shadow: var(--shadow-md);
 }
 
+.version-display {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-left: 8px;
+    padding: 2px 6px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+}
+
 .auto-reply-timer {
     display: none;
     align-items: center;

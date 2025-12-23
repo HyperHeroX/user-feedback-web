@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { Config, CollectFeedbackParams, MCPError, FeedbackData, ImageData, MCPLogLevel, MCPLogMessage } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { WebServer } from './web-server.js';
+import { getPackageVersion } from '../utils/version.js';
 
 /**
  * MCP伺服器類別
@@ -25,7 +26,7 @@ export class MCPServer {
     // 创建MCP服务器实例
     this.mcpServer = new McpServer({
       name: 'user-web-feedback',
-      version: '2.1.3'
+      version: getPackageVersion()
     }, {
       capabilities: {
         tools: {},
@@ -59,7 +60,8 @@ export class MCPServer {
           work_summary: z.string().describe('AI工作匯報內容，描述AI完成的工作和結果')
         }
       },
-      async (args: { work_summary: string }): Promise<CallToolResult> => {
+      // @ts-expect-error - MCP SDK type instantiation depth issue with TS 5.9
+      async (args: { work_summary: string }) => {
         const params: CollectFeedbackParams = {
           work_summary: args.work_summary
         };

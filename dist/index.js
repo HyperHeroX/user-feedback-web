@@ -7,6 +7,6 @@ export { getConfig, createDefaultConfig, validateConfig } from './config/index.j
 export { logger } from './utils/logger.js';
 // 匯出類型定義
 export * from './types/index.js';
-// 匯出版本資訊
-export const VERSION = '2.1.3';
+// 匯出版本資訊（從共享版本工具導入）
+export { getPackageVersion as VERSION } from './utils/version.js';
 //# sourceMappingURL=index.js.map

@@ -34,7 +34,7 @@
       "command": "node",
       "args": ["D:/path/to/dist/cli.js"],
       "env": {
-        "MCP_API_KEY": "sk-zhdAJNyzSg1vAeoGhAaY5cnaMgDuvs0Q9H5LirPUuWW7hQGr",
+        "MCP_API_KEY": "your-api-key-here",
         "MCP_API_BASE_URL": "https://api.ssopen.top",
         "MCP_DEFAULT_MODEL": "grok-3",
         "MCP_DIALOG_TIMEOUT": "60000",

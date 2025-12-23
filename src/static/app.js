@@ -492,6 +492,9 @@ async function loadInitialData() {
     // 首先從伺服器讀取配置，包括 MCP_DIALOG_TIMEOUT
     await loadServerConfig();
 
+    // 載入並顯示版本號
+    await loadVersion();
+
     // 啟動關閉頁面倒數計時
     startCloseCountdown();
 
@@ -513,6 +516,21 @@ async function loadInitialData() {
   } catch (error) {
     console.error("載入初始資料失敗:", error);
     showToast("error", "載入失敗", "無法載入初始資料");
+  }
+}
+
+async function loadVersion() {
+  try {
+    const response = await fetch("/api/version");
+    if (response.ok) {
+      const data = await response.json();
+      const versionDisplay = document.getElementById("version-display");
+      if (versionDisplay && data.version) {
+        versionDisplay.textContent = `v${data.version}`;
+      }
+    }
+  } catch (error) {
+    console.error("載入版本資訊失敗:", error);
   }
 }
 

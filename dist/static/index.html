@@ -14,10 +14,12 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- 連接狀態指示器 + 自動回覆計時器 -->
+    <!-- 連接狀態指示器 + 版本號 + 自動回覆計時器 -->
     <div class="connection-status" id="connectionStatus">
         <span class="status-dot"></span>
         <span class="status-text">連接中...</span>
+        <!-- 版本顯示 -->
+        <span id="version-display" class="version-display" title="當前版本">v--</span>
         <!-- 自動回覆計時器（與連接指示器一起） -->
         <div id="auto-reply-timer" class="auto-reply-timer" title="點擊暫停 / 再次點擊繼續自動回覆倒數" aria-label="自動回覆倒數，點擊可暫停或繼續">
             / ⏱️自動回覆倒數: <span id="auto-reply-seconds">--</span>s
