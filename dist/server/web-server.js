@@ -1586,6 +1586,11 @@ export class WebServer {
                         reject(error);
                     }
                     else {
+                        // 獲取實際監聽的連接埠（當 port 為 0 時系統會分配隨機連接埠）
+                        const address = this.server.address();
+                        if (address && typeof address === 'object') {
+                            this.port = address.port;
+                        }
                         resolve();
                     }
                 });
@@ -1666,10 +1671,11 @@ export class WebServer {
         const currentPort = this.port;
         logger.info(`正在停止Web伺服器 (連接埠: ${currentPort})...`);
         try {
-            // 如果有活躍會話，先等待一段時間以便使用者提交（最多等待 dialogTimeout 或 30 秒，視情況而定）
+            // 如果有活躍會話，先等待一段時間以便使用者提交
             const active = this.sessionStorage.getSessionCount();
             if (active > 0) {
-                const waitMs = Math.min(Math.max(this.config.dialogTimeout * 1000, 30000), 5 * 60 * 1000);
+                // 使用 dialogTimeout（秒）的值，最多 5 分鐘
+                const waitMs = Math.min(this.config.dialogTimeout * 1000, 5 * 60 * 1000);
                 logger.info(`檢測到 ${active} 個活躍會話，將等待最多 ${Math.round(waitMs / 1000)} 秒以便使用者提交回饋`);
                 try {
                     await this.waitForActiveSessions(waitMs);
