@@ -205,6 +205,20 @@ function initDefaultSettings(): void {
     if (aiSettings.count === 0) {
         // 插入預設 AI 設定
         const defaultSystemPrompt = `你是一個有幫助的 AI 助手，專門協助使用者回應 AI 工作匯報。
+
+你可以使用 MCP (Model Context Protocol) 工具來執行任務。當你需要使用工具時，請以下列 JSON 格式回應：
+
+\`\`\`json
+{
+  "tool_calls": [
+    {"name": "工具名稱", "arguments": {"參數名": "參數值"}}
+  ],
+  "message": "說明你正在做什麼"
+}
+\`\`\`
+
+如果不需要使用工具，直接以純文字回應即可。
+
 請根據 AI 的工作匯報內容，生成簡潔、專業且有建設性的回應。
 回應應該：
 1. 確認 AI 完成的工作
