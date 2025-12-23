@@ -17,6 +17,7 @@ import { ImageProcessor } from '../utils/image-processor.js';
 import { ImageToTextService } from '../utils/image-to-text-service.js';
 import { performanceMonitor } from '../utils/performance-monitor.js';
 import { SessionStorage } from '../utils/session-storage.js';
+import { projectManager } from '../utils/project-manager.js';
 import { getPackageVersion } from '../utils/version.js';
 const VERSION = getPackageVersion();
 import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled } from '../utils/database.js';
@@ -246,7 +247,11 @@ export class WebServer {
         const staticPath = this.getStaticAssetsPath();
         // 靜態檔案服務 - 使用絕對路徑
         this.app.use(express.static(staticPath));
-        // 主页路由
+        // Dashboard 路由
+        this.app.get('/dashboard', (req, res) => {
+            res.sendFile('dashboard.html', { root: staticPath });
+        });
+        // 主页路由 - Session 頁面
         this.app.get('/', (req, res) => {
             res.sendFile('index.html', { root: staticPath });
         });
@@ -273,27 +278,39 @@ export class WebServer {
         });
         // 測試會話建立路由
         this.app.post('/api/test-session', (req, res) => {
-            const { work_summary, timeout_seconds = 300 } = req.body;
+            const { work_summary, timeout_seconds = 300, project_name, project_path } = req.body;
             if (!work_summary) {
                 res.status(400).json({ error: '缺少work_summary參數' });
                 return;
             }
             const sessionId = this.generateSessionId();
+            // 處理專案
+            const project = project_name
+                ? projectManager.getOrCreateProject(project_name, project_path)
+                : projectManager.getDefaultProject();
             // 建立測試會話
             const session = {
                 workSummary: work_summary,
                 feedback: [],
                 startTime: Date.now(),
-                timeout: timeout_seconds * 1000
+                timeout: timeout_seconds * 1000,
+                projectId: project.id,
+                projectName: project.name
             };
             this.sessionStorage.createSession(sessionId, session);
+            // 更新專案最後活動時間
+            projectManager.updateLastActive(project.id);
             // 記錄會話建立
             performanceMonitor.recordSessionCreated();
+            // 發送 Dashboard 會話建立事件
+            this.emitDashboardSessionCreated(project.id, sessionId, project.name, work_summary);
             logger.info(`建立測試會話: ${sessionId}`);
             res.json({
                 success: true,
                 session_id: sessionId,
-                feedback_url: this.generateFeedbackUrl(sessionId)
+                feedback_url: this.generateFeedbackUrl(sessionId),
+                project_id: project.id,
+                project_name: project.name
             });
         });
         // 版本資訊API
@@ -313,6 +330,118 @@ export class WebServer {
                 memory: process.memoryUsage(),
                 active_sessions: this.sessionStorage.getSessionCount()
             });
+        });
+        // ============ Dashboard API ============
+        // 獲取 Dashboard 概覽
+        this.app.get('/api/dashboard/overview', (req, res) => {
+            try {
+                const projects = projectManager.getAllProjects();
+                const projectInfos = projects.map(project => {
+                    const projectSessions = this.sessionStorage.getSessionsByProject(project.id);
+                    const sessions = [];
+                    let activeSessions = 0;
+                    projectSessions.forEach((sessionData, sessionId) => {
+                        const isActive = Date.now() - sessionData.startTime < sessionData.timeout;
+                        if (isActive)
+                            activeSessions++;
+                        sessions.push({
+                            sessionId,
+                            status: isActive ? 'active' : 'timeout',
+                            workSummary: sessionData.workSummary || '',
+                            createdAt: new Date(sessionData.startTime).toISOString(),
+                            lastActivityAt: new Date(sessionData.startTime).toISOString()
+                        });
+                    });
+                    return {
+                        project,
+                        sessions,
+                        totalSessions: sessions.length,
+                        activeSessions
+                    };
+                });
+                const totalActiveSessions = projectInfos.reduce((sum, p) => sum + p.activeSessions, 0);
+                res.json({
+                    projects: projectInfos,
+                    totalProjects: projects.length,
+                    totalActiveSessions
+                });
+            }
+            catch (error) {
+                logger.error('獲取 Dashboard 概覽失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '獲取 Dashboard 概覽失敗'
+                });
+            }
+        });
+        // 獲取特定專案詳情
+        this.app.get('/api/dashboard/projects/:projectId', (req, res) => {
+            try {
+                const { projectId } = req.params;
+                const project = projectManager.getProject(projectId);
+                if (!project) {
+                    res.status(404).json({ success: false, error: '專案不存在' });
+                    return;
+                }
+                const projectSessions = this.sessionStorage.getSessionsByProject(projectId);
+                const sessions = [];
+                let activeSessions = 0;
+                projectSessions.forEach((sessionData, sessionId) => {
+                    const isActive = Date.now() - sessionData.startTime < sessionData.timeout;
+                    if (isActive)
+                        activeSessions++;
+                    sessions.push({
+                        sessionId,
+                        status: isActive ? 'active' : 'timeout',
+                        workSummary: sessionData.workSummary || '',
+                        createdAt: new Date(sessionData.startTime).toISOString(),
+                        lastActivityAt: new Date(sessionData.startTime).toISOString()
+                    });
+                });
+                res.json({
+                    success: true,
+                    project,
+                    sessions,
+                    totalSessions: sessions.length,
+                    activeSessions
+                });
+            }
+            catch (error) {
+                logger.error('獲取專案詳情失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '獲取專案詳情失敗'
+                });
+            }
+        });
+        // 獲取 Session 詳情（用於 Dashboard 導航）
+        this.app.get('/api/dashboard/sessions/:sessionId', (req, res) => {
+            try {
+                const { sessionId } = req.params;
+                const session = this.sessionStorage.getSession(sessionId);
+                if (!session) {
+                    res.status(404).json({ success: false, error: 'Session 不存在' });
+                    return;
+                }
+                res.json({
+                    success: true,
+                    session: {
+                        id: sessionId,
+                        workSummary: session.workSummary,
+                        status: Date.now() - session.startTime < session.timeout ? 'active' : 'timeout',
+                        projectId: session.projectId,
+                        projectName: session.projectName,
+                        createdAt: new Date(session.startTime).toISOString()
+                    }
+                });
+            }
+            catch (error) {
+                logger.error('獲取 Session 詳情失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '獲取 Session 詳情失敗'
+                });
+            }
         });
         // 效能監控路由
         this.app.get('/api/metrics', (req, res) => {
@@ -1385,6 +1514,10 @@ export class WebServer {
                 message: '回饋提交成功',
                 shouldCloseAfterSubmit: feedbackData.shouldCloseAfterSubmit || false
             });
+            // 發送 Dashboard 更新事件
+            if (session.projectId) {
+                this.emitDashboardSessionUpdated(session.projectId, feedbackData.sessionId, 'completed', session.workSummary);
+            }
             // 完成回饋收集
             if (session.resolve) {
                 session.resolve(session.feedback);
@@ -1479,9 +1612,13 @@ export class WebServer {
     /**
      * 收集使用者回饋
      */
-    async collectFeedback(workSummary, timeoutSeconds) {
+    async collectFeedback(workSummary, timeoutSeconds, projectName, projectPath) {
         const sessionId = this.generateSessionId();
-        logger.info(`建立回饋會話: ${sessionId}, 逾時: ${timeoutSeconds}秒`);
+        // 取得或建立專案
+        const project = projectName
+            ? projectManager.getOrCreateProject(projectName, projectPath)
+            : projectManager.getDefaultProject();
+        logger.info(`建立回饋會話: ${sessionId}, 逾時: ${timeoutSeconds}秒, 專案: ${project.name} (${project.id})`);
         const feedbackUrl = this.generateFeedbackUrl(sessionId);
         return new Promise((resolve, reject) => {
             // 建立會話
@@ -1490,10 +1627,20 @@ export class WebServer {
                 feedback: [],
                 startTime: Date.now(),
                 timeout: timeoutSeconds * 1000,
-                resolve: (feedback = []) => resolve({ feedback, sessionId, feedbackUrl }),
+                projectId: project.id,
+                projectName: project.name,
+                resolve: (feedback = []) => resolve({
+                    feedback,
+                    sessionId,
+                    feedbackUrl,
+                    projectId: project.id,
+                    projectName: project.name
+                }),
                 reject
             };
             this.sessionStorage.createSession(sessionId, session);
+            // 發送 Dashboard 事件
+            this.emitDashboardSessionCreated(project.id, sessionId, project.name, workSummary);
             // 发送MCP日志通知，包含反馈页面信息
             logger.mcpFeedbackPageCreated(sessionId, feedbackUrl, timeoutSeconds);
             // 注意：逾時處理現在由SessionStorage的清理機制處理
@@ -1504,6 +1651,26 @@ export class WebServer {
                 reject(error);
             });
         });
+    }
+    emitDashboardSessionCreated(projectId, sessionId, projectName, workSummary) {
+        if (this.io) {
+            this.io.emit('dashboard:session_created', {
+                projectId,
+                sessionId,
+                projectName,
+                workSummary
+            });
+        }
+    }
+    emitDashboardSessionUpdated(projectId, sessionId, status, workSummary) {
+        if (this.io) {
+            this.io.emit('dashboard:session_updated', {
+                projectId,
+                sessionId,
+                status,
+                workSummary
+            });
+        }
     }
     /**
      * 產生回饋頁面URL

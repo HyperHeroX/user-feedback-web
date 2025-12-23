@@ -71,6 +71,15 @@ export class SessionStorage {
     getSessionCount() {
         return this.sessions.size;
     }
+    getSessionsByProject(projectId) {
+        const result = new Map();
+        for (const [sessionId, data] of this.sessions.entries()) {
+            if (data.projectId === projectId) {
+                result.set(sessionId, data);
+            }
+        }
+        return result;
+    }
     /**
      * 清理过期会话
      */

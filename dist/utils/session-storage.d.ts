@@ -10,6 +10,8 @@ export interface SessionData {
     timeout: number;
     resolve?: (feedback: FeedbackData[]) => void;
     reject?: (error: Error) => void;
+    projectId?: string;
+    projectName?: string;
 }
 export declare class SessionStorage {
     private cleanupIntervalMs;
@@ -40,6 +42,7 @@ export declare class SessionStorage {
      * 取得活躍會話數量
      */
     getSessionCount(): number;
+    getSessionsByProject(projectId: string): Map<string, SessionData>;
     /**
      * 清理过期会话
      */

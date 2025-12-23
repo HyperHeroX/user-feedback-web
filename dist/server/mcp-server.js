@@ -47,13 +47,17 @@ export class MCPServer {
         this.mcpServer.registerTool('collect_feedback', {
             description: 'Collect feedback from users about AI work summary. This tool opens a web interface for users to provide feedback on the AI\'s work.',
             inputSchema: {
-                work_summary: z.string().describe('AI工作匯報內容，描述AI完成的工作和結果')
+                work_summary: z.string().describe('AI工作匯報內容，描述AI完成的工作和結果'),
+                project_name: z.string().optional().describe('專案名稱（用於 Dashboard 分組顯示）'),
+                project_path: z.string().optional().describe('專案路徑（用於唯一識別專案）')
             }
         }, 
         // @ts-expect-error - MCP SDK type instantiation depth issue with TS 5.9
         async (args) => {
             const params = {
-                work_summary: args.work_summary
+                work_summary: args.work_summary,
+                project_name: args.project_name,
+                project_path: args.project_path
             };
             logger.mcp('collect_feedback', params);
             try {
@@ -66,7 +70,8 @@ export class MCPServer {
                             logger: 'user-web-feedback',
                             data: {
                                 event: 'collect_feedback_waiting',
-                                work_summary_length: params.work_summary.length
+                                work_summary_length: params.work_summary.length,
+                                project_name: params.project_name
                             }
                         }
                     });
@@ -86,7 +91,9 @@ export class MCPServer {
                             data: {
                                 event: 'collect_feedback_created',
                                 sessionId: result.sessionId,
-                                feedbackUrl: result.feedbackUrl
+                                feedbackUrl: result.feedbackUrl,
+                                projectId: result.projectId,
+                                projectName: result.projectName
                             }
                         }
                     });
@@ -156,22 +163,23 @@ export class MCPServer {
      * 實作collect_feedback功能
      */
     async collectFeedback(params) {
-        const { work_summary } = params;
+        const { work_summary, project_name, project_path } = params;
         const timeout_seconds = this.config.dialogTimeout;
-        logger.info(`開始收集回饋，工作匯報長度: ${work_summary.length}字元，逾時: ${timeout_seconds}秒`);
+        logger.info(`開始收集回饋，工作匯報長度: ${work_summary.length}字元，逾時: ${timeout_seconds}秒，專案: ${project_name || 'Default'}`);
         // 傳送MCP工具呼叫開始通知
         logger.mcpToolCallStarted('collect_feedback', {
             work_summary_length: work_summary.length,
-            timeout_seconds: timeout_seconds
+            timeout_seconds: timeout_seconds,
+            project_name: project_name
         });
         try {
             // 啟動Web伺服器（如果未執行）
             if (!this.webServer.isRunning()) {
                 await this.webServer.start();
             }
-            // 收集使用者回饋（webServer.collectFeedback 已回傳 { feedback, sessionId, feedbackUrl }）
-            const result = await this.webServer.collectFeedback(work_summary, timeout_seconds);
-            logger.info(`回饋收集流程已完成（可能為空），會話: ${result.sessionId}`);
+            // 收集使用者回饋（webServer.collectFeedback 已回傳 { feedback, sessionId, feedbackUrl, projectId, projectName }）
+            const result = await this.webServer.collectFeedback(work_summary, timeout_seconds, project_name, project_path);
+            logger.info(`回饋收集流程已完成（可能為空），會話: ${result.sessionId}，專案: ${result.projectName}`);
             return result;
         }
         catch (error) {

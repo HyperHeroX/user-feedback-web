@@ -41,6 +41,8 @@ export interface WorkSummary {
 }
 export interface CollectFeedbackParams {
     work_summary: string;
+    project_name?: string | undefined;
+    project_path?: string | undefined;
 }
 export interface TextContent {
     type: 'text';
@@ -97,6 +99,8 @@ export interface Session {
     startTime: number;
     timeout: number;
     status: 'active' | 'completed' | 'timeout' | 'error';
+    projectId?: string;
+    projectName?: string;
 }
 export declare class MCPError extends Error {
     code: string;
@@ -343,5 +347,54 @@ export interface AllMCPToolsResponse {
         serverName: string;
     }>;
     error?: string;
+}
+export interface Project {
+    id: string;
+    name: string;
+    path?: string | undefined;
+    createdAt: string;
+    lastActiveAt: string;
+}
+export interface ProjectSession {
+    projectId: string;
+    sessionId: string;
+    workSummary: string;
+    status: 'waiting' | 'active' | 'completed' | 'timeout';
+    createdAt: string;
+    lastActivityAt: string;
+}
+export interface DashboardOverview {
+    projects: DashboardProjectInfo[];
+    totalProjects: number;
+    totalActiveSessions: number;
+}
+export interface DashboardProjectInfo {
+    project: Project;
+    sessions: DashboardSessionInfo[];
+    totalSessions: number;
+    activeSessions: number;
+}
+export interface DashboardSessionInfo {
+    sessionId: string;
+    status: string;
+    workSummary: string;
+    createdAt: string;
+    lastActivityAt: string;
+}
+export interface DashboardSessionCreatedEvent {
+    projectId: string;
+    sessionId: string;
+    projectName: string;
+    workSummary: string;
+}
+export interface DashboardSessionUpdatedEvent {
+    projectId: string;
+    sessionId: string;
+    status: string;
+    workSummary?: string;
+}
+export interface DashboardProjectActivityEvent {
+    projectId: string;
+    lastActivityAt: string;
 }
 //# sourceMappingURL=index.d.ts.map

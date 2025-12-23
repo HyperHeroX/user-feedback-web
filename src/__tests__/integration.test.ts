@@ -4,6 +4,7 @@
 
 import { MCPServer } from '../server/mcp-server.js';
 import { createDefaultConfig } from '../config/index.js';
+import { projectManager } from '../utils/project-manager.js';
 
 describe('整合測試', () => {
   let mcpServer: MCPServer;
@@ -21,6 +22,8 @@ describe('整合測試', () => {
     if (mcpServer) {
       await mcpServer.stop();
     }
+    // 清理 ProjectManager 單例狀態
+    projectManager.clear();
   }, 60000);
 
   describe('Web伺服器啟動', () => {
@@ -275,6 +278,141 @@ describe('整合測試', () => {
       // 缺少 sessionId 應該回傳 400 錯誤
       expect(response.status).toBe(400);
       expect(data.error).toBeDefined();
+    });
+  });
+
+  describe('Dashboard API 測試', () => {
+    test('Dashboard 總覽應該回傳專案和會話資訊', async () => {
+      const status = mcpServer.getStatus();
+      const response = await fetch(`http://localhost:${status.webPort}/api/dashboard/overview`);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(Array.isArray(data.projects)).toBe(true);
+      expect(typeof data.totalProjects).toBe('number');
+      expect(typeof data.totalActiveSessions).toBe('number');
+    });
+
+    test('建立帶專案的測試會話應該成功', async () => {
+      const status = mcpServer.getStatus();
+      const testData = {
+        work_summary: '這是一個帶專案的測試工作匯報',
+        timeout_seconds: 60,
+        project_name: 'test-project',
+        project_path: '/test/path'
+      };
+
+      const response = await fetch(`http://localhost:${status.webPort}/api/test-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testData)
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(typeof data.session_id).toBe('string');
+      expect(typeof data.feedback_url).toBe('string');
+      expect(typeof data.project_id).toBe('string');
+      expect(data.project_name).toBe('test-project');
+    });
+
+    test('Dashboard 總覽應該包含新建立的專案', async () => {
+      const status = mcpServer.getStatus();
+      const response = await fetch(`http://localhost:${status.webPort}/api/dashboard/overview`);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.totalProjects).toBeGreaterThanOrEqual(1);
+      
+      // 專案資訊包含在 project 物件中
+      const testProject = data.projects.find((p: { project: { name: string } }) => p.project.name === 'test-project');
+      expect(testProject).toBeDefined();
+      expect(testProject.activeSessions).toBeGreaterThanOrEqual(1);
+    });
+
+    test('取得專案詳情應該回傳會話列表', async () => {
+      const status = mcpServer.getStatus();
+      
+      // 先取得專案 ID
+      const overviewResponse = await fetch(`http://localhost:${status.webPort}/api/dashboard/overview`);
+      const overview = await overviewResponse.json();
+      const testProject = overview.projects.find((p: { project: { name: string } }) => p.project.name === 'test-project');
+      
+      expect(testProject).toBeDefined();
+
+      // 取得專案詳情
+      const response = await fetch(`http://localhost:${status.webPort}/api/dashboard/projects/${testProject.project.id}`);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.project.id).toBe(testProject.project.id);
+      expect(data.project.name).toBe('test-project');
+      expect(Array.isArray(data.sessions)).toBe(true);
+      expect(data.sessions.length).toBeGreaterThanOrEqual(1);
+    });
+
+    test('取得會話詳情應該回傳完整資訊', async () => {
+      const status = mcpServer.getStatus();
+      
+      // 先建立一個新會話
+      const testData = {
+        work_summary: '會話詳情測試',
+        timeout_seconds: 60,
+        project_name: 'session-detail-test'
+      };
+
+      const createResponse = await fetch(`http://localhost:${status.webPort}/api/test-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testData)
+      });
+      const createData = await createResponse.json();
+
+      // 取得會話詳情
+      const response = await fetch(`http://localhost:${status.webPort}/api/dashboard/sessions/${createData.session_id}`);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+      expect(data.session.id).toBe(createData.session_id);
+      expect(data.session.workSummary).toBe('會話詳情測試');
+      expect(data.session.status).toBe('active');
+      expect(data.session.projectName).toBe('session-detail-test');
+    });
+
+    test('取得不存在的專案應該回傳 404', async () => {
+      const status = mcpServer.getStatus();
+      const response = await fetch(`http://localhost:${status.webPort}/api/dashboard/projects/nonexistent-id`);
+
+      expect(response.status).toBe(404);
+    });
+
+    test('取得不存在的會話應該回傳 404', async () => {
+      const status = mcpServer.getStatus();
+      const response = await fetch(`http://localhost:${status.webPort}/api/dashboard/sessions/nonexistent-session`);
+
+      expect(response.status).toBe(404);
+    });
+
+    test('無專案名稱的會話應該使用預設專案', async () => {
+      const status = mcpServer.getStatus();
+      const testData = {
+        work_summary: '無專案名稱測試',
+        timeout_seconds: 60
+      };
+
+      const response = await fetch(`http://localhost:${status.webPort}/api/test-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(testData)
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.project_name).toBe('Default');
+      expect(data.project_id).toBeDefined();
     });
   });
 });

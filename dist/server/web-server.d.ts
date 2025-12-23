@@ -64,11 +64,15 @@ export declare class WebServer {
     /**
      * 收集使用者回饋
      */
-    collectFeedback(workSummary: string, timeoutSeconds: number): Promise<{
+    collectFeedback(workSummary: string, timeoutSeconds: number, projectName?: string, projectPath?: string): Promise<{
         feedback: FeedbackData[];
         sessionId: string;
         feedbackUrl: string;
+        projectId: string;
+        projectName: string;
     }>;
+    private emitDashboardSessionCreated;
+    private emitDashboardSessionUpdated;
     /**
      * 產生回饋頁面URL
      */

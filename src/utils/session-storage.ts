@@ -13,6 +13,8 @@ export interface SessionData {
   timeout: number;
   resolve?: (feedback: FeedbackData[]) => void;
   reject?: (error: Error) => void;
+  projectId?: string;     // 關聯的專案 ID
+  projectName?: string;   // 專案名稱（快取）
 }
 
 export class SessionStorage {
@@ -90,6 +92,17 @@ export class SessionStorage {
    */
   getSessionCount(): number {
     return this.sessions.size;
+  }
+
+
+  getSessionsByProject(projectId: string): Map<string, SessionData> {
+    const result = new Map<string, SessionData>();
+    for (const [sessionId, data] of this.sessions.entries()) {
+      if (data.projectId === projectId) {
+        result.set(sessionId, data);
+      }
+    }
+    return result;
   }
 
   /**

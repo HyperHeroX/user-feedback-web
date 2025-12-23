@@ -49,6 +49,38 @@ body {
     overflow: hidden;
 }
 
+/* ============ Dashboard 導航連結 ============ */
+
+.dashboard-nav-link {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 1000;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s ease;
+}
+
+.dashboard-nav-link:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.dashboard-nav-link .icon {
+    font-size: 14px;
+}
+
 /* ============ 連接狀態指示器 ============ */
 
 .connection-status {

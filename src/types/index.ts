@@ -54,6 +54,8 @@ export interface WorkSummary {
 // MCP工具函式參數類型
 export interface CollectFeedbackParams {
   work_summary: string;
+  project_name?: string | undefined;  // 專案名稱
+  project_path?: string | undefined;  // 專案路徑
 }
 
 // MCP內容類型 - 符合MCP協定標準
@@ -115,6 +117,8 @@ export interface Session {
   startTime: number;
   timeout: number;
   status: 'active' | 'completed' | 'timeout' | 'error';
+  projectId?: string;     // 關聯的專案 ID
+  projectName?: string;   // 專案名稱（快取）
 }
 
 // 錯誤類型
@@ -448,4 +452,72 @@ export interface AllMCPToolsResponse {
   success: boolean;
   tools?: Array<MCPToolInfo & { serverId: number; serverName: string }>;
   error?: string;
+}
+
+
+// ============================================
+// Multi-AI Dashboard 類型定義
+// ============================================
+
+// 專案資訊
+export interface Project {
+  id: string;                     // 專案唯一識別碼 (基於名稱或路徑的 hash)
+  name: string;                   // 顯示名稱
+  path?: string | undefined;      // 專案路徑（可選）
+  createdAt: string;              // 首次呼叫時間 (ISO string)
+  lastActiveAt: string;           // 最後活動時間 (ISO string)
+}
+
+// 專案 Session 關聯
+export interface ProjectSession {
+  projectId: string;
+  sessionId: string;
+  workSummary: string;
+  status: 'waiting' | 'active' | 'completed' | 'timeout';
+  createdAt: string;
+  lastActivityAt: string;
+}
+
+// Dashboard 概覽響應
+export interface DashboardOverview {
+  projects: DashboardProjectInfo[];
+  totalProjects: number;
+  totalActiveSessions: number;
+}
+
+// Dashboard 專案資訊
+export interface DashboardProjectInfo {
+  project: Project;
+  sessions: DashboardSessionInfo[];
+  totalSessions: number;
+  activeSessions: number;
+}
+
+// Dashboard Session 資訊
+export interface DashboardSessionInfo {
+  sessionId: string;
+  status: string;
+  workSummary: string;
+  createdAt: string;
+  lastActivityAt: string;
+}
+
+// Dashboard WebSocket 事件
+export interface DashboardSessionCreatedEvent {
+  projectId: string;
+  sessionId: string;
+  projectName: string;
+  workSummary: string;
+}
+
+export interface DashboardSessionUpdatedEvent {
+  projectId: string;
+  sessionId: string;
+  status: string;
+  workSummary?: string;
+}
+
+export interface DashboardProjectActivityEvent {
+  projectId: string;
+  lastActivityAt: string;
 }

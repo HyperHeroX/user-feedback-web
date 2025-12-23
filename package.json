@@ -37,7 +37,7 @@
     "dev": "tsx watch --clear-screen=false src/cli.ts",
     "start": "node dist/cli.js",
     "test": "jest",
-    "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js src/__tests__/integration.test.ts --testPathIgnorePatterns=[]",
+    "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js src/__tests__/integration.test.ts --testPathIgnorePatterns=[] --forceExit",
     "test:all": "npm run test && npm run test:integration",
     "test:watch": "jest --watch",
     "lint": "eslint src/ --ext .ts",
