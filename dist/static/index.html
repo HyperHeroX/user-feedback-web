@@ -231,6 +231,20 @@
                         <input type="number" id="autoReplyTimerSeconds" class="form-control" min="30" max="600" step="10" value="300" placeholder="300">
                         <small class="form-hint">頁面載入後經過此秒數將自動生成 AI 回覆（30-600 秒，預設 300 秒）</small>
                     </div>
+
+                    <div class="form-group">
+                        <label for="maxToolRounds">AI 交談次數上限</label>
+                        <input type="number" id="maxToolRounds" class="form-control" min="1" max="20" step="1" value="5" placeholder="5">
+                        <small class="form-hint">AI 使用 MCP 工具的最大回合數（1-20 次，預設 5 次）</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="debugMode">
+                            <span class="checkbox-text">🔧 Debug 模式</span>
+                        </label>
+                        <small class="form-hint">開啟後 Streaming Panel 不會自動關閉，需手動點擊關閉</small>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -409,7 +423,34 @@
     <!-- Toast 通知 -->
     <div id="toastContainer" class="toast-container"></div>
 
-    <!-- 載入中覆蓋層 -->
+    <!-- AI 回覆 Streaming 面板 -->
+    <div id="aiStreamingPanel" class="ai-streaming-panel" style="display: none;">
+        <div class="streaming-content">
+            <div class="streaming-header">
+                <div class="streaming-title">
+                    <span class="icon">🤖</span>
+                    <span id="streamingTitle">AI 回覆中...</span>
+                </div>
+                <div class="streaming-status">
+                    <span class="status-indicator" id="streamingStatusIndicator"></span>
+                    <span id="streamingStatus">準備中</span>
+                </div>
+            </div>
+            <div class="streaming-body">
+                <div class="streaming-progress" id="streamingProgress">
+                    <!-- 進度項目會動態添加 -->
+                </div>
+                <div class="streaming-output" id="streamingOutput">
+                    <!-- AI 輸出會在這裡顯示 -->
+                </div>
+            </div>
+            <div class="streaming-footer">
+                <button type="button" id="cancelStreaming" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 載入中覆蓋層（簡單操作用） -->
     <div id="loadingOverlay" class="loading-overlay" style="display: none;">
         <div class="loading-spinner">
             <div class="spinner"></div>

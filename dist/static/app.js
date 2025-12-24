@@ -586,6 +586,18 @@ async function loadAISettings() {
         AUTO_REPLY_TIMER_SECONDS = aiSettings.autoReplyTimerSeconds;
         console.log(`從 AI 設定讀取自動回覆時間: ${AUTO_REPLY_TIMER_SECONDS}s`);
       }
+      
+      // 讀取 AI 交談次數上限
+      if (aiSettings.maxToolRounds !== undefined) {
+        maxToolRounds = aiSettings.maxToolRounds;
+        console.log(`從 AI 設定讀取 AI 交談次數: ${maxToolRounds}`);
+      }
+      
+      // 讀取 Debug 模式
+      if (aiSettings.debugMode !== undefined) {
+        debugMode = aiSettings.debugMode;
+        console.log(`從 AI 設定讀取 Debug 模式: ${debugMode}`);
+      }
     }
   } catch (error) {
     console.error("載入 AI 設定失敗:", error);
@@ -740,7 +752,8 @@ async function generateAIReply() {
 
 // ============ MCP AI 工具呼叫整合 ============
 
-const MAX_TOOL_ROUNDS = 5;
+let maxToolRounds = 5;
+let debugMode = false;
 
 /**
  * 解析 AI 回覆中的 tool_calls JSON
@@ -841,42 +854,194 @@ function formatToolResults(results) {
  * @param {Array} toolCalls - 當前執行的工具
  */
 function updateToolProgressUI(round, status, message, toolCalls = []) {
-  let progressContainer = document.getElementById("ai-tool-progress");
+  // 使用新的 streaming panel 而不是舊的 progress container
+  addStreamingProgress(status, message, toolCalls, round);
+}
 
-  if (!progressContainer) {
-    progressContainer = document.createElement("div");
-    progressContainer.id = "ai-tool-progress";
-    progressContainer.className = "ai-tool-progress";
+// ============ AI Streaming Panel 功能 ============
 
-    // 插入到 loading overlay 中或建立獨立顯示
-    const overlay = document.getElementById("loadingOverlay");
-    if (overlay) {
-      const existingMsg = overlay.querySelector(".loading-message");
-      if (existingMsg) {
-        existingMsg.appendChild(progressContainer);
-      }
+let streamingAbortController = null;
+
+/**
+ * 顯示 AI Streaming Panel
+ */
+function showStreamingPanel() {
+  const panel = document.getElementById("aiStreamingPanel");
+  const progressContainer = document.getElementById("streamingProgress");
+  const outputContainer = document.getElementById("streamingOutput");
+  
+  if (panel) {
+    panel.style.display = "flex";
+    if (progressContainer) progressContainer.innerHTML = "";
+    if (outputContainer) outputContainer.innerHTML = '<span class="streaming-cursor"></span>';
+    updateStreamingStatus("thinking", "準備中...");
+    
+    // 綁定取消按鈕
+    const cancelBtn = document.getElementById("cancelStreaming");
+    if (cancelBtn) {
+      cancelBtn.onclick = () => {
+        if (streamingAbortController) {
+          streamingAbortController.abort();
+        }
+        hideStreamingPanel();
+      };
     }
   }
+}
 
+/**
+ * 隱藏 AI Streaming Panel
+ */
+function hideStreamingPanel() {
+  const panel = document.getElementById("aiStreamingPanel");
+  if (panel) {
+    panel.style.display = "none";
+  }
+  streamingAbortController = null;
+}
+
+/**
+ * 更新 Streaming 狀態
+ * @param {string} status - 狀態
+ * @param {string} text - 狀態文字
+ */
+function updateStreamingStatus(status, text) {
+  const indicator = document.getElementById("streamingStatusIndicator");
+  const statusText = document.getElementById("streamingStatus");
+  const title = document.getElementById("streamingTitle");
+  
+  if (indicator) {
+    indicator.className = "status-indicator " + status;
+  }
+  if (statusText) {
+    statusText.textContent = text;
+  }
+  
+  // 根據狀態更新標題
+  const titleMap = {
+    thinking: "AI 思考中...",
+    executing: "執行工具中...",
+    done: "AI 回覆完成",
+    error: "發生錯誤"
+  };
+  if (title && titleMap[status]) {
+    title.textContent = titleMap[status];
+  }
+}
+
+/**
+ * 添加進度項目到 Streaming Panel
+ * @param {string} status - 狀態
+ * @param {string} message - 訊息
+ * @param {Array} toolCalls - 工具調用列表
+ * @param {number} round - 輪次
+ */
+function addStreamingProgress(status, message, toolCalls = [], round = 1) {
+  const container = document.getElementById("streamingProgress");
+  if (!container) return;
+  
   const statusIcons = {
     thinking: "🤔",
     executing: "⏳",
     done: "✅",
-    error: "❌",
+    error: "❌"
   };
-
+  
+  // 更新上一個項目為 completed
+  const prevItems = container.querySelectorAll(".progress-item.active");
+  prevItems.forEach(item => {
+    item.classList.remove("active");
+    item.classList.add("completed");
+  });
+  
+  const item = document.createElement("div");
+  item.className = `progress-item ${status === "done" || status === "error" ? status : "active"}`;
+  
   let toolsHtml = "";
   if (toolCalls.length > 0) {
-    toolsHtml = `<div class="tool-list">${toolCalls
-      .map((t) => `<span class="tool-tag">${t.name}</span>`)
-      .join("")}</div>`;
+    toolsHtml = `<div class="progress-tools">${toolCalls.map(t => `<span class="tool-tag">${t.name}</span>`).join("")}</div>`;
   }
-
-  progressContainer.innerHTML = `
-    <div class="progress-round">Round ${round}/${MAX_TOOL_ROUNDS}</div>
-    <div class="progress-status">${statusIcons[status] || "⏳"} ${message}</div>
-    ${toolsHtml}
+  
+  item.innerHTML = `
+    <span class="progress-icon">${statusIcons[status] || "⏳"}</span>
+    <div class="progress-content">
+      <div class="progress-message">Round ${round}/${maxToolRounds}: ${message}</div>
+      ${toolsHtml}
+    </div>
   `;
+  
+  container.appendChild(item);
+  container.scrollTop = container.scrollHeight;
+  
+  // 更新狀態指示器
+  updateStreamingStatus(status, message);
+}
+
+/**
+ * 添加輸出內容到 Streaming Panel
+ * @param {string} content - 內容
+ * @param {string} type - 類型: 'tool-call', 'tool-result', 'ai-message', 'error'
+ */
+function addStreamingOutput(content, type = "ai-message") {
+  const container = document.getElementById("streamingOutput");
+  if (!container) return;
+  
+  // 移除 cursor
+  const cursor = container.querySelector(".streaming-cursor");
+  
+  const typeClasses = {
+    "tool-call": "tool-call-display",
+    "tool-result": "tool-result-display",
+    "ai-message": "ai-message",
+    "error": "error-message"
+  };
+  
+  const div = document.createElement("div");
+  div.className = typeClasses[type] || "ai-message";
+  
+  // 處理內容顯示
+  if (type === "tool-call") {
+    div.innerHTML = `<strong>🔧 調用工具:</strong><br><pre>${escapeHtml(content)}</pre>`;
+  } else if (type === "tool-result") {
+    div.innerHTML = `<strong>📋 工具結果:</strong><br><pre>${escapeHtml(truncateResult(content))}</pre>`;
+  } else if (type === "error") {
+    div.innerHTML = `<strong>❌ 錯誤:</strong> ${escapeHtml(content)}`;
+    div.style.color = "var(--accent-red)";
+  } else {
+    div.textContent = content;
+  }
+  
+  container.appendChild(div);
+  
+  // 重新添加 cursor
+  if (cursor) {
+    container.appendChild(cursor);
+  }
+  
+  container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * 截斷過長的結果
+ */
+function truncateResult(text, maxLength = 500) {
+  if (typeof text !== "string") {
+    text = JSON.stringify(text, null, 2);
+  }
+  if (text.length > maxLength) {
+    return text.substring(0, maxLength) + "\n... (已截斷)";
+  }
+  return text;
+}
+
+/**
+ * HTML 轉義
+ */
+function escapeHtml(text) {
+  if (typeof text !== "string") return String(text);
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 /**
@@ -920,13 +1085,20 @@ async function generateAIReplyWithTools() {
     return generateAIReply();
   }
 
-  showLoadingOverlay("正在生成 AI 回覆...");
+  // 使用新的 Streaming Panel 而不是 loading overlay
+  showStreamingPanel();
+  streamingAbortController = new AbortController();
 
   let round = 0;
   let toolResults = "";
 
   try {
-    while (round < MAX_TOOL_ROUNDS) {
+    while (round < maxToolRounds) {
+      // 檢查是否被取消
+      if (streamingAbortController?.signal.aborted) {
+        throw new Error("使用者取消操作");
+      }
+      
       round++;
       updateToolProgressUI(round, "thinking", "AI 思考中...");
 
@@ -947,9 +1119,14 @@ async function generateAIReplyWithTools() {
       const data = await response.json();
 
       if (!data.success) {
+        addStreamingOutput(data.error || "AI 回覆失敗", "error");
+        updateStreamingStatus("error", "AI 回覆失敗");
         showToast("error", "AI 回覆失敗", data.error);
         return;
       }
+
+      // 顯示 AI 原始回覆到 streaming output
+      addStreamingOutput(data.reply, "ai-message");
 
       // 解析 AI 回覆
       const parsed = parseToolCalls(data.reply);
@@ -966,12 +1143,22 @@ async function generateAIReplyWithTools() {
 
         document.getElementById("feedbackText").value = finalReply;
         updateCharCount();
+        
+        // 延遲一下讓使用者看到完成狀態
+        await new Promise(r => setTimeout(r, 1000));
+        hideStreamingPanel();
         showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
         return;
       }
 
       // 顯示工具執行狀態
       updateToolProgressUI(round, "executing", "執行工具中...", parsed.toolCalls);
+      
+      // 顯示要執行的工具調用
+      const toolCallsDisplay = parsed.toolCalls.map(t => 
+        `${t.name}(${JSON.stringify(t.arguments, null, 2)})`
+      ).join("\n\n");
+      addStreamingOutput(toolCallsDisplay, "tool-call");
 
       if (parsed.message) {
         // 顯示 AI 的中間訊息
@@ -981,9 +1168,12 @@ async function generateAIReplyWithTools() {
       // 執行工具
       const results = await executeMCPTools(parsed.toolCalls);
       toolResults = formatToolResults(results);
+      
+      // 顯示工具執行結果
+      addStreamingOutput(toolResults, "tool-result");
 
-      // 第 5 輪時顯示確認對話框
-      if (round === MAX_TOOL_ROUNDS) {
+      // 達到最大輪次時顯示確認對話框
+      if (round === maxToolRounds) {
         updateToolProgressUI(round, "done", "已達最大輪次");
 
         const shouldContinue = await showRound5Confirmation();
@@ -996,6 +1186,7 @@ async function generateAIReplyWithTools() {
           }
           document.getElementById("feedbackText").value = finalReply;
           updateCharCount();
+          if (!debugMode) hideStreamingPanel();
           return;
         }
         // 重置輪次計數允許繼續
@@ -1004,14 +1195,12 @@ async function generateAIReplyWithTools() {
     }
   } catch (error) {
     console.error("MCP AI 回覆失敗:", error);
-    showToast("error", "錯誤", "無法生成 AI 回覆");
-  } finally {
-    hideLoadingOverlay();
-    // 清除進度 UI
-    const progressContainer = document.getElementById("ai-tool-progress");
-    if (progressContainer) {
-      progressContainer.remove();
+    if (error.message !== "使用者取消操作") {
+      addStreamingOutput(error.message || "無法生成 AI 回覆", "error");
+      showToast("error", "錯誤", "無法生成 AI 回覆");
     }
+  } finally {
+    if (!debugMode) hideStreamingPanel();
   }
 }
 
@@ -1489,6 +1678,10 @@ function openAISettingsModal() {
     document.getElementById("maxTokens").value = aiSettings.maxTokens || 1000;
     document.getElementById("autoReplyTimerSeconds").value =
       aiSettings.autoReplyTimerSeconds || 300;
+    document.getElementById("maxToolRounds").value =
+      aiSettings.maxToolRounds || 5;
+    document.getElementById("debugMode").checked =
+      aiSettings.debugMode || false;
   }
 
   document.getElementById("aiSettingsModal").classList.add("show");
@@ -1509,6 +1702,10 @@ async function saveAISettings() {
   const autoReplyTimerSeconds = parseInt(
     document.getElementById("autoReplyTimerSeconds").value
   );
+  const maxToolRoundsValue = parseInt(
+    document.getElementById("maxToolRounds").value
+  );
+  const debugModeValue = document.getElementById("debugMode").checked;
 
   const settingsData = {
     apiUrl: apiUrl || undefined,
@@ -1518,6 +1715,8 @@ async function saveAISettings() {
     temperature,
     maxTokens,
     autoReplyTimerSeconds,
+    maxToolRounds: maxToolRoundsValue,
+    debugMode: debugModeValue,
   };
 
   // 只有當 API Key 不是遮罩格式且不為空時才更新
@@ -1551,6 +1750,19 @@ async function saveAISettings() {
         AUTO_REPLY_TIMER_SECONDS = aiSettings.autoReplyTimerSeconds;
         console.log(`自動回覆時間已更新為: ${AUTO_REPLY_TIMER_SECONDS}s`);
       }
+      
+      // 更新 AI 交談次數上限
+      if (aiSettings.maxToolRounds !== undefined) {
+        maxToolRounds = aiSettings.maxToolRounds;
+        console.log(`AI 交談次數已更新為: ${maxToolRounds}`);
+      }
+      
+      // 更新 Debug 模式
+      if (aiSettings.debugMode !== undefined) {
+        debugMode = aiSettings.debugMode;
+        console.log(`Debug 模式已更新為: ${debugMode}`);
+      }
+      
       closeAISettingsModal();
       showToast("success", "成功", "AI 設定已儲存");
     } else {
@@ -1770,7 +1982,7 @@ function resumeAutoReplyTimer() {
 /**
  * 觸發自動 AI 回應
  * 倒數到 0 秒時調用此函數
- * 流程：呼叫 AI 回覆 → 取得內容 → 彈出 10 秒確認視窗 → 10 秒後提交
+ * 流程：呼叫 AI 回覆（含工具調用）→ 取得內容 → 彈出 10 秒確認視窗 → 10 秒後提交
  */
 async function triggerAutoAIReply() {
   console.log("觸發自動 AI 回應...");
@@ -1788,55 +2000,150 @@ async function triggerAutoAIReply() {
     return;
   }
 
-  // 顯示載入中
-  showLoadingOverlay("正在自動生成 AI 回覆...");
+  const userContext = document.getElementById("feedbackText").value;
+
+  // 檢查是否有可用的 MCP 工具
+  let hasMCPTools = false;
+  try {
+    const toolsResponse = await fetch("/api/mcp-tools");
+    const toolsData = await toolsResponse.json();
+    hasMCPTools = toolsData.success && toolsData.tools && toolsData.tools.length > 0;
+  } catch {
+    hasMCPTools = false;
+  }
+
+  if (!hasMCPTools) {
+    // 沒有 MCP 工具，使用簡單的 AI 回覆
+    showLoadingOverlay("正在自動生成 AI 回覆...");
+    try {
+      const response = await fetch("/api/ai-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          aiMessage: workSummary,
+          userContext: userContext,
+          projectName: currentProjectName || undefined,
+          projectPath: currentProjectPath || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        const pinnedPromptsContent = await getPinnedPromptsContent();
+        let finalReply = data.reply;
+        if (pinnedPromptsContent) {
+          finalReply = pinnedPromptsContent + "\n\n" + data.reply;
+        }
+        document.getElementById("feedbackText").value = finalReply;
+        updateCharCount();
+        hideLoadingOverlay();
+        showAutoReplyConfirmModal(finalReply);
+      } else {
+        hideLoadingOverlay();
+        showToast("error", "AI 回覆失敗", data.error);
+      }
+    } catch (error) {
+      console.error("自動生成 AI 回覆失敗:", error);
+      hideLoadingOverlay();
+      showToast("error", "錯誤", "無法自動生成 AI 回覆");
+    }
+    return;
+  }
+
+  // 有 MCP 工具，使用 Streaming Panel 顯示工具調用過程
+  showStreamingPanel();
+  streamingAbortController = new AbortController();
+  
+  // 更新標題
+  const title = document.getElementById("streamingTitle");
+  if (title) title.textContent = "自動 AI 回覆中...";
+
+  let round = 0;
+  let toolResults = "";
+  let finalReply = "";
 
   try {
-    // 呼叫 AI 回覆 API
-    const userContext = document.getElementById("feedbackText").value;
+    while (round < maxToolRounds) {
+      if (streamingAbortController?.signal.aborted) {
+        throw new Error("使用者取消操作");
+      }
+      
+      round++;
+      updateToolProgressUI(round, "thinking", "AI 思考中...");
 
-    const response = await fetch("/api/ai-reply", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        aiMessage: workSummary,
-        userContext: userContext,
-        includeMCPTools: true,
-        projectName: currentProjectName || undefined,
-        projectPath: currentProjectPath || undefined,
-      }),
-    });
+      const response = await fetch("/api/ai-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          aiMessage: workSummary,
+          userContext: userContext,
+          includeMCPTools: true,
+          toolResults: toolResults || undefined,
+          projectName: currentProjectName || undefined,
+          projectPath: currentProjectPath || undefined,
+        }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (data.success) {
-      // 取得釘選提示詞
-      const pinnedPromptsContent = await getPinnedPromptsContent();
-
-      // 組合回覆：釘選提示詞 + AI 生成的回覆
-      let finalReply = data.reply;
-      if (pinnedPromptsContent) {
-        finalReply = pinnedPromptsContent + "\n\n" + data.reply;
+      if (!data.success) {
+        addStreamingOutput(data.error || "AI 回覆失敗", "error");
+        updateStreamingStatus("error", "AI 回覆失敗");
+        showToast("error", "AI 回覆失敗", data.error);
+        return;
       }
 
-      // 將回覆內容填入文字框
-      document.getElementById("feedbackText").value = finalReply;
-      updateCharCount();
+      addStreamingOutput(data.reply, "ai-message");
+      const parsed = parseToolCalls(data.reply);
 
-      hideLoadingOverlay();
+      if (!parsed.hasToolCalls) {
+        updateToolProgressUI(round, "done", "完成!");
+        finalReply = parsed.message || data.reply;
+        break;
+      }
 
-      // 彈出 10 秒確認視窗
-      showAutoReplyConfirmModal(finalReply);
-    } else {
-      hideLoadingOverlay();
-      showToast("error", "AI 回覆失敗", data.error);
+      updateToolProgressUI(round, "executing", "執行工具中...", parsed.toolCalls);
+      
+      const toolCallsDisplay = parsed.toolCalls.map(t => 
+        `${t.name}(${JSON.stringify(t.arguments, null, 2)})`
+      ).join("\n\n");
+      addStreamingOutput(toolCallsDisplay, "tool-call");
+
+      const results = await executeMCPTools(parsed.toolCalls);
+      toolResults = formatToolResults(results);
+      addStreamingOutput(toolResults, "tool-result");
+
+      if (round === maxToolRounds) {
+        updateToolProgressUI(round, "done", "已達最大輪次");
+        finalReply = parsed.message || "AI 工具呼叫已達最大輪次。\n\n" + toolResults;
+        break;
+      }
     }
+
+    // 取得釘選提示詞並組合最終回覆
+    const pinnedPromptsContent = await getPinnedPromptsContent();
+    if (pinnedPromptsContent) {
+      finalReply = pinnedPromptsContent + "\n\n" + finalReply;
+    }
+
+    document.getElementById("feedbackText").value = finalReply;
+    updateCharCount();
+    
+    await new Promise(r => setTimeout(r, 1000));
+    if (!debugMode) hideStreamingPanel();
+    
+    // 彈出確認視窗
+    showAutoReplyConfirmModal(finalReply);
+    
   } catch (error) {
     console.error("自動生成 AI 回覆失敗:", error);
-    hideLoadingOverlay();
-    showToast("error", "錯誤", "無法自動生成 AI 回覆");
+    if (error.message !== "使用者取消操作") {
+      addStreamingOutput(error.message || "無法自動生成 AI 回覆", "error");
+      showToast("error", "錯誤", "無法自動生成 AI 回覆");
+    }
+  } finally {
+    if (!debugMode) hideStreamingPanel();
   }
 }
 
