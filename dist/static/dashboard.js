@@ -1,18 +1,21 @@
-"use strict";
 /**
  * Dashboard 前端邏輯
  * 負責載入和顯示專案概覽，並提供即時更新
  */
-(function () {
+
+(function() {
     'use strict';
+
     // 配置
     const POLLING_INTERVAL = 3000; // 3秒輪詢間隔
     const API_BASE = '';
+
     // 狀態
     let socket = null;
     let pollTimer = null;
     let currentData = null;
     let searchFilter = '';
+
     // DOM 元素
     const elements = {
         connectionStatus: document.getElementById('connectionStatus'),
@@ -25,6 +28,7 @@
         emptyState: document.getElementById('emptyState'),
         searchInput: document.getElementById('searchInput')
     };
+
     // 初始化
     function init() {
         initSocket();
@@ -33,6 +37,7 @@
         startPolling();
         loadVersion();
     }
+
     // 載入版本資訊
     async function loadVersion() {
         try {
@@ -41,11 +46,11 @@
             if (data.version) {
                 elements.versionDisplay.textContent = `v${data.version}`;
             }
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Failed to load version:', error);
         }
     }
+
     // 初始化 Socket.IO 連接
     function initSocket() {
         socket = io({
@@ -53,28 +58,34 @@
             reconnectionDelay: 1000,
             reconnectionAttempts: Infinity
         });
+
         socket.on('connect', () => {
             updateConnectionStatus(true);
             console.log('[Dashboard] Socket connected');
         });
+
         socket.on('disconnect', () => {
             updateConnectionStatus(false);
             console.log('[Dashboard] Socket disconnected');
         });
+
         // 監聽 Dashboard 事件
         socket.on('dashboard:session_created', (data) => {
             console.log('[Dashboard] Session created:', data);
             loadDashboardData();
         });
+
         socket.on('dashboard:session_updated', (data) => {
             console.log('[Dashboard] Session updated:', data);
             loadDashboardData();
         });
+
         socket.on('dashboard:project_activity', (data) => {
             console.log('[Dashboard] Project activity:', data);
             loadDashboardData();
         });
     }
+
     // 更新連接狀態顯示
     function updateConnectionStatus(connected) {
         elements.connectionStatus.classList.toggle('connected', connected);
@@ -84,16 +95,19 @@
             statusText.textContent = connected ? '已連接' : '已斷開';
         }
     }
+
     // 初始化事件監聽器
     function initEventListeners() {
         elements.refreshBtn.addEventListener('click', () => {
             loadDashboardData();
         });
+
         elements.searchInput.addEventListener('input', (e) => {
             searchFilter = e.target.value.toLowerCase();
             renderProjects();
         });
     }
+
     // 開始輪詢
     function startPolling() {
         if (pollTimer) {
@@ -101,6 +115,7 @@
         }
         pollTimer = setInterval(loadDashboardData, POLLING_INTERVAL);
     }
+
     // 載入 Dashboard 資料
     async function loadDashboardData() {
         try {
@@ -108,20 +123,22 @@
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
+            
             currentData = await response.json();
             updateStats();
             renderProjects();
-        }
-        catch (error) {
+        } catch (error) {
             console.error('[Dashboard] Failed to load data:', error);
         }
     }
+
     // 更新統計數據
     function updateStats() {
-        if (!currentData)
-            return;
+        if (!currentData) return;
+
         elements.totalProjects.textContent = currentData.totalProjects || 0;
         elements.activeSessions.textContent = currentData.totalActiveSessions || 0;
+
         // 計算已完成的會話數
         let completed = 0;
         if (currentData.projects) {
@@ -133,13 +150,16 @@
         }
         elements.completedSessions.textContent = completed;
     }
+
     // 渲染專案列表
     function renderProjects() {
         if (!currentData || !currentData.projects) {
             showEmptyState();
             return;
         }
+
         let projects = currentData.projects;
+
         // 搜尋過濾
         if (searchFilter) {
             projects = projects.filter(p => {
@@ -148,14 +168,19 @@
                 return name.includes(searchFilter) || path.includes(searchFilter);
             });
         }
+
         if (projects.length === 0) {
             showEmptyState();
             return;
         }
+
         hideEmptyState();
+
         // 按活躍會話數排序
         projects.sort((a, b) => (b.activeSessions || 0) - (a.activeSessions || 0));
+
         elements.projectsList.innerHTML = projects.map(p => renderProjectCard(p)).join('');
+
         // 綁定點擊事件
         elements.projectsList.querySelectorAll('.project-card').forEach(card => {
             card.addEventListener('click', () => {
@@ -163,6 +188,7 @@
                 navigateToSession(projectId);
             });
         });
+
         // 綁定會話項點擊事件
         elements.projectsList.querySelectorAll('.session-item').forEach(item => {
             item.addEventListener('click', (e) => {
@@ -172,17 +198,21 @@
             });
         });
     }
+
     // 渲染單個專案卡片
     function renderProjectCard(projectData) {
         const project = projectData.project || {};
         const sessions = projectData.sessions || [];
         const activeSessions = projectData.activeSessions || 0;
         const totalSessions = projectData.totalSessions || 0;
+
         const hasActive = activeSessions > 0;
         const badgeClass = hasActive ? 'active' : 'idle';
         const badgeText = hasActive ? `${activeSessions} 等待中` : '無等待';
+
         // 最多顯示 3 個會話
         const displaySessions = sessions.slice(0, 3);
+
         return `
             <div class="project-card ${hasActive ? 'has-active' : ''}" data-project-id="${project.id}">
                 <div class="project-card-header">
@@ -217,12 +247,14 @@
             </div>
         `;
     }
+
     // 渲染會話項
     function renderSessionItem(session) {
         const status = session.status || 'active';
         const statusText = getStatusText(status);
         const summary = session.workSummary || '無摘要';
         const truncatedSummary = summary.length > 50 ? summary.substring(0, 50) + '...' : summary;
+
         return `
             <div class="session-item ${status}" data-session-id="${session.sessionId}">
                 <span class="session-summary">${escapeHtml(truncatedSummary)}</span>
@@ -230,6 +262,7 @@
             </div>
         `;
     }
+
     // 獲取狀態文字
     function getStatusText(status) {
         const statusMap = {
@@ -240,48 +273,53 @@
         };
         return statusMap[status] || status;
     }
+
     // 顯示空狀態
     function showEmptyState() {
         elements.projectsList.innerHTML = '';
         elements.emptyState.style.display = 'flex';
     }
+
     // 隱藏空狀態
     function hideEmptyState() {
         elements.emptyState.style.display = 'none';
     }
+
     // 導航到專案的第一個活躍會話
     function navigateToSession(projectId) {
-        if (!currentData)
-            return;
+        if (!currentData) return;
+
         const projectData = currentData.projects.find(p => p.project?.id === projectId);
         if (!projectData || !projectData.sessions || projectData.sessions.length === 0) {
             console.log('[Dashboard] No sessions for project:', projectId);
             return;
         }
+
         // 優先選擇等待中的會話
         const activeSession = projectData.sessions.find(s => s.status === 'active' || s.status === 'waiting');
         const sessionId = activeSession ? activeSession.sessionId : projectData.sessions[0].sessionId;
+        
         navigateToSessionPage(sessionId);
     }
+
     // 導航到會話頁面
     function navigateToSessionPage(sessionId) {
         // 導航到會話回饋頁面
         window.location.href = `/?sessionId=${sessionId}`;
     }
+
     // HTML 轉義
     function escapeHtml(text) {
-        if (!text)
-            return '';
+        if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
+
     // 頁面載入完成後初始化
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
-    }
-    else {
+    } else {
         init();
     }
 })();
-//# sourceMappingURL=dashboard.js.map

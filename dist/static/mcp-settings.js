@@ -1,11 +1,13 @@
-"use strict";
 /**
  * MCP Settings 前端邏輯
  * 負責 MCP Server 的管理和工具配置
  */
-(function () {
+
+(function() {
     'use strict';
+
     const API_BASE = '';
+
     // DOM 元素
     const elements = {
         serverList: document.getElementById('serverList'),
@@ -33,31 +35,34 @@
         loadingOverlay: document.getElementById('loadingOverlay'),
         toastContainer: document.getElementById('toastContainer')
     };
+
     // 狀態
     let servers = [];
+
     // 初始化
     function init() {
         loadServers();
         initEventListeners();
     }
+
     // 載入 Server 列表
     async function loadServers() {
         try {
             const response = await fetch(`${API_BASE}/api/mcp-servers`);
             const data = await response.json();
+            
             if (data.success) {
                 servers = data.servers || [];
                 renderServers();
-            }
-            else {
+            } else {
                 showToast('載入 Server 列表失敗', 'error');
             }
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Failed to load servers:', error);
             showToast('載入 Server 列表失敗', 'error');
         }
     }
+
     // 渲染 Server 列表
     function renderServers() {
         if (servers.length === 0) {
@@ -65,17 +70,21 @@
             elements.emptyState.style.display = 'block';
             return;
         }
+
         elements.emptyState.style.display = 'none';
         elements.serverList.innerHTML = servers.map(server => renderServerCard(server)).join('');
+
         // 綁定事件
         bindServerEvents();
     }
+
     // 渲染單個 Server 卡片
     function renderServerCard(server) {
         const state = server.state || { status: 'disconnected', tools: [], resources: [], prompts: [] };
         const statusClass = state.status;
         const statusText = getStatusText(state.status);
         const tools = state.tools || [];
+
         return `
             <div class="server-card ${statusClass}" data-server-id="${server.id}">
                 <div class="server-header">
@@ -87,9 +96,10 @@
                         </span>
                     </div>
                     <div class="server-actions">
-                        ${state.status === 'connected'
-            ? `<button class="btn btn-secondary btn-disconnect" data-id="${server.id}">斷開</button>`
-            : `<button class="btn btn-success btn-connect" data-id="${server.id}">連接</button>`}
+                        ${state.status === 'connected' 
+                            ? `<button class="btn btn-secondary btn-disconnect" data-id="${server.id}">斷開</button>`
+                            : `<button class="btn btn-success btn-connect" data-id="${server.id}">連接</button>`
+                        }
                         <button class="btn btn-secondary btn-edit" data-id="${server.id}">編輯</button>
                         <button class="btn btn-danger btn-delete" data-id="${server.id}">刪除</button>
                     </div>
@@ -140,10 +150,12 @@
             </div>
         `;
     }
+
     // 渲染工具項目
     function renderToolItem(serverId, tool) {
         const enabled = tool.enabled !== false;
         const encodedName = encodeURIComponent(tool.name);
+        
         return `
             <div class="tool-item ${enabled ? '' : 'disabled'}">
                 <input type="checkbox" class="tool-checkbox" 
@@ -157,6 +169,7 @@
             </div>
         `;
     }
+
     // 獲取狀態文字
     function getStatusText(status) {
         const statusMap = {
@@ -167,26 +180,33 @@
         };
         return statusMap[status] || status;
     }
+
     // 初始化事件監聽
     function initEventListeners() {
         // 新增 Server
         elements.addServerBtn.addEventListener('click', () => openModal());
+
         // 全部連接
         elements.connectAllBtn.addEventListener('click', connectAll);
+
         // 全部斷開
         elements.disconnectAllBtn.addEventListener('click', disconnectAll);
+
         // 創建 Serena
         elements.createSerenaBtn.addEventListener('click', createSerena);
+
         // Modal 事件
         elements.closeModal.addEventListener('click', closeModal);
         elements.cancelBtn.addEventListener('click', closeModal);
         elements.saveBtn.addEventListener('click', saveServer);
+
         // 傳輸方式切換
         elements.serverTransport.addEventListener('change', (e) => {
             const isStdio = e.target.value === 'stdio';
             elements.stdioFields.style.display = isStdio ? 'block' : 'none';
             elements.httpFields.style.display = isStdio ? 'none' : 'block';
         });
+
         // 點擊 Modal 外部關閉
         elements.serverModal.addEventListener('click', (e) => {
             if (e.target === elements.serverModal) {
@@ -194,24 +214,29 @@
             }
         });
     }
+
     // 綁定 Server 事件
     function bindServerEvents() {
         // 連接按鈕
         document.querySelectorAll('.btn-connect').forEach(btn => {
             btn.addEventListener('click', () => connectServer(parseInt(btn.dataset.id)));
         });
+
         // 斷開按鈕
         document.querySelectorAll('.btn-disconnect').forEach(btn => {
             btn.addEventListener('click', () => disconnectServer(parseInt(btn.dataset.id)));
         });
+
         // 編輯按鈕
         document.querySelectorAll('.btn-edit').forEach(btn => {
             btn.addEventListener('click', () => editServer(parseInt(btn.dataset.id)));
         });
+
         // 刪除按鈕
         document.querySelectorAll('.btn-delete').forEach(btn => {
             btn.addEventListener('click', () => deleteServer(parseInt(btn.dataset.id)));
         });
+
         // 工具啟用切換
         document.querySelectorAll('.tool-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
@@ -222,6 +247,7 @@
             });
         });
     }
+
     // 打開 Modal
     function openModal(server = null) {
         if (server) {
@@ -233,23 +259,26 @@
             elements.serverArgs.value = (server.args || []).join('\n');
             elements.serverEnv.value = server.env ? JSON.stringify(server.env, null, 2) : '';
             elements.serverUrl.value = server.url || '';
-        }
-        else {
+        } else {
             elements.modalTitle.textContent = '新增 MCP Server';
             elements.serverId.value = '';
             elements.serverForm.reset();
             elements.serverEnv.value = '';
         }
+
         // 更新欄位顯示
         const isStdio = elements.serverTransport.value === 'stdio';
         elements.stdioFields.style.display = isStdio ? 'block' : 'none';
         elements.httpFields.style.display = isStdio ? 'none' : 'block';
+
         elements.serverModal.classList.add('active');
     }
+
     // 關閉 Modal
     function closeModal() {
         elements.serverModal.classList.remove('active');
     }
+
     // 儲存 Server
     async function saveServer() {
         const id = elements.serverId.value;
@@ -259,29 +288,34 @@
         const argsText = elements.serverArgs.value.trim();
         const envText = elements.serverEnv.value.trim();
         const url = elements.serverUrl.value.trim();
+
         if (!name) {
             showToast('請輸入名稱', 'error');
             return;
         }
+
         if (transport === 'stdio' && !command) {
             showToast('stdio 傳輸方式需要指定命令', 'error');
             return;
         }
+
         if (transport !== 'stdio' && !url) {
             showToast(`${transport} 傳輸方式需要指定 URL`, 'error');
             return;
         }
+
         let env = {};
         if (envText) {
             try {
                 env = JSON.parse(envText);
-            }
-            catch (e) {
+            } catch (e) {
                 showToast('環境變數格式錯誤，請使用 JSON 格式', 'error');
                 return;
             }
         }
+
         const args = argsText ? argsText.split('\n').map(a => a.trim()).filter(a => a) : [];
+
         const data = {
             name,
             transport,
@@ -291,33 +325,36 @@
             url: transport !== 'stdio' ? url : undefined,
             enabled: true
         };
+
         showLoading(true);
+
         try {
             const endpoint = id ? `${API_BASE}/api/mcp-servers/${id}` : `${API_BASE}/api/mcp-servers`;
             const method = id ? 'PUT' : 'POST';
+
             const response = await fetch(endpoint, {
                 method,
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
+
             const result = await response.json();
+
             if (result.success) {
                 showToast(id ? 'Server 更新成功' : 'Server 創建成功', 'success');
                 closeModal();
                 loadServers();
-            }
-            else {
+            } else {
                 showToast(result.error || '操作失敗', 'error');
             }
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Save server failed:', error);
             showToast('操作失敗', 'error');
-        }
-        finally {
+        } finally {
             showLoading(false);
         }
     }
+
     // 連接 Server
     async function connectServer(id) {
         showLoading(true);
@@ -326,22 +363,21 @@
                 method: 'POST'
             });
             const result = await response.json();
+
             if (result.success) {
                 showToast('連接成功', 'success');
-            }
-            else {
+            } else {
                 showToast(result.error || '連接失敗', 'error');
             }
             loadServers();
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Connect failed:', error);
             showToast('連接失敗', 'error');
-        }
-        finally {
+        } finally {
             showLoading(false);
         }
     }
+
     // 斷開 Server
     async function disconnectServer(id) {
         showLoading(true);
@@ -350,22 +386,21 @@
                 method: 'POST'
             });
             const result = await response.json();
+
             if (result.success) {
                 showToast('已斷開連接', 'success');
-            }
-            else {
+            } else {
                 showToast(result.error || '斷開失敗', 'error');
             }
             loadServers();
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Disconnect failed:', error);
             showToast('斷開失敗', 'error');
-        }
-        finally {
+        } finally {
             showLoading(false);
         }
     }
+
     // 編輯 Server
     function editServer(id) {
         const server = servers.find(s => s.id === id);
@@ -373,33 +408,34 @@
             openModal(server);
         }
     }
+
     // 刪除 Server
     async function deleteServer(id) {
         if (!confirm('確定要刪除此 Server 嗎？')) {
             return;
         }
+
         showLoading(true);
         try {
             const response = await fetch(`${API_BASE}/api/mcp-servers/${id}`, {
                 method: 'DELETE'
             });
             const result = await response.json();
+
             if (result.success) {
                 showToast('Server 已刪除', 'success');
                 loadServers();
-            }
-            else {
+            } else {
                 showToast(result.error || '刪除失敗', 'error');
             }
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Delete failed:', error);
             showToast('刪除失敗', 'error');
-        }
-        finally {
+        } finally {
             showLoading(false);
         }
     }
+
     // 全部連接
     async function connectAll() {
         showLoading(true);
@@ -408,23 +444,22 @@
                 method: 'POST'
             });
             const result = await response.json();
+
             if (result.success) {
                 const successCount = result.results.filter(r => r.success).length;
                 showToast(`連接完成：${successCount}/${result.results.length} 成功`, 'success');
                 loadServers();
-            }
-            else {
+            } else {
                 showToast(result.error || '連接失敗', 'error');
             }
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Connect all failed:', error);
             showToast('連接失敗', 'error');
-        }
-        finally {
+        } finally {
             showLoading(false);
         }
     }
+
     // 全部斷開
     async function disconnectAll() {
         showLoading(true);
@@ -433,25 +468,25 @@
                 method: 'POST'
             });
             const result = await response.json();
+
             if (result.success) {
                 showToast('已斷開所有連接', 'success');
                 loadServers();
-            }
-            else {
+            } else {
                 showToast(result.error || '斷開失敗', 'error');
             }
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Disconnect all failed:', error);
             showToast('斷開失敗', 'error');
-        }
-        finally {
+        } finally {
             showLoading(false);
         }
     }
+
     // 創建 Serena
     async function createSerena() {
         const projectPath = elements.serenaProjectPath.value.trim();
+
         showLoading(true);
         try {
             const response = await fetch(`${API_BASE}/api/mcp-presets/serena/create`, {
@@ -460,76 +495,79 @@
                 body: JSON.stringify({ projectPath, autoConnect: true })
             });
             const result = await response.json();
+
             if (result.success) {
                 const state = result.server?.state;
                 if (state?.status === 'connected') {
                     showToast(`Serena 創建並連接成功，共 ${state.tools?.length || 0} 個工具`, 'success');
-                }
-                else {
+                } else {
                     showToast(`Serena 創建成功，但連接失敗：${state?.error || '未知錯誤'}`, 'error');
                 }
                 loadServers();
-            }
-            else {
+            } else {
                 showToast(result.error || '創建失敗', 'error');
             }
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Create Serena failed:', error);
             showToast('創建 Serena 失敗', 'error');
-        }
-        finally {
+        } finally {
             showLoading(false);
         }
     }
+
     // 切換工具啟用狀態
     async function toggleToolEnabled(serverId, toolName, enabled) {
         try {
-            const response = await fetch(`${API_BASE}/api/mcp-servers/${serverId}/tools/${encodeURIComponent(toolName)}/enable`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled })
-            });
+            const response = await fetch(
+                `${API_BASE}/api/mcp-servers/${serverId}/tools/${encodeURIComponent(toolName)}/enable`,
+                {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled })
+                }
+            );
             const result = await response.json();
+
             if (!result.success) {
                 showToast(result.error || '設定失敗', 'error');
                 loadServers();
             }
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Toggle tool failed:', error);
             showToast('設定失敗', 'error');
             loadServers();
         }
     }
+
     // 顯示/隱藏 Loading
     function showLoading(show) {
         elements.loadingOverlay.classList.toggle('active', show);
     }
+
     // 顯示 Toast
     function showToast(message, type = 'info') {
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
         toast.textContent = message;
         elements.toastContainer.appendChild(toast);
+
         setTimeout(() => {
             toast.remove();
         }, 3000);
     }
+
     // HTML 轉義
     function escapeHtml(text) {
-        if (!text)
-            return '';
+        if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
+
     // 頁面載入完成後初始化
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
-    }
-    else {
+    } else {
         init();
     }
 })();
-//# sourceMappingURL=mcp-settings.js.map

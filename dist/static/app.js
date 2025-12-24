@@ -1,9 +1,10 @@
-"use strict";
 /**
  * user-feedback MCP Tools - Enhanced UI
  * 前端 JavaScript 主檔案
  */
+
 // ============ 全局變量 ============
+
 let socket = null;
 let sessionId = null;
 let workSummary = null;
@@ -26,108 +27,133 @@ let autoReplyTimerRemaining = 0; // 300 秒計時器的剩餘秒數
 let autoReplyTimerPaused = false; // 是否已暫停
 let autoReplyPausedByFocus = false; // 是否由於 textarea focus 導致暫停
 let closeCountdownInterval = null; // 用於關閉頁面倒數計時
+
 // 對話超時時間（秒），從伺服器環境變數讀取，默認 60 秒
 // 用於關閉頁面倒數計時
 let DIALOG_TIMEOUT_SECONDS = 60; // 預設值 60 秒，將從伺服器讀取
+
 // 自動回應倒數時間（秒），從 AI 設定讀取，默認 300 秒
 // 當達到 0 秒時自動啟動 AI 回應
 let AUTO_REPLY_TIMER_SECONDS = 300; // 預設值 300 秒（5 分鐘），將從 AI 設定讀取
+
 // ============ 初始化 ============
+
 document.addEventListener("DOMContentLoaded", () => {
-    console.log("Enhanced UI 初始化...");
-    // 初始化 Socket.IO
-    initSocketIO();
-    // 初始化事件監聽器
-    initEventListeners();
-    // 載入資料
-    loadInitialData();
+  console.log("Enhanced UI 初始化...");
+
+  // 初始化 Socket.IO
+  initSocketIO();
+
+  // 初始化事件監聽器
+  initEventListeners();
+
+  // 載入資料
+  loadInitialData();
 });
+
 // ============ Socket.IO 管理 ============
+
 function initSocketIO() {
-    socket = io({
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        reconnectionAttempts: Infinity,
+  socket = io({
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    reconnectionAttempts: Infinity,
+  });
+
+  // 連接事件
+  socket.on("connect", () => {
+    console.log("Socket.IO 已連接");
+    updateConnectionStatus(true);
+
+    // 請求會話
+    socket.emit("request_session");
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Socket.IO 已斷開");
+    updateConnectionStatus(false);
+  });
+
+  // 會話事件
+  socket.on("session_assigned", (data) => {
+    console.log("會話已分配:", data);
+    sessionId = data.session_id;
+    workSummary = data.work_summary;
+    currentProjectName = data.project_name || null;
+    currentProjectPath = data.project_path || null;
+
+    // 顯示專案資訊
+    displayProjectInfo(currentProjectName, currentProjectPath);
+
+    // 顯示 AI 訊息
+    displayAIMessage(workSummary);
+
+    // 啟動自動回覆計時器
+    socket.emit("session_ready", {
+      sessionId: sessionId,
+      workSummary: workSummary,
     });
-    // 連接事件
-    socket.on("connect", () => {
-        console.log("Socket.IO 已連接");
-        updateConnectionStatus(true);
-        // 請求會話
-        socket.emit("request_session");
-    });
-    socket.on("disconnect", () => {
-        console.log("Socket.IO 已斷開");
-        updateConnectionStatus(false);
-    });
-    // 會話事件
-    socket.on("session_assigned", (data) => {
-        console.log("會話已分配:", data);
-        sessionId = data.session_id;
-        workSummary = data.work_summary;
-        currentProjectName = data.project_name || null;
-        currentProjectPath = data.project_path || null;
-        // 顯示專案資訊
-        displayProjectInfo(currentProjectName, currentProjectPath);
-        // 顯示 AI 訊息
-        displayAIMessage(workSummary);
-        // 啟動自動回覆計時器
-        socket.emit("session_ready", {
-            sessionId: sessionId,
-            workSummary: workSummary,
-        });
-    });
-    socket.on("no_active_session", () => {
-        console.log("無活跃會話");
-        showToast("info", "等待中", "目前沒有活躍的反饋會話");
-    });
-    // 反饋提交事件
-    socket.on("feedback_submitted", (data) => {
-        console.log("反饋已提交:", data);
-        // 隱藏任何正在顯示的提醒彈窗
-        hideAlertModal();
-        showToast("success", "成功", "反饋已成功提交");
-        // 選擇性清除提交輸入（保留提示詞）
-        clearSubmissionInputs();
-        // 停止原有的關閉倒數計時器
-        if (closeCountdownInterval) {
-            clearInterval(closeCountdownInterval);
-            closeCountdownInterval = null;
-        }
-        // 3 秒後關閉頁面
-        const countdownEl = document.getElementById("close-cd");
-        if (countdownEl) {
-            let remaining = 3;
-            countdownEl.style.display = "inline-flex";
-            countdownEl.textContent = remaining;
-            closeCountdownInterval = setInterval(() => {
-                remaining--;
-                countdownEl.textContent = remaining;
-                if (remaining <= 0) {
-                    clearInterval(closeCountdownInterval);
-                    closeCountdownInterval = null;
-                    console.log("提交成功，3秒後關閉頁面");
-                    // 嘗試關閉頁面
-                    try {
-                        // 首先嘗試 window.close()
-                        window.close();
-                        // 如果 window.close() 成功，後續代碼不會執行
-                    }
-                    catch (error) {
-                        console.warn("無法使用 window.close() 關閉頁面:", error);
-                    }
-                    // 備用方案：如果 window.close() 失敗，等待 1 秒後嘗試其他方式
-                    setTimeout(() => {
-                        // 隱藏主容器，顯示完成訊息
-                        const container = document.querySelector(".feedback-container");
-                        if (container) {
-                            container.style.display = "none";
-                        }
-                        // 顯示完成訊息
-                        const body = document.body;
-                        const completedMsg = document.createElement("div");
-                        completedMsg.style.cssText = `
+  });
+
+  socket.on("no_active_session", () => {
+    console.log("無活跃會話");
+    showToast("info", "等待中", "目前沒有活躍的反饋會話");
+  });
+
+  // 反饋提交事件
+  socket.on("feedback_submitted", (data) => {
+    console.log("反饋已提交:", data);
+    // 隱藏任何正在顯示的提醒彈窗
+    hideAlertModal();
+    showToast("success", "成功", "反饋已成功提交");
+
+    // 選擇性清除提交輸入（保留提示詞）
+    clearSubmissionInputs();
+
+    // 停止原有的關閉倒數計時器
+    if (closeCountdownInterval) {
+      clearInterval(closeCountdownInterval);
+      closeCountdownInterval = null;
+    }
+
+    // 3 秒後關閉頁面
+    const countdownEl = document.getElementById("close-cd");
+    if (countdownEl) {
+      let remaining = 3;
+      countdownEl.style.display = "inline-flex";
+      countdownEl.textContent = remaining;
+
+      closeCountdownInterval = setInterval(() => {
+        remaining--;
+        countdownEl.textContent = remaining;
+
+        if (remaining <= 0) {
+          clearInterval(closeCountdownInterval);
+          closeCountdownInterval = null;
+          console.log("提交成功，3秒後關閉頁面");
+
+          // 嘗試關閉頁面
+          try {
+            // 首先嘗試 window.close()
+            window.close();
+            // 如果 window.close() 成功，後續代碼不會執行
+          } catch (error) {
+            console.warn("無法使用 window.close() 關閉頁面:", error);
+          }
+
+          // 備用方案：如果 window.close() 失敗，等待 1 秒後嘗試其他方式
+          setTimeout(() => {
+            // 隱藏主容器，顯示完成訊息
+            const container = document.querySelector(".feedback-container");
+            if (container) {
+              container.style.display = "none";
+            }
+
+            // 顯示完成訊息
+            const body = document.body;
+            const completedMsg = document.createElement("div");
+            completedMsg.style.cssText = `
               display: flex;
               flex-direction: column;
               align-items: center;
@@ -139,587 +165,687 @@ function initSocketIO() {
               text-align: center;
               padding: 20px;
             `;
-                        completedMsg.innerHTML = `
+            completedMsg.innerHTML = `
               <div style="font-size: 48px; margin-bottom: 20px;">✅</div>
               <h2 style="margin: 0 0 10px 0; font-size: 24px;">感謝您的回應！</h2>
               <p style="margin: 0; font-size: 14px; opacity: 0.9;">您的反饋已成功提交</p>
               <p style="margin: 10px 0 0 0; font-size: 12px; opacity: 0.7;">此視窗可以安全關閉</p>
             `;
-                        body.innerHTML = "";
-                        body.appendChild(completedMsg);
-                    }, 1000);
-                }
-            }, 1000);
+            body.innerHTML = "";
+            body.appendChild(completedMsg);
+          }, 1000);
         }
-        else {
-            // 如果找不到倒數元素，直接 3 秒後關閉
-            setTimeout(() => {
-                window.close();
-            }, 3000);
-        }
-    });
-    socket.on("feedback_error", (data) => {
-        console.error("反饋錯誤:", data);
-        // 隱藏提醒彈窗（若有）並顯示錯誤
-        hideAlertModal();
-        showToast("error", "錯誤", formatApiError(data));
-    });
-    // 自動回覆事件
-    socket.on("auto_reply_warning", (data) => {
-        console.log("自動回覆警告:", data);
-        showAutoReplyWarning(data.remainingSeconds);
-    });
-    socket.on("auto_reply_triggered", async (data) => {
-        console.log("伺服器自動回覆已觸發:", data);
-        hideAutoReplyWarning();
-        // 獲取釘選提示詞
-        const pinnedPromptsContent = await getPinnedPromptsContent();
-        // 組合回覆：釘選提示詞 + AI 生成的回覆
-        let finalReply = data.reply;
-        if (pinnedPromptsContent) {
-            finalReply = pinnedPromptsContent + "\n\n" + data.reply;
-        }
-        // 將回覆內容填入文字框
-        document.getElementById("feedbackText").value = finalReply;
-        updateCharCount();
-        // 顯示確認模態框（10 秒倒數）
-        showAutoReplyConfirmModal(finalReply);
-    });
-    socket.on("auto_reply_error", (data) => {
-        console.error("自動回覆錯誤:", data);
-        hideAutoReplyWarning();
-        showToast("error", "自動回覆失敗", formatApiError(data));
-    });
-    socket.on("auto_reply_cancelled", () => {
-        console.log("自動回覆已取消");
-        hideAutoReplyWarning();
-    });
+      }, 1000);
+    } else {
+      // 如果找不到倒數元素，直接 3 秒後關閉
+      setTimeout(() => {
+        window.close();
+      }, 3000);
+    }
+  });
+
+  socket.on("feedback_error", (data) => {
+    console.error("反饋錯誤:", data);
+    // 隱藏提醒彈窗（若有）並顯示錯誤
+    hideAlertModal();
+    showToast("error", "錯誤", formatApiError(data));
+  });
+
+  // 自動回覆事件
+  socket.on("auto_reply_warning", (data) => {
+    console.log("自動回覆警告:", data);
+    showAutoReplyWarning(data.remainingSeconds);
+  });
+
+  socket.on("auto_reply_triggered", async (data) => {
+    console.log("伺服器自動回覆已觸發:", data);
+    hideAutoReplyWarning();
+
+    // 獲取釘選提示詞
+    const pinnedPromptsContent = await getPinnedPromptsContent();
+
+    // 組合回覆：釘選提示詞 + AI 生成的回覆
+    let finalReply = data.reply;
+    if (pinnedPromptsContent) {
+      finalReply = pinnedPromptsContent + "\n\n" + data.reply;
+    }
+
+    // 將回覆內容填入文字框
+    document.getElementById("feedbackText").value = finalReply;
+    updateCharCount();
+
+    // 顯示確認模態框（10 秒倒數）
+    showAutoReplyConfirmModal(finalReply);
+  });
+
+  socket.on("auto_reply_error", (data) => {
+    console.error("自動回覆錯誤:", data);
+    hideAutoReplyWarning();
+    showToast("error", "自動回覆失敗", formatApiError(data));
+  });
+
+  socket.on("auto_reply_cancelled", () => {
+    console.log("自動回覆已取消");
+    hideAutoReplyWarning();
+  });
 }
+
 function updateConnectionStatus(connected) {
-    const statusEl = document.getElementById("connectionStatus");
-    const statusText = statusEl.querySelector(".status-text");
-    if (connected) {
-        statusEl.classList.add("connected");
-        statusEl.classList.remove("disconnected");
-        statusEl.style.visibility = "visible";
-        statusText.textContent = "已連接";
-    }
-    else {
-        statusEl.classList.remove("connected");
-        statusEl.classList.add("disconnected");
-        statusEl.style.visibility = "visible";
-        statusText.textContent = "連接中...";
-    }
+  const statusEl = document.getElementById("connectionStatus");
+  const statusText = statusEl.querySelector(".status-text");
+
+  if (connected) {
+    statusEl.classList.add("connected");
+    statusEl.classList.remove("disconnected");
+    statusEl.style.visibility = "visible";
+    statusText.textContent = "已連接";
+  } else {
+    statusEl.classList.remove("connected");
+    statusEl.classList.add("disconnected");
+    statusEl.style.visibility = "visible";
+    statusText.textContent = "連接中...";
+  }
 }
+
 // ============ 事件監聽器 ============
+
 function initEventListeners() {
-    // 文字輸入區
-    const feedbackText = document.getElementById("feedbackText");
-    feedbackText.addEventListener("input", handleUserActivity);
-    feedbackText.addEventListener("input", updateCharCount);
-    // 當使用者將焦點放在文字框時，暫停自動回覆倒數，直到使用者點擊 auto-reply-timer 後才繼續
-    feedbackText.addEventListener("focus", () => {
-        // 只有在計時器正在運作且尚未暫停的情況下執行
-        if (autoReplyTimerInterval && !autoReplyTimerPaused) {
-            pauseAutoReplyTimer(true);
-            showToast("info", "計時器已暫停", "已因聚焦文字輸入而暫停自動回覆倒數，點擊計時器以繼續。");
-        }
-    });
-    // Ctrl+Enter 提交
-    feedbackText.addEventListener("keydown", (e) => {
-        if (e.ctrlKey && e.key === "Enter") {
-            e.preventDefault();
-            submitFeedback();
-        }
-    });
-    // 提交按鈕
-    document
-        .getElementById("submitBtn")
-        .addEventListener("click", submitFeedback);
-    // AI 回覆按鈕 - 使用支援 MCP 工具的版本
-    document
-        .getElementById("aiReplyBtn")
-        .addEventListener("click", generateAIReplyWithTools);
-    // 圖片區域
-    const imageDropZone = document.getElementById("imageDropZone");
-    const fileInput = document.getElementById("fileInput");
-    imageDropZone.addEventListener("click", () => fileInput.click());
-    fileInput.addEventListener("change", handleFileSelect);
-    // 拖放事件
-    imageDropZone.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        imageDropZone.classList.add("drag-over");
-    });
-    imageDropZone.addEventListener("dragleave", () => {
-        imageDropZone.classList.remove("drag-over");
-    });
-    imageDropZone.addEventListener("drop", (e) => {
-        e.preventDefault();
-        imageDropZone.classList.remove("drag-over");
-        handleFileDrop(e.dataTransfer.files);
-    });
-    // 貼上事件
-    document.addEventListener("paste", handlePaste);
-    // 清除圖片按鈕
-    document
-        .getElementById("clearImagesBtn")
-        .addEventListener("click", clearImages);
-    // 提示詞區域
-    document
-        .getElementById("promptSearch")
-        .addEventListener("input", filterPrompts);
-    document
-        .getElementById("addPromptBtn")
-        .addEventListener("click", () => openPromptModal());
-    document
-        .getElementById("addPromptBtnFooter")
-        .addEventListener("click", () => openPromptModal());
-    // AI 設定中的編輯提示詞按鈕
-    const editPromptsFromSettings = document.getElementById("editPromptsFromSettings");
-    if (editPromptsFromSettings) {
-        editPromptsFromSettings.addEventListener("click", () => {
-            openPromptModal();
-        });
+  // 文字輸入區
+  const feedbackText = document.getElementById("feedbackText");
+  feedbackText.addEventListener("input", handleUserActivity);
+  feedbackText.addEventListener("input", updateCharCount);
+  // 當使用者將焦點放在文字框時，暫停自動回覆倒數，直到使用者點擊 auto-reply-timer 後才繼續
+  feedbackText.addEventListener("focus", () => {
+    // 只有在計時器正在運作且尚未暫停的情況下執行
+    if (autoReplyTimerInterval && !autoReplyTimerPaused) {
+      pauseAutoReplyTimer(true);
+      showToast(
+        "info",
+        "計時器已暫停",
+        "已因聚焦文字輸入而暫停自動回覆倒數，點擊計時器以繼續。"
+      );
     }
-    // AI 設定按鈕
-    document
-        .getElementById("aiSettingsBtn")
-        .addEventListener("click", openAISettingsModal);
-    // MCP Servers 按鈕
-    document
-        .getElementById("mcpServersBtn")
-        .addEventListener("click", openMCPServersModal);
-    document
-        .getElementById("closeMcpServers")
-        .addEventListener("click", closeMCPServersModal);
-    document
-        .getElementById("addMcpServer")
-        .addEventListener("click", () => openMCPServerEditModal());
-    document
-        .getElementById("closeMcpServerEdit")
-        .addEventListener("click", closeMCPServerEditModal);
-    document
-        .getElementById("cancelMcpServer")
-        .addEventListener("click", closeMCPServerEditModal);
-    document
-        .getElementById("saveMcpServer")
-        .addEventListener("click", saveMCPServer);
-    document
-        .getElementById("connectAllMcpServers")
-        .addEventListener("click", connectAllMCPServers);
-    document
-        .getElementById("disconnectAllMcpServers")
-        .addEventListener("click", disconnectAllMCPServers);
-    document
-        .getElementById("mcpServerTransport")
-        .addEventListener("change", onTransportChange);
-    // 彈窗控制
-    document
-        .getElementById("closeAiSettings")
-        .addEventListener("click", closeAISettingsModal);
-    document
-        .getElementById("saveAiSettings")
-        .addEventListener("click", saveAISettings);
-    document.getElementById("testApiKey").addEventListener("click", testAPIKey);
-    document
-        .getElementById("toggleApiKey")
-        .addEventListener("click", toggleAPIKeyVisibility);
-    // 通用提醒彈窗確定按鈕
-    const alertOkBtn = document.getElementById("alertModalOk");
-    if (alertOkBtn) {
-        alertOkBtn.addEventListener("click", hideAlertModal);
+  });
+
+  // Ctrl+Enter 提交
+  feedbackText.addEventListener("keydown", (e) => {
+    if (e.ctrlKey && e.key === "Enter") {
+      e.preventDefault();
+      submitFeedback();
     }
-    document
-        .getElementById("closePromptModal")
-        .addEventListener("click", closePromptModal);
-    document
-        .getElementById("cancelPrompt")
-        .addEventListener("click", closePromptModal);
-    document.getElementById("savePrompt").addEventListener("click", savePrompt);
-    // 自動回覆警告
-    document
-        .getElementById("cancelAutoReply")
-        .addEventListener("click", cancelAutoReply);
-    // 日誌檢視器按鈕
-    document
-        .getElementById("logViewerBtn")
-        .addEventListener("click", openLogViewerModal);
-    document
-        .getElementById("closeLogViewer")
-        .addEventListener("click", closeLogViewerModal);
-    document.getElementById("logSearchBtn").addEventListener("click", searchLogs);
-    document
-        .getElementById("logRefreshBtn")
-        .addEventListener("click", () => loadLogs(1));
-    document
-        .getElementById("logPrevPage")
-        .addEventListener("click", () => loadLogs(currentLogPage - 1));
-    document
-        .getElementById("logNextPage")
-        .addEventListener("click", () => loadLogs(currentLogPage + 1));
-    document
-        .getElementById("clearOldLogs")
-        .addEventListener("click", clearOldLogs);
-    document.getElementById("logSearch").addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-            e.preventDefault();
-            searchLogs();
-        }
+  });
+
+  // 提交按鈕
+  document
+    .getElementById("submitBtn")
+    .addEventListener("click", submitFeedback);
+
+  // AI 回覆按鈕 - 使用支援 MCP 工具的版本
+  document
+    .getElementById("aiReplyBtn")
+    .addEventListener("click", generateAIReplyWithTools);
+
+  // 圖片區域
+  const imageDropZone = document.getElementById("imageDropZone");
+  const fileInput = document.getElementById("fileInput");
+
+  imageDropZone.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", handleFileSelect);
+
+  // 拖放事件
+  imageDropZone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    imageDropZone.classList.add("drag-over");
+  });
+
+  imageDropZone.addEventListener("dragleave", () => {
+    imageDropZone.classList.remove("drag-over");
+  });
+
+  imageDropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    imageDropZone.classList.remove("drag-over");
+    handleFileDrop(e.dataTransfer.files);
+  });
+
+  // 貼上事件
+  document.addEventListener("paste", handlePaste);
+
+  // 清除圖片按鈕
+  document
+    .getElementById("clearImagesBtn")
+    .addEventListener("click", clearImages);
+
+  // 提示詞區域
+  document
+    .getElementById("promptSearch")
+    .addEventListener("input", filterPrompts);
+  document
+    .getElementById("addPromptBtn")
+    .addEventListener("click", () => openPromptModal());
+  document
+    .getElementById("addPromptBtnFooter")
+    .addEventListener("click", () => openPromptModal());
+
+  // AI 設定中的編輯提示詞按鈕
+  const editPromptsFromSettings = document.getElementById(
+    "editPromptsFromSettings"
+  );
+  if (editPromptsFromSettings) {
+    editPromptsFromSettings.addEventListener("click", () => {
+      openPromptModal();
     });
-    // 點擊自動回覆計時區塊可切換暫停/繼續（若被 focus 暫停，點擊會恢復）
-    const autoReplyTimerEl = document.getElementById("auto-reply-timer");
-    if (autoReplyTimerEl) {
-        autoReplyTimerEl.style.cursor = "pointer";
-        autoReplyTimerEl.addEventListener("click", (e) => {
-            // 防止其他點擊行為
-            e.stopPropagation();
-            if (autoReplyTimerPaused) {
-                resumeAutoReplyTimer();
-                showToast("info", "計時器已繼續", "自動回覆倒數已恢復。");
-            }
-            else {
-                pauseAutoReplyTimer(false);
-                showToast("info", "計時器已暫停", "已手動暫停自動回覆倒數，點擊可繼續。");
-            }
-        });
+  }
+
+  // AI 設定按鈕
+  document
+    .getElementById("aiSettingsBtn")
+    .addEventListener("click", openAISettingsModal);
+
+  // MCP Servers 按鈕
+  document
+    .getElementById("mcpServersBtn")
+    .addEventListener("click", openMCPServersModal);
+  document
+    .getElementById("closeMcpServers")
+    .addEventListener("click", closeMCPServersModal);
+  document
+    .getElementById("addMcpServer")
+    .addEventListener("click", () => openMCPServerEditModal());
+  document
+    .getElementById("closeMcpServerEdit")
+    .addEventListener("click", closeMCPServerEditModal);
+  document
+    .getElementById("cancelMcpServer")
+    .addEventListener("click", closeMCPServerEditModal);
+  document
+    .getElementById("saveMcpServer")
+    .addEventListener("click", saveMCPServer);
+  document
+    .getElementById("connectAllMcpServers")
+    .addEventListener("click", connectAllMCPServers);
+  document
+    .getElementById("disconnectAllMcpServers")
+    .addEventListener("click", disconnectAllMCPServers);
+  document
+    .getElementById("mcpServerTransport")
+    .addEventListener("change", onTransportChange);
+
+  // 彈窗控制
+  document
+    .getElementById("closeAiSettings")
+    .addEventListener("click", closeAISettingsModal);
+  document
+    .getElementById("saveAiSettings")
+    .addEventListener("click", saveAISettings);
+  document.getElementById("testApiKey").addEventListener("click", testAPIKey);
+  document
+    .getElementById("toggleApiKey")
+    .addEventListener("click", toggleAPIKeyVisibility);
+
+  // 通用提醒彈窗確定按鈕
+  const alertOkBtn = document.getElementById("alertModalOk");
+  if (alertOkBtn) {
+    alertOkBtn.addEventListener("click", hideAlertModal);
+  }
+
+  document
+    .getElementById("closePromptModal")
+    .addEventListener("click", closePromptModal);
+  document
+    .getElementById("cancelPrompt")
+    .addEventListener("click", closePromptModal);
+  document.getElementById("savePrompt").addEventListener("click", savePrompt);
+
+  // 自動回覆警告
+  document
+    .getElementById("cancelAutoReply")
+    .addEventListener("click", cancelAutoReply);
+
+  // 日誌檢視器按鈕
+  document
+    .getElementById("logViewerBtn")
+    .addEventListener("click", openLogViewerModal);
+  document
+    .getElementById("closeLogViewer")
+    .addEventListener("click", closeLogViewerModal);
+  document.getElementById("logSearchBtn").addEventListener("click", searchLogs);
+  document
+    .getElementById("logRefreshBtn")
+    .addEventListener("click", () => loadLogs(1));
+  document
+    .getElementById("logPrevPage")
+    .addEventListener("click", () => loadLogs(currentLogPage - 1));
+  document
+    .getElementById("logNextPage")
+    .addEventListener("click", () => loadLogs(currentLogPage + 1));
+  document
+    .getElementById("clearOldLogs")
+    .addEventListener("click", clearOldLogs);
+  document.getElementById("logSearch").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      searchLogs();
     }
-    // 自動回覆確認模態框
-    const closeAutoReplyConfirmBtn = document.getElementById("closeAutoReplyConfirm");
-    if (closeAutoReplyConfirmBtn) {
-        closeAutoReplyConfirmBtn.addEventListener("click", cancelAutoReplyConfirm);
-    }
-    const cancelAutoReplyConfirmBtn = document.getElementById("cancelAutoReplyConfirm");
-    if (cancelAutoReplyConfirmBtn) {
-        cancelAutoReplyConfirmBtn.addEventListener("click", cancelAutoReplyConfirm);
-    }
-    const confirmAutoReplySubmitBtn = document.getElementById("confirmAutoReplySubmit");
-    if (confirmAutoReplySubmitBtn) {
-        confirmAutoReplySubmitBtn.addEventListener("click", confirmAutoReplySubmit);
-    }
-    // Escape 鍵關閉自動回覆確認模態框
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") {
-            const autoReplyModal = document.getElementById("autoReplyConfirmModal");
-            if (autoReplyModal && autoReplyModal.style.display === "flex") {
-                cancelAutoReplyConfirm();
-            }
-        }
+  });
+
+  // 點擊自動回覆計時區塊可切換暫停/繼續（若被 focus 暫停，點擊會恢復）
+  const autoReplyTimerEl = document.getElementById("auto-reply-timer");
+  if (autoReplyTimerEl) {
+    autoReplyTimerEl.style.cursor = "pointer";
+    autoReplyTimerEl.addEventListener("click", (e) => {
+      // 防止其他點擊行為
+      e.stopPropagation();
+      if (autoReplyTimerPaused) {
+        resumeAutoReplyTimer();
+        showToast("info", "計時器已繼續", "自動回覆倒數已恢復。");
+      } else {
+        pauseAutoReplyTimer(false);
+        showToast(
+          "info",
+          "計時器已暫停",
+          "已手動暫停自動回覆倒數，點擊可繼續。"
+        );
+      }
     });
-    // 點擊彈窗覆蓋層關閉
-    document.querySelectorAll(".modal-overlay").forEach((overlay) => {
-        overlay.addEventListener("click", (e) => {
-            if (e.target === overlay) {
-                overlay.parentElement.classList.remove("show");
-            }
-        });
+  }
+
+  // 自動回覆確認模態框
+  const closeAutoReplyConfirmBtn = document.getElementById(
+    "closeAutoReplyConfirm"
+  );
+  if (closeAutoReplyConfirmBtn) {
+    closeAutoReplyConfirmBtn.addEventListener("click", cancelAutoReplyConfirm);
+  }
+
+  const cancelAutoReplyConfirmBtn = document.getElementById(
+    "cancelAutoReplyConfirm"
+  );
+  if (cancelAutoReplyConfirmBtn) {
+    cancelAutoReplyConfirmBtn.addEventListener("click", cancelAutoReplyConfirm);
+  }
+
+  const confirmAutoReplySubmitBtn = document.getElementById(
+    "confirmAutoReplySubmit"
+  );
+  if (confirmAutoReplySubmitBtn) {
+    confirmAutoReplySubmitBtn.addEventListener("click", confirmAutoReplySubmit);
+  }
+
+  // Escape 鍵關閉自動回覆確認模態框
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const autoReplyModal = document.getElementById("autoReplyConfirmModal");
+      if (autoReplyModal && autoReplyModal.style.display === "flex") {
+        cancelAutoReplyConfirm();
+      }
+    }
+  });
+
+  // 點擊彈窗覆蓋層關閉
+  document.querySelectorAll(".modal-overlay").forEach((overlay) => {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {
+        overlay.parentElement.classList.remove("show");
+      }
     });
+  });
 }
+
 // ============ 資料載入 ============
+
 async function loadInitialData() {
-    try {
-        // 首先從伺服器讀取配置，包括 MCP_DIALOG_TIMEOUT
-        await loadServerConfig();
-        // 載入並顯示版本號
-        await loadVersion();
-        // 啟動關閉頁面倒數計時
-        startCloseCountdown();
-        // 載入提示詞
-        await loadPrompts();
-        // 載入 AI 設定
-        await loadAISettings();
-        // 載入使用者偏好
-        await loadPreferences();
-        // 自動載入釘選提示詞
-        await autoLoadPinnedPrompts();
-        // 頁面載入完成後，啟動 300 秒計時器
-        // 當倒數到 0 時自動啟動 AI 回應
-        startAutoReplyTimer();
-    }
-    catch (error) {
-        console.error("載入初始資料失敗:", error);
-        showToast("error", "載入失敗", "無法載入初始資料");
-    }
+  try {
+    // 首先從伺服器讀取配置，包括 MCP_DIALOG_TIMEOUT
+    await loadServerConfig();
+
+    // 載入並顯示版本號
+    await loadVersion();
+
+    // 啟動關閉頁面倒數計時
+    startCloseCountdown();
+
+    // 載入提示詞
+    await loadPrompts();
+
+    // 載入 AI 設定
+    await loadAISettings();
+
+    // 載入使用者偏好
+    await loadPreferences();
+
+    // 自動載入釘選提示詞
+    await autoLoadPinnedPrompts();
+
+    // 頁面載入完成後，啟動 300 秒計時器
+    // 當倒數到 0 時自動啟動 AI 回應
+    startAutoReplyTimer();
+  } catch (error) {
+    console.error("載入初始資料失敗:", error);
+    showToast("error", "載入失敗", "無法載入初始資料");
+  }
 }
+
 async function loadVersion() {
-    try {
-        const response = await fetch("/api/version");
-        if (response.ok) {
-            const data = await response.json();
-            const versionDisplay = document.getElementById("version-display");
-            if (versionDisplay && data.version) {
-                versionDisplay.textContent = `v${data.version}`;
-            }
-        }
+  try {
+    const response = await fetch("/api/version");
+    if (response.ok) {
+      const data = await response.json();
+      const versionDisplay = document.getElementById("version-display");
+      if (versionDisplay && data.version) {
+        versionDisplay.textContent = `v${data.version}`;
+      }
     }
-    catch (error) {
-        console.error("載入版本資訊失敗:", error);
-    }
+  } catch (error) {
+    console.error("載入版本資訊失敗:", error);
+  }
 }
+
 async function loadServerConfig() {
-    try {
-        const response = await fetch("/api/config");
-        const data = await response.json();
-        if (data.dialog_timeout) {
-            // 伺服器返回的是秒，直接使用
-            DIALOG_TIMEOUT_SECONDS = data.dialog_timeout;
-            console.log(`從伺服器讀取 MCP_DIALOG_TIMEOUT: ${DIALOG_TIMEOUT_SECONDS}s`);
-        }
+  try {
+    const response = await fetch("/api/config");
+    const data = await response.json();
+
+    if (data.dialog_timeout) {
+      // 伺服器返回的是秒，直接使用
+      DIALOG_TIMEOUT_SECONDS = data.dialog_timeout;
+      console.log(
+        `從伺服器讀取 MCP_DIALOG_TIMEOUT: ${DIALOG_TIMEOUT_SECONDS}s`
+      );
     }
-    catch (error) {
-        console.error("載入伺服器配置失敗，使用預設值:", error);
-        // 使用預設值 60 秒
-    }
+  } catch (error) {
+    console.error("載入伺服器配置失敗，使用預設值:", error);
+    // 使用預設值 60 秒
+  }
 }
+
 async function loadPrompts() {
-    try {
-        const response = await fetch("/api/prompts");
-        const data = await response.json();
-        if (data.success) {
-            prompts = data.prompts;
-            renderPrompts();
-        }
+  try {
+    const response = await fetch("/api/prompts");
+    const data = await response.json();
+
+    if (data.success) {
+      prompts = data.prompts;
+      renderPrompts();
     }
-    catch (error) {
-        console.error("載入提示詞失敗:", error);
-    }
+  } catch (error) {
+    console.error("載入提示詞失敗:", error);
+  }
 }
+
 async function loadAISettings() {
-    try {
-        const response = await fetch("/api/ai-settings");
-        const data = await response.json();
-        if (data.success) {
-            aiSettings = data.settings;
-            // 讀取自動回覆計時器秒數設定
-            if (aiSettings.autoReplyTimerSeconds !== undefined) {
-                AUTO_REPLY_TIMER_SECONDS = aiSettings.autoReplyTimerSeconds;
-                console.log(`從 AI 設定讀取自動回覆時間: ${AUTO_REPLY_TIMER_SECONDS}s`);
-            }
-            // 讀取 AI 交談次數上限
-            if (aiSettings.maxToolRounds !== undefined) {
-                maxToolRounds = aiSettings.maxToolRounds;
-                console.log(`從 AI 設定讀取 AI 交談次數: ${maxToolRounds}`);
-            }
-            // 讀取 Debug 模式
-            if (aiSettings.debugMode !== undefined) {
-                debugMode = aiSettings.debugMode;
-                console.log(`從 AI 設定讀取 Debug 模式: ${debugMode}`);
-            }
-        }
+  try {
+    const response = await fetch("/api/ai-settings");
+    const data = await response.json();
+
+    if (data.success) {
+      aiSettings = data.settings;
+
+      // 讀取自動回覆計時器秒數設定
+      if (aiSettings.autoReplyTimerSeconds !== undefined) {
+        AUTO_REPLY_TIMER_SECONDS = aiSettings.autoReplyTimerSeconds;
+        console.log(`從 AI 設定讀取自動回覆時間: ${AUTO_REPLY_TIMER_SECONDS}s`);
+      }
+      
+      // 讀取 AI 交談次數上限
+      if (aiSettings.maxToolRounds !== undefined) {
+        maxToolRounds = aiSettings.maxToolRounds;
+        console.log(`從 AI 設定讀取 AI 交談次數: ${maxToolRounds}`);
+      }
+      
+      // 讀取 Debug 模式
+      if (aiSettings.debugMode !== undefined) {
+        debugMode = aiSettings.debugMode;
+        console.log(`從 AI 設定讀取 Debug 模式: ${debugMode}`);
+      }
     }
-    catch (error) {
-        console.error("載入 AI 設定失敗:", error);
-    }
+  } catch (error) {
+    console.error("載入 AI 設定失敗:", error);
+  }
 }
+
 async function loadPreferences() {
-    try {
-        const response = await fetch("/api/preferences");
-        const data = await response.json();
-        if (data.success) {
-            preferences = data.preferences;
-        }
+  try {
+    const response = await fetch("/api/preferences");
+    const data = await response.json();
+
+    if (data.success) {
+      preferences = data.preferences;
     }
-    catch (error) {
-        console.error("載入使用者偏好失敗:", error);
-    }
+  } catch (error) {
+    console.error("載入使用者偏好失敗:", error);
+  }
 }
+
 async function autoLoadPinnedPrompts() {
-    try {
-        const response = await fetch("/api/prompts/pinned");
-        const data = await response.json();
-        if (data.success && data.prompts.length > 0) {
-            const content = data.prompts.map((p) => p.content).join("\n\n");
-            document.getElementById("feedbackText").value = content;
-            updateCharCount();
-            showToast("info", "提示詞已載入", `已自動載入 ${data.prompts.length} 個釘選提示詞`);
-        }
+  try {
+    const response = await fetch("/api/prompts/pinned");
+    const data = await response.json();
+
+    if (data.success && data.prompts.length > 0) {
+      const content = data.prompts.map((p) => p.content).join("\n\n");
+      document.getElementById("feedbackText").value = content;
+      updateCharCount();
+
+      showToast(
+        "info",
+        "提示詞已載入",
+        `已自動載入 ${data.prompts.length} 個釘選提示詞`
+      );
     }
-    catch (error) {
-        console.error("自動載入釘選提示詞失敗:", error);
-    }
+  } catch (error) {
+    console.error("自動載入釘選提示詞失敗:", error);
+  }
 }
+
 // 獲取釘選提示詞內容
 async function getPinnedPromptsContent() {
-    try {
-        const response = await fetch("/api/prompts/pinned");
-        const data = await response.json();
-        if (data.success && data.prompts.length > 0) {
-            return data.prompts.map((p) => p.content).join("\n\n");
-        }
-        return "";
+  try {
+    const response = await fetch("/api/prompts/pinned");
+    const data = await response.json();
+
+    if (data.success && data.prompts.length > 0) {
+      return data.prompts.map((p) => p.content).join("\n\n");
     }
-    catch (error) {
-        console.error("獲取釘選提示詞失敗:", error);
-        return "";
-    }
+    return "";
+  } catch (error) {
+    console.error("獲取釘選提示詞失敗:", error);
+    return "";
+  }
 }
+
 // ============ AI 訊息顯示 ============
+
 function displayProjectInfo(projectName, projectPath) {
-    const projectInfoEl = document.getElementById("projectInfo");
-    if (!projectInfoEl)
-        return;
-    if (projectName || projectPath) {
-        const name = projectName || "未命名專案";
-        const path = projectPath ? ` (${projectPath})` : "";
-        projectInfoEl.innerHTML = `<span class="icon">📁</span> ${name}${path}`;
-        projectInfoEl.title = projectPath || projectName || "";
-    }
-    else {
-        projectInfoEl.innerHTML = "";
-    }
+  const projectInfoEl = document.getElementById("projectInfo");
+  if (!projectInfoEl) return;
+
+  if (projectName || projectPath) {
+    const name = projectName || "未命名專案";
+    const path = projectPath ? ` (${projectPath})` : "";
+    projectInfoEl.innerHTML = `<span class="icon">📁</span> ${name}${path}`;
+    projectInfoEl.title = projectPath || projectName || "";
+  } else {
+    projectInfoEl.innerHTML = "";
+  }
 }
+
 function displayAIMessage(message) {
-    const displayEl = document.getElementById("aiMessageDisplay");
-    // 使用 Marked.js 渲染 Markdown
-    const htmlContent = marked.parse(message);
-    displayEl.innerHTML = `<div class="ai-message-content">${htmlContent}</div>`;
+  const displayEl = document.getElementById("aiMessageDisplay");
+
+  // 使用 Marked.js 渲染 Markdown
+  const htmlContent = marked.parse(message);
+
+  displayEl.innerHTML = `<div class="ai-message-content">${htmlContent}</div>`;
 }
+
 // ============ 使用者輸入處理 ============
+
 function handleUserActivity() {
-    // 通知服務器使用者活動，重置計時器
-    if (socket && sessionId) {
-        socket.emit("user_activity", {
-            sessionId: sessionId,
-            timestamp: Date.now(),
-        });
-    }
+  // 通知服務器使用者活動，重置計時器
+  if (socket && sessionId) {
+    socket.emit("user_activity", {
+      sessionId: sessionId,
+      timestamp: Date.now(),
+    });
+  }
 }
+
 function updateCharCount() {
-    const text = document.getElementById("feedbackText").value;
-    document.getElementById("charCount").textContent = `${text.length} 字元`;
+  const text = document.getElementById("feedbackText").value;
+  document.getElementById("charCount").textContent = `${text.length} 字元`;
 }
+
 async function generateAIReply() {
-    if (!workSummary) {
-        showToast("error", "錯誤", "無法取得 AI 訊息");
-        return;
+  if (!workSummary) {
+    showToast("error", "錯誤", "無法取得 AI 訊息");
+    return;
+  }
+
+  const userContext = document.getElementById("feedbackText").value;
+
+  showLoadingOverlay("正在生成 AI 回覆...");
+
+  try {
+    const response = await fetch("/api/ai-reply", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        aiMessage: workSummary,
+        userContext: userContext,
+        projectName: currentProjectName || undefined,
+        projectPath: currentProjectPath || undefined,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // 獲取釘選提示詞
+      const pinnedPromptsContent = await getPinnedPromptsContent();
+
+      // 組合回覆：釘選提示詞 + AI 生成的回覆
+      let finalReply = data.reply;
+      if (pinnedPromptsContent) {
+        finalReply = pinnedPromptsContent + "\n\n" + data.reply;
+      }
+
+      document.getElementById("feedbackText").value = finalReply;
+      updateCharCount();
+
+      // 倒數計時器已在頁面載入時啟動，無需額外處理
+
+      // 顯示簡單彈窗提示 AI 已完成回覆
+      showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
+    } else {
+      showToast("error", "AI 回覆失敗", data.error);
     }
-    const userContext = document.getElementById("feedbackText").value;
-    showLoadingOverlay("正在生成 AI 回覆...");
-    try {
-        const response = await fetch("/api/ai-reply", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                aiMessage: workSummary,
-                userContext: userContext,
-                projectName: currentProjectName || undefined,
-                projectPath: currentProjectPath || undefined,
-            }),
-        });
-        const data = await response.json();
-        if (data.success) {
-            // 獲取釘選提示詞
-            const pinnedPromptsContent = await getPinnedPromptsContent();
-            // 組合回覆：釘選提示詞 + AI 生成的回覆
-            let finalReply = data.reply;
-            if (pinnedPromptsContent) {
-                finalReply = pinnedPromptsContent + "\n\n" + data.reply;
-            }
-            document.getElementById("feedbackText").value = finalReply;
-            updateCharCount();
-            // 倒數計時器已在頁面載入時啟動，無需額外處理
-            // 顯示簡單彈窗提示 AI 已完成回覆
-            showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
-        }
-        else {
-            showToast("error", "AI 回覆失敗", data.error);
-        }
-    }
-    catch (error) {
-        console.error("生成 AI 回覆失敗:", error);
-        showToast("error", "錯誤", "無法生成 AI 回覆");
-    }
-    finally {
-        hideLoadingOverlay();
-    }
+  } catch (error) {
+    console.error("生成 AI 回覆失敗:", error);
+    showToast("error", "錯誤", "無法生成 AI 回覆");
+  } finally {
+    hideLoadingOverlay();
+  }
 }
+
 // ============ MCP AI 工具呼叫整合 ============
+
 let maxToolRounds = 5;
 let debugMode = false;
+
 /**
  * 解析 AI 回覆中的 tool_calls JSON
  * @param {string} aiResponse - AI 的原始回覆
  * @returns {{hasToolCalls: boolean, toolCalls: Array<{name: string, arguments: Object}>, message: string|null}}
  */
 function parseToolCalls(aiResponse) {
-    // 嘗試從 markdown code block 中提取 JSON
-    const jsonBlockMatch = aiResponse.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-    let jsonContent = null;
-    if (jsonBlockMatch && jsonBlockMatch[1]) {
-        jsonContent = jsonBlockMatch[1].trim();
+  // 嘗試從 markdown code block 中提取 JSON
+  const jsonBlockMatch = aiResponse.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+  let jsonContent = null;
+
+  if (jsonBlockMatch && jsonBlockMatch[1]) {
+    jsonContent = jsonBlockMatch[1].trim();
+  } else {
+    // 嘗試直接匹配 JSON
+    const jsonMatch = aiResponse.match(/\{[\s\S]*"tool_calls"[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonContent = jsonMatch[0];
     }
-    else {
-        // 嘗試直接匹配 JSON
-        const jsonMatch = aiResponse.match(/\{[\s\S]*"tool_calls"[\s\S]*\}/);
-        if (jsonMatch) {
-            jsonContent = jsonMatch[0];
-        }
+  }
+
+  if (!jsonContent) {
+    return { hasToolCalls: false, toolCalls: [], message: aiResponse };
+  }
+
+  try {
+    const parsed = JSON.parse(jsonContent);
+
+    if (!Array.isArray(parsed.tool_calls)) {
+      return { hasToolCalls: false, toolCalls: [], message: aiResponse };
     }
-    if (!jsonContent) {
+
+    // 驗證每個 tool call 的結構
+    for (const call of parsed.tool_calls) {
+      if (typeof call.name !== "string" || typeof call.arguments !== "object") {
         return { hasToolCalls: false, toolCalls: [], message: aiResponse };
+      }
     }
-    try {
-        const parsed = JSON.parse(jsonContent);
-        if (!Array.isArray(parsed.tool_calls)) {
-            return { hasToolCalls: false, toolCalls: [], message: aiResponse };
-        }
-        // 驗證每個 tool call 的結構
-        for (const call of parsed.tool_calls) {
-            if (typeof call.name !== "string" || typeof call.arguments !== "object") {
-                return { hasToolCalls: false, toolCalls: [], message: aiResponse };
-            }
-        }
-        return {
-            hasToolCalls: parsed.tool_calls.length > 0,
-            toolCalls: parsed.tool_calls,
-            message: parsed.message || null,
-        };
-    }
-    catch {
-        return { hasToolCalls: false, toolCalls: [], message: aiResponse };
-    }
+
+    return {
+      hasToolCalls: parsed.tool_calls.length > 0,
+      toolCalls: parsed.tool_calls,
+      message: parsed.message || null,
+    };
+  } catch {
+    return { hasToolCalls: false, toolCalls: [], message: aiResponse };
+  }
 }
+
 /**
  * 執行 MCP 工具並返回結果
  * @param {Array<{name: string, arguments: Object}>} toolCalls
  * @returns {Promise<Array<{name: string, success: boolean, result?: any, error?: string}>>}
  */
 async function executeMCPTools(toolCalls) {
-    const response = await fetch("/api/mcp/execute-tools", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tools: toolCalls }),
-    });
-    const data = await response.json();
-    return data.results || [];
+  const response = await fetch("/api/mcp/execute-tools", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tools: toolCalls }),
+  });
+
+  const data = await response.json();
+  return data.results || [];
 }
+
 /**
  * 格式化工具執行結果為文字
  * @param {Array<{name: string, success: boolean, result?: any, error?: string}>} results
  * @returns {string}
  */
 function formatToolResults(results) {
-    const lines = ["Tool execution results:"];
-    for (const result of results) {
-        if (result.success) {
-            lines.push(`- ${result.name}: SUCCESS`);
-            if (result.result !== undefined) {
-                const resultStr = typeof result.result === "string"
-                    ? result.result
-                    : JSON.stringify(result.result, null, 2);
-                lines.push(`  Result: ${resultStr}`);
-            }
-        }
-        else {
-            lines.push(`- ${result.name}: FAILED`);
-            if (result.error) {
-                lines.push(`  Error: ${result.error}`);
-            }
-        }
+  const lines = ["Tool execution results:"];
+  for (const result of results) {
+    if (result.success) {
+      lines.push(`- ${result.name}: SUCCESS`);
+      if (result.result !== undefined) {
+        const resultStr =
+          typeof result.result === "string"
+            ? result.result
+            : JSON.stringify(result.result, null, 2);
+        lines.push(`  Result: ${resultStr}`);
+      }
+    } else {
+      lines.push(`- ${result.name}: FAILED`);
+      if (result.error) {
+        lines.push(`  Error: ${result.error}`);
+      }
     }
-    return lines.join("\n");
+  }
+  return lines.join("\n");
 }
+
 /**
  * 更新工具執行進度 UI
  * @param {number} round - 當前輪次
@@ -728,73 +854,81 @@ function formatToolResults(results) {
  * @param {Array} toolCalls - 當前執行的工具
  */
 function updateToolProgressUI(round, status, message, toolCalls = []) {
-    // 使用新的 streaming panel 而不是舊的 progress container
-    addStreamingProgress(status, message, toolCalls, round);
+  // 使用新的 streaming panel 而不是舊的 progress container
+  addStreamingProgress(status, message, toolCalls, round);
 }
+
 // ============ AI Streaming Panel 功能 ============
+
 let streamingAbortController = null;
+
 /**
  * 顯示 AI Streaming Panel
  */
 function showStreamingPanel() {
-    const panel = document.getElementById("aiStreamingPanel");
-    const progressContainer = document.getElementById("streamingProgress");
-    const outputContainer = document.getElementById("streamingOutput");
-    if (panel) {
-        panel.style.display = "flex";
-        if (progressContainer)
-            progressContainer.innerHTML = "";
-        if (outputContainer)
-            outputContainer.innerHTML = '<span class="streaming-cursor"></span>';
-        updateStreamingStatus("thinking", "準備中...");
-        // 綁定取消按鈕
-        const cancelBtn = document.getElementById("cancelStreaming");
-        if (cancelBtn) {
-            cancelBtn.onclick = () => {
-                if (streamingAbortController) {
-                    streamingAbortController.abort();
-                }
-                hideStreamingPanel();
-            };
+  const panel = document.getElementById("aiStreamingPanel");
+  const progressContainer = document.getElementById("streamingProgress");
+  const outputContainer = document.getElementById("streamingOutput");
+  
+  if (panel) {
+    panel.style.display = "flex";
+    if (progressContainer) progressContainer.innerHTML = "";
+    if (outputContainer) outputContainer.innerHTML = '<span class="streaming-cursor"></span>';
+    updateStreamingStatus("thinking", "準備中...");
+    
+    // 綁定取消按鈕
+    const cancelBtn = document.getElementById("cancelStreaming");
+    if (cancelBtn) {
+      cancelBtn.onclick = () => {
+        if (streamingAbortController) {
+          streamingAbortController.abort();
         }
+        hideStreamingPanel();
+      };
     }
+  }
 }
+
 /**
  * 隱藏 AI Streaming Panel
  */
 function hideStreamingPanel() {
-    const panel = document.getElementById("aiStreamingPanel");
-    if (panel) {
-        panel.style.display = "none";
-    }
-    streamingAbortController = null;
+  const panel = document.getElementById("aiStreamingPanel");
+  if (panel) {
+    panel.style.display = "none";
+  }
+  streamingAbortController = null;
 }
+
 /**
  * 更新 Streaming 狀態
  * @param {string} status - 狀態
  * @param {string} text - 狀態文字
  */
 function updateStreamingStatus(status, text) {
-    const indicator = document.getElementById("streamingStatusIndicator");
-    const statusText = document.getElementById("streamingStatus");
-    const title = document.getElementById("streamingTitle");
-    if (indicator) {
-        indicator.className = "status-indicator " + status;
-    }
-    if (statusText) {
-        statusText.textContent = text;
-    }
-    // 根據狀態更新標題
-    const titleMap = {
-        thinking: "AI 思考中...",
-        executing: "執行工具中...",
-        done: "AI 回覆完成",
-        error: "發生錯誤"
-    };
-    if (title && titleMap[status]) {
-        title.textContent = titleMap[status];
-    }
+  const indicator = document.getElementById("streamingStatusIndicator");
+  const statusText = document.getElementById("streamingStatus");
+  const title = document.getElementById("streamingTitle");
+  
+  if (indicator) {
+    indicator.className = "status-indicator " + status;
+  }
+  if (statusText) {
+    statusText.textContent = text;
+  }
+  
+  // 根據狀態更新標題
+  const titleMap = {
+    thinking: "AI 思考中...",
+    executing: "執行工具中...",
+    done: "AI 回覆完成",
+    error: "發生錯誤"
+  };
+  if (title && titleMap[status]) {
+    title.textContent = titleMap[status];
+  }
 }
+
 /**
  * 添加進度項目到 Streaming Panel
  * @param {string} status - 狀態
@@ -803,1103 +937,1299 @@ function updateStreamingStatus(status, text) {
  * @param {number} round - 輪次
  */
 function addStreamingProgress(status, message, toolCalls = [], round = 1) {
-    const container = document.getElementById("streamingProgress");
-    if (!container)
-        return;
-    const statusIcons = {
-        thinking: "🤔",
-        executing: "⏳",
-        done: "✅",
-        error: "❌"
-    };
-    // 更新上一個項目為 completed
-    const prevItems = container.querySelectorAll(".progress-item.active");
-    prevItems.forEach(item => {
-        item.classList.remove("active");
-        item.classList.add("completed");
-    });
-    const item = document.createElement("div");
-    item.className = `progress-item ${status === "done" || status === "error" ? status : "active"}`;
-    let toolsHtml = "";
-    if (toolCalls.length > 0) {
-        toolsHtml = `<div class="progress-tools">${toolCalls.map(t => `<span class="tool-tag">${t.name}</span>`).join("")}</div>`;
-    }
-    item.innerHTML = `
+  const container = document.getElementById("streamingProgress");
+  if (!container) return;
+  
+  const statusIcons = {
+    thinking: "🤔",
+    executing: "⏳",
+    done: "✅",
+    error: "❌"
+  };
+  
+  // 更新上一個項目為 completed
+  const prevItems = container.querySelectorAll(".progress-item.active");
+  prevItems.forEach(item => {
+    item.classList.remove("active");
+    item.classList.add("completed");
+  });
+  
+  const item = document.createElement("div");
+  item.className = `progress-item ${status === "done" || status === "error" ? status : "active"}`;
+  
+  let toolsHtml = "";
+  if (toolCalls.length > 0) {
+    toolsHtml = `<div class="progress-tools">${toolCalls.map(t => `<span class="tool-tag">${t.name}</span>`).join("")}</div>`;
+  }
+  
+  item.innerHTML = `
     <span class="progress-icon">${statusIcons[status] || "⏳"}</span>
     <div class="progress-content">
       <div class="progress-message">Round ${round}/${maxToolRounds}: ${message}</div>
       ${toolsHtml}
     </div>
   `;
-    container.appendChild(item);
-    container.scrollTop = container.scrollHeight;
-    // 更新狀態指示器
-    updateStreamingStatus(status, message);
+  
+  container.appendChild(item);
+  container.scrollTop = container.scrollHeight;
+  
+  // 更新狀態指示器
+  updateStreamingStatus(status, message);
 }
+
 /**
  * 添加輸出內容到 Streaming Panel
  * @param {string} content - 內容
  * @param {string} type - 類型: 'tool-call', 'tool-result', 'ai-message', 'error'
  */
 function addStreamingOutput(content, type = "ai-message") {
-    const container = document.getElementById("streamingOutput");
-    if (!container)
-        return;
-    // 移除 cursor
-    const cursor = container.querySelector(".streaming-cursor");
-    const typeClasses = {
-        "tool-call": "tool-call-display",
-        "tool-result": "tool-result-display",
-        "ai-message": "ai-message",
-        "error": "error-message"
-    };
-    // 使用 details/summary 實現可收合的輸出
-    const details = document.createElement("details");
-    details.className = typeClasses[type] || "ai-message";
-    details.open = true; // 預設展開
-    const summary = document.createElement("summary");
-    const contentDiv = document.createElement("div");
-    contentDiv.className = "details-content";
-    // 處理內容顯示
-    if (type === "tool-call") {
-        summary.innerHTML = `🔧 調用工具`;
-        contentDiv.innerHTML = `<pre>${escapeHtml(content)}</pre>`;
-    }
-    else if (type === "tool-result") {
-        // 工具結果：摘要顯示成功/失敗狀態，完整內容在展開區
-        const isSuccess = content.includes("SUCCESS");
-        const statusIcon = isSuccess ? "✅" : "❌";
-        summary.innerHTML = `📋 工具結果 ${statusIcon}`;
-        contentDiv.innerHTML = `<pre>${escapeHtml(content)}</pre>`;
-    }
-    else if (type === "error") {
-        summary.innerHTML = `❌ 錯誤`;
-        contentDiv.innerHTML = escapeHtml(content);
-        details.style.color = "var(--accent-red)";
-    }
-    else {
-        // AI 訊息：較短則直接顯示，較長則可收合
-        const shortContent = content.length > 200 ? content.substring(0, 200) + "..." : content;
-        summary.innerHTML = `💬 AI 回應`;
-        contentDiv.textContent = content;
-    }
-    details.appendChild(summary);
-    details.appendChild(contentDiv);
-    container.appendChild(details);
-    // 重新添加 cursor
-    if (cursor) {
-        container.appendChild(cursor);
-    }
-    container.scrollTop = container.scrollHeight;
+  const container = document.getElementById("streamingOutput");
+  if (!container) return;
+  
+  // 移除 cursor
+  const cursor = container.querySelector(".streaming-cursor");
+  
+  const typeClasses = {
+    "tool-call": "tool-call-display",
+    "tool-result": "tool-result-display",
+    "ai-message": "ai-message",
+    "error": "error-message"
+  };
+  
+  // 使用 details/summary 實現可收合的輸出
+  const details = document.createElement("details");
+  details.className = typeClasses[type] || "ai-message";
+  details.open = true; // 預設展開
+  
+  const summary = document.createElement("summary");
+  const contentDiv = document.createElement("div");
+  contentDiv.className = "details-content";
+  
+  // 處理內容顯示
+  if (type === "tool-call") {
+    summary.innerHTML = `🔧 調用工具`;
+    contentDiv.innerHTML = `<pre>${escapeHtml(content)}</pre>`;
+  } else if (type === "tool-result") {
+    // 工具結果：摘要顯示成功/失敗狀態，完整內容在展開區
+    const isSuccess = content.includes("SUCCESS");
+    const statusIcon = isSuccess ? "✅" : "❌";
+    summary.innerHTML = `📋 工具結果 ${statusIcon}`;
+    contentDiv.innerHTML = `<pre>${escapeHtml(content)}</pre>`;
+  } else if (type === "error") {
+    summary.innerHTML = `❌ 錯誤`;
+    contentDiv.innerHTML = escapeHtml(content);
+    details.style.color = "var(--accent-red)";
+  } else {
+    // AI 訊息：較短則直接顯示，較長則可收合
+    const shortContent = content.length > 200 ? content.substring(0, 200) + "..." : content;
+    summary.innerHTML = `💬 AI 回應`;
+    contentDiv.textContent = content;
+  }
+  
+  details.appendChild(summary);
+  details.appendChild(contentDiv);
+  container.appendChild(details);
+  
+  // 重新添加 cursor
+  if (cursor) {
+    container.appendChild(cursor);
+  }
+  
+  container.scrollTop = container.scrollHeight;
 }
+
 /**
  * 截斷過長的結果
  */
 function truncateResult(text, maxLength = 500) {
-    if (typeof text !== "string") {
-        text = JSON.stringify(text, null, 2);
-    }
-    if (text.length > maxLength) {
-        return text.substring(0, maxLength) + "\n... (已截斷)";
-    }
-    return text;
+  if (typeof text !== "string") {
+    text = JSON.stringify(text, null, 2);
+  }
+  if (text.length > maxLength) {
+    return text.substring(0, maxLength) + "\n... (已截斷)";
+  }
+  return text;
 }
+
 /**
  * HTML 轉義
  */
 function escapeHtml(text) {
-    if (typeof text !== "string")
-        return String(text);
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
+  if (typeof text !== "string") return String(text);
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
 }
+
 /**
  * 顯示第 5 輪確認對話框
  * @returns {Promise<boolean>} - true 繼續，false 取消
  */
 function showRound5Confirmation() {
-    return new Promise((resolve) => {
-        showAlertModal("工具呼叫已達最大輪次", "AI 已執行 5 輪工具呼叫，是否繼續讓 AI 完成回覆？\n\n點擊「確定」繼續，點擊「取消」停止。", () => resolve(true), () => resolve(false));
-    });
+  return new Promise((resolve) => {
+    showAlertModal(
+      "工具呼叫已達最大輪次",
+      "AI 已執行 5 輪工具呼叫，是否繼續讓 AI 完成回覆？\n\n點擊「確定」繼續，點擊「取消」停止。",
+      () => resolve(true),
+      () => resolve(false)
+    );
+  });
 }
+
 /**
  * 帶 MCP 工具呼叫支援的 AI 回覆生成
  */
 async function generateAIReplyWithTools() {
-    if (!workSummary) {
-        showToast("error", "錯誤", "無法取得 AI 訊息");
+  if (!workSummary) {
+    showToast("error", "錯誤", "無法取得 AI 訊息");
+    return;
+  }
+
+  const userContext = document.getElementById("feedbackText").value;
+
+  // 檢查是否有可用的 MCP 工具
+  let hasMCPTools = false;
+  try {
+    const toolsResponse = await fetch("/api/mcp-tools");
+    const toolsData = await toolsResponse.json();
+    hasMCPTools = toolsData.success && toolsData.tools && toolsData.tools.length > 0;
+  } catch {
+    hasMCPTools = false;
+  }
+
+  if (!hasMCPTools) {
+    // 沒有 MCP 工具，使用普通 AI 回覆
+    return generateAIReply();
+  }
+
+  // 使用新的 Streaming Panel 而不是 loading overlay
+  showStreamingPanel();
+  streamingAbortController = new AbortController();
+
+  let round = 0;
+  let toolResults = "";
+
+  try {
+    while (round < maxToolRounds) {
+      // 檢查是否被取消
+      if (streamingAbortController?.signal.aborted) {
+        throw new Error("使用者取消操作");
+      }
+      
+      round++;
+      updateToolProgressUI(round, "thinking", "AI 思考中...");
+
+      // 呼叫 AI API，帶入 MCP 工具描述和先前工具結果
+      const response = await fetch("/api/ai-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          aiMessage: workSummary,
+          userContext: userContext,
+          includeMCPTools: true,
+          toolResults: toolResults || undefined,
+          projectName: currentProjectName || undefined,
+          projectPath: currentProjectPath || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        addStreamingOutput(data.error || "AI 回覆失敗", "error");
+        updateStreamingStatus("error", "AI 回覆失敗");
+        showToast("error", "AI 回覆失敗", data.error);
         return;
-    }
-    const userContext = document.getElementById("feedbackText").value;
-    // 檢查是否有可用的 MCP 工具
-    let hasMCPTools = false;
-    try {
-        const toolsResponse = await fetch("/api/mcp-tools");
-        const toolsData = await toolsResponse.json();
-        hasMCPTools = toolsData.success && toolsData.tools && toolsData.tools.length > 0;
-    }
-    catch {
-        hasMCPTools = false;
-    }
-    if (!hasMCPTools) {
-        // 沒有 MCP 工具，使用普通 AI 回覆
-        return generateAIReply();
-    }
-    // 使用新的 Streaming Panel 而不是 loading overlay
-    showStreamingPanel();
-    streamingAbortController = new AbortController();
-    let round = 0;
-    let toolResults = "";
-    try {
-        while (round < maxToolRounds) {
-            // 檢查是否被取消
-            if (streamingAbortController?.signal.aborted) {
-                throw new Error("使用者取消操作");
-            }
-            round++;
-            updateToolProgressUI(round, "thinking", "AI 思考中...");
-            // 呼叫 AI API，帶入 MCP 工具描述和先前工具結果
-            const response = await fetch("/api/ai-reply", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    aiMessage: workSummary,
-                    userContext: userContext,
-                    includeMCPTools: true,
-                    toolResults: toolResults || undefined,
-                    projectName: currentProjectName || undefined,
-                    projectPath: currentProjectPath || undefined,
-                }),
-            });
-            const data = await response.json();
-            if (!data.success) {
-                addStreamingOutput(data.error || "AI 回覆失敗", "error");
-                updateStreamingStatus("error", "AI 回覆失敗");
-                showToast("error", "AI 回覆失敗", data.error);
-                return;
-            }
-            // 顯示 AI 原始回覆到 streaming output
-            addStreamingOutput(data.reply, "ai-message");
-            // 解析 AI 回覆
-            const parsed = parseToolCalls(data.reply);
-            if (!parsed.hasToolCalls) {
-                // AI 沒有要求工具呼叫，直接使用回覆
-                updateToolProgressUI(round, "done", "完成!");
-                const pinnedPromptsContent = await getPinnedPromptsContent();
-                let finalReply = parsed.message || data.reply;
-                if (pinnedPromptsContent) {
-                    finalReply = pinnedPromptsContent + "\n\n" + finalReply;
-                }
-                document.getElementById("feedbackText").value = finalReply;
-                updateCharCount();
-                // 延遲一下讓使用者看到完成狀態
-                await new Promise(r => setTimeout(r, 1000));
-                hideStreamingPanel();
-                showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
-                return;
-            }
-            // 顯示工具執行狀態
-            updateToolProgressUI(round, "executing", "執行工具中...", parsed.toolCalls);
-            // 顯示要執行的工具調用
-            const toolCallsDisplay = parsed.toolCalls.map(t => `${t.name}(${JSON.stringify(t.arguments, null, 2)})`).join("\n\n");
-            addStreamingOutput(toolCallsDisplay, "tool-call");
-            if (parsed.message) {
-                // 顯示 AI 的中間訊息
-                console.log(`[Round ${round}] AI: ${parsed.message}`);
-            }
-            // 執行工具
-            const results = await executeMCPTools(parsed.toolCalls);
-            toolResults = formatToolResults(results);
-            // 顯示工具執行結果
-            addStreamingOutput(toolResults, "tool-result");
-            // 達到最大輪次時顯示確認對話框
-            if (round === maxToolRounds) {
-                updateToolProgressUI(round, "done", "已達最大輪次");
-                const shouldContinue = await showRound5Confirmation();
-                if (!shouldContinue) {
-                    // 使用者取消，顯示當前結果
-                    const pinnedPromptsContent = await getPinnedPromptsContent();
-                    let finalReply = parsed.message || "AI 工具呼叫已達最大輪次，請手動完成回覆。\n\n" + toolResults;
-                    if (pinnedPromptsContent) {
-                        finalReply = pinnedPromptsContent + "\n\n" + finalReply;
-                    }
-                    document.getElementById("feedbackText").value = finalReply;
-                    updateCharCount();
-                    if (!debugMode)
-                        hideStreamingPanel();
-                    return;
-                }
-                // 重置輪次計數允許繼續
-                round = 0;
-            }
+      }
+
+      // 顯示 AI 原始回覆到 streaming output
+      addStreamingOutput(data.reply, "ai-message");
+
+      // 解析 AI 回覆
+      const parsed = parseToolCalls(data.reply);
+
+      if (!parsed.hasToolCalls) {
+        // AI 沒有要求工具呼叫，直接使用回覆
+        updateToolProgressUI(round, "done", "完成!");
+
+        const pinnedPromptsContent = await getPinnedPromptsContent();
+        let finalReply = parsed.message || data.reply;
+        if (pinnedPromptsContent) {
+          finalReply = pinnedPromptsContent + "\n\n" + finalReply;
         }
-    }
-    catch (error) {
-        console.error("MCP AI 回覆失敗:", error);
-        if (error.message !== "使用者取消操作") {
-            addStreamingOutput(error.message || "無法生成 AI 回覆", "error");
-            showToast("error", "錯誤", "無法生成 AI 回覆");
+
+        document.getElementById("feedbackText").value = finalReply;
+        updateCharCount();
+        
+        // 延遲一下讓使用者看到完成狀態
+        await new Promise(r => setTimeout(r, 1000));
+        hideStreamingPanel();
+        showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
+        return;
+      }
+
+      // 顯示工具執行狀態
+      updateToolProgressUI(round, "executing", "執行工具中...", parsed.toolCalls);
+      
+      // 顯示要執行的工具調用
+      const toolCallsDisplay = parsed.toolCalls.map(t => 
+        `${t.name}(${JSON.stringify(t.arguments, null, 2)})`
+      ).join("\n\n");
+      addStreamingOutput(toolCallsDisplay, "tool-call");
+
+      if (parsed.message) {
+        // 顯示 AI 的中間訊息
+        console.log(`[Round ${round}] AI: ${parsed.message}`);
+      }
+
+      // 執行工具
+      const results = await executeMCPTools(parsed.toolCalls);
+      toolResults = formatToolResults(results);
+      
+      // 顯示工具執行結果
+      addStreamingOutput(toolResults, "tool-result");
+
+      // 達到最大輪次時顯示確認對話框
+      if (round === maxToolRounds) {
+        updateToolProgressUI(round, "done", "已達最大輪次");
+
+        const shouldContinue = await showRound5Confirmation();
+        if (!shouldContinue) {
+          // 使用者取消，顯示當前結果
+          const pinnedPromptsContent = await getPinnedPromptsContent();
+          let finalReply = parsed.message || "AI 工具呼叫已達最大輪次，請手動完成回覆。\n\n" + toolResults;
+          if (pinnedPromptsContent) {
+            finalReply = pinnedPromptsContent + "\n\n" + finalReply;
+          }
+          document.getElementById("feedbackText").value = finalReply;
+          updateCharCount();
+          if (!debugMode) hideStreamingPanel();
+          return;
         }
+        // 重置輪次計數允許繼續
+        round = 0;
+      }
     }
-    finally {
-        if (!debugMode)
-            hideStreamingPanel();
+  } catch (error) {
+    console.error("MCP AI 回覆失敗:", error);
+    if (error.message !== "使用者取消操作") {
+      addStreamingOutput(error.message || "無法生成 AI 回覆", "error");
+      showToast("error", "錯誤", "無法生成 AI 回覆");
     }
+  } finally {
+    if (!debugMode) hideStreamingPanel();
+  }
 }
+
 // ============ 反饋提交 ============
+
 async function submitFeedback() {
-    const text = document.getElementById("feedbackText").value.trim();
-    if (!text && currentImages.length === 0) {
-        showToast("error", "錯誤", "請提供文字回應或上傳圖片");
-        return;
-    }
-    if (!sessionId) {
-        showToast("error", "錯誤", "會話 ID 不存在");
-        return;
-    }
-    // 使用彈窗提示而不要出現遮罩
-    showAlertModal("提交中", "正在提交反饋，請稍候...");
-    const feedbackData = {
-        sessionId: sessionId,
-        text: text,
-        images: currentImages,
-        timestamp: Date.now(),
-        shouldCloseAfterSubmit: false,
-    };
-    // 停止所有計時器
-    stopAllTimers();
-    socket.emit("submit_feedback", feedbackData);
+  const text = document.getElementById("feedbackText").value.trim();
+
+  if (!text && currentImages.length === 0) {
+    showToast("error", "錯誤", "請提供文字回應或上傳圖片");
+    return;
+  }
+
+  if (!sessionId) {
+    showToast("error", "錯誤", "會話 ID 不存在");
+    return;
+  }
+
+  // 使用彈窗提示而不要出現遮罩
+  showAlertModal("提交中", "正在提交反饋，請稍候...");
+
+  const feedbackData = {
+    sessionId: sessionId,
+    text: text,
+    images: currentImages,
+    timestamp: Date.now(),
+    shouldCloseAfterSubmit: false,
+  };
+
+  // 停止所有計時器
+  stopAllTimers();
+
+  socket.emit("submit_feedback", feedbackData);
 }
+
 function clearInputs() {
-    document.getElementById("feedbackText").value = "";
-    updateCharCount();
-    clearImages();
+  document.getElementById("feedbackText").value = "";
+  updateCharCount();
+  clearImages();
 }
+
 /**
  * 選擇性清除提交輸入 - 清空文本、圖片、字數計數，但保留提示詞狀態
  * 用於成功提交反饋後
  */
 function clearSubmissionInputs() {
-    // 清除反饋文本
-    document.getElementById("feedbackText").value = "";
-    updateCharCount();
-    // 清除圖片
-    clearImages();
-    // 停止所有計時器
-    stopAllTimers();
-    // 保留: 提示詞狀態、AI 設置、偏好設置
-    // 這些全局變數不會被清除
+  // 清除反饋文本
+  document.getElementById("feedbackText").value = "";
+  updateCharCount();
+
+  // 清除圖片
+  clearImages();
+
+  // 停止所有計時器
+  stopAllTimers();
+
+  // 保留: 提示詞狀態、AI 設置、偏好設置
+  // 這些全局變數不會被清除
 }
+
 /**
  * 停止所有計時器
  */
 function stopAllTimers() {
-    // 停止對話超時計時器
-    if (dialogTimeoutInterval) {
-        clearInterval(dialogTimeoutInterval);
-        dialogTimeoutInterval = null;
-    }
-    // 停止關閉頁面倒數計時器
-    if (closeCountdownInterval) {
-        clearInterval(closeCountdownInterval);
-        closeCountdownInterval = null;
-    }
-    const countdownEl = document.getElementById("close-cd");
-    if (countdownEl) {
-        countdownEl.style.display = "none";
-    }
-    // 停止自動回應計時器
-    if (autoReplyTimerInterval) {
-        clearInterval(autoReplyTimerInterval);
-        autoReplyTimerInterval = null;
-    }
-    const timerEl = document.getElementById("auto-reply-timer");
-    if (timerEl) {
-        timerEl.classList.remove("active");
-    }
-    // 停止自動回覆確認計時器
-    if (autoReplyConfirmationTimeout) {
-        clearInterval(autoReplyConfirmationTimeout);
-        autoReplyConfirmationTimeout = null;
-    }
+  // 停止對話超時計時器
+  if (dialogTimeoutInterval) {
+    clearInterval(dialogTimeoutInterval);
+    dialogTimeoutInterval = null;
+  }
+
+  // 停止關閉頁面倒數計時器
+  if (closeCountdownInterval) {
+    clearInterval(closeCountdownInterval);
+    closeCountdownInterval = null;
+  }
+  const countdownEl = document.getElementById("close-cd");
+  if (countdownEl) {
+    countdownEl.style.display = "none";
+  }
+
+  // 停止自動回應計時器
+  if (autoReplyTimerInterval) {
+    clearInterval(autoReplyTimerInterval);
+    autoReplyTimerInterval = null;
+  }
+  const timerEl = document.getElementById("auto-reply-timer");
+  if (timerEl) {
+    timerEl.classList.remove("active");
+  }
+
+  // 停止自動回覆確認計時器
+  if (autoReplyConfirmationTimeout) {
+    clearInterval(autoReplyConfirmationTimeout);
+    autoReplyConfirmationTimeout = null;
+  }
 }
+
 /**
  * 開始關閉頁面倒數計時
  * 從 MCP_DIALOG_TIMEOUT 取得秒數，倒數到 0 時自動關閉頁面
  */
 function startCloseCountdown() {
-    const countdownEl = document.getElementById("close-cd");
-    if (!countdownEl) {
-        console.warn("關閉倒數計時器元素 (close-cd) 未找到");
-        return;
-    }
-    // 停止之前的計時器（如果存在）
-    if (closeCountdownInterval) {
-        clearInterval(closeCountdownInterval);
-    }
-    let remaining = DIALOG_TIMEOUT_SECONDS;
-    countdownEl.style.display = "inline-flex";
+  const countdownEl = document.getElementById("close-cd");
+  if (!countdownEl) {
+    console.warn("關閉倒數計時器元素 (close-cd) 未找到");
+    return;
+  }
+
+  // 停止之前的計時器（如果存在）
+  if (closeCountdownInterval) {
+    clearInterval(closeCountdownInterval);
+  }
+
+  let remaining = DIALOG_TIMEOUT_SECONDS;
+  countdownEl.style.display = "inline-flex";
+  countdownEl.textContent = remaining;
+
+  console.log(`開始關閉頁面倒數計時: ${remaining} 秒`);
+
+  closeCountdownInterval = setInterval(() => {
+    remaining--;
     countdownEl.textContent = remaining;
-    console.log(`開始關閉頁面倒數計時: ${remaining} 秒`);
-    closeCountdownInterval = setInterval(() => {
-        remaining--;
-        countdownEl.textContent = remaining;
-        if (remaining <= 0) {
-            clearInterval(closeCountdownInterval);
-            closeCountdownInterval = null;
-            console.log("倒數結束，關閉頁面");
-            window.close();
-        }
-    }, 1000);
+
+    if (remaining <= 0) {
+      clearInterval(closeCountdownInterval);
+      closeCountdownInterval = null;
+      console.log("倒數結束，關閉頁面");
+      window.close();
+    }
+  }, 1000);
 }
+
 // ============ 圖片處理 ============
+
 function handleFileSelect(e) {
-    handleFileDrop(e.target.files);
+  handleFileDrop(e.target.files);
 }
+
 function handleFileDrop(files) {
-    Array.from(files).forEach((file) => {
-        if (file.type.startsWith("image/")) {
-            readImageFile(file);
-        }
-    });
+  Array.from(files).forEach((file) => {
+    if (file.type.startsWith("image/")) {
+      readImageFile(file);
+    }
+  });
 }
+
 function handlePaste(e) {
-    const items = e.clipboardData.items;
-    for (let item of items) {
-        if (item.type.startsWith("image/")) {
-            const file = item.getAsFile();
-            readImageFile(file);
-        }
+  const items = e.clipboardData.items;
+
+  for (let item of items) {
+    if (item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      readImageFile(file);
     }
+  }
 }
+
 function readImageFile(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const imageData = {
-            name: file.name,
-            data: e.target.result.split(",")[1], // 移除 data:image/...;base64, 前綴
-            size: file.size,
-            type: file.type,
-        };
-        currentImages.push(imageData);
-        addImagePreview(e.target.result, currentImages.length - 1);
-        updateImageCount();
+  const reader = new FileReader();
+
+  reader.onload = (e) => {
+    const imageData = {
+      name: file.name,
+      data: e.target.result.split(",")[1], // 移除 data:image/...;base64, 前綴
+      size: file.size,
+      type: file.type,
     };
-    reader.readAsDataURL(file);
+
+    currentImages.push(imageData);
+    addImagePreview(e.target.result, currentImages.length - 1);
+    updateImageCount();
+  };
+
+  reader.readAsDataURL(file);
 }
+
 function addImagePreview(dataUrl, index) {
-    const container = document.getElementById("imagePreviewContainer");
-    const dropZone = document.getElementById("imageDropZone");
-    // 隱藏拖放區
-    if (currentImages.length > 0) {
-        dropZone.style.display = "none";
-        container.style.display = "flex";
-    }
-    const preview = document.createElement("div");
-    preview.className = "image-preview";
-    preview.innerHTML = `
+  const container = document.getElementById("imagePreviewContainer");
+  const dropZone = document.getElementById("imageDropZone");
+
+  // 隱藏拖放區
+  if (currentImages.length > 0) {
+    dropZone.style.display = "none";
+    container.style.display = "flex";
+  }
+
+  const preview = document.createElement("div");
+  preview.className = "image-preview";
+  preview.innerHTML = `
         <img src="${dataUrl}" alt="Preview">
         <button class="image-preview-remove" onclick="removeImage(${index})">✖</button>
     `;
-    container.appendChild(preview);
+
+  container.appendChild(preview);
 }
+
 function removeImage(index) {
-    currentImages.splice(index, 1);
-    // 重新渲染所有圖片預覽
-    const container = document.getElementById("imagePreviewContainer");
-    container.innerHTML = "";
-    currentImages.forEach((img, i) => {
-        const dataUrl = `data:${img.type};base64,${img.data}`;
-        addImagePreview(dataUrl, i);
-    });
-    updateImageCount();
-    // 如果沒有圖片了，顯示拖放區
-    if (currentImages.length === 0) {
-        document.getElementById("imageDropZone").style.display = "flex";
-        container.style.display = "none";
-    }
-}
-function clearImages() {
-    currentImages = [];
-    document.getElementById("imagePreviewContainer").innerHTML = "";
+  currentImages.splice(index, 1);
+
+  // 重新渲染所有圖片預覽
+  const container = document.getElementById("imagePreviewContainer");
+  container.innerHTML = "";
+
+  currentImages.forEach((img, i) => {
+    const dataUrl = `data:${img.type};base64,${img.data}`;
+    addImagePreview(dataUrl, i);
+  });
+
+  updateImageCount();
+
+  // 如果沒有圖片了，顯示拖放區
+  if (currentImages.length === 0) {
     document.getElementById("imageDropZone").style.display = "flex";
-    document.getElementById("imagePreviewContainer").style.display = "none";
-    updateImageCount();
+    container.style.display = "none";
+  }
 }
+
+function clearImages() {
+  currentImages = [];
+  document.getElementById("imagePreviewContainer").innerHTML = "";
+  document.getElementById("imageDropZone").style.display = "flex";
+  document.getElementById("imagePreviewContainer").style.display = "none";
+  updateImageCount();
+}
+
 function updateImageCount() {
-    document.getElementById("imageCount").textContent = currentImages.length;
+  document.getElementById("imageCount").textContent = currentImages.length;
 }
+
 // ============ 提示詞管理 ============
+
 function renderPrompts(searchTerm = "") {
-    const listEl = document.getElementById("promptList");
-    let filteredPrompts = prompts;
-    if (searchTerm) {
-        filteredPrompts = prompts.filter((p) => p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            p.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (p.category &&
-                p.category.toLowerCase().includes(searchTerm.toLowerCase())));
-    }
-    if (filteredPrompts.length === 0) {
-        listEl.innerHTML = `
+  const listEl = document.getElementById("promptList");
+
+  let filteredPrompts = prompts;
+  if (searchTerm) {
+    filteredPrompts = prompts.filter(
+      (p) =>
+        p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.category &&
+          p.category.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  }
+
+  if (filteredPrompts.length === 0) {
+    listEl.innerHTML = `
             <div class="placeholder">
                 <span class="icon">📋</span>
                 <p>${searchTerm ? "找不到符合的提示詞" : "尚無提示詞"}</p>
                 <button id="addPromptBtn" class="btn btn-secondary btn-sm" onclick="openPromptModal()">新增提示詞</button>
             </div>
         `;
-        return;
-    }
-    listEl.innerHTML = filteredPrompts
-        .map((prompt) => `
-        <div class="prompt-item ${prompt.isPinned ? "pinned" : ""}" onclick="usePrompt(${prompt.id})">
+    return;
+  }
+
+  listEl.innerHTML = filteredPrompts
+    .map(
+      (prompt) => `
+        <div class="prompt-item ${
+          prompt.isPinned ? "pinned" : ""
+        }" onclick="usePrompt(${prompt.id})">
             <div class="prompt-item-header">
                 <div class="prompt-item-title">${escapeHtml(prompt.title)}</div>
                 <div class="prompt-item-actions">
-                    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); togglePinPrompt(${prompt.id})" title="${prompt.isPinned ? "取消釘選" : "釘選"}">
-                        <span class="icon">${prompt.isPinned ? "📍" : "📌"}</span>
+                    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); togglePinPrompt(${
+                      prompt.id
+                    })" title="${prompt.isPinned ? "取消釘選" : "釘選"}">
+                        <span class="icon">${
+                          prompt.isPinned ? "📍" : "📌"
+                        }</span>
                     </button>
-                    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); editPrompt(${prompt.id})" title="編輯">
+                    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); editPrompt(${
+                      prompt.id
+                    })" title="編輯">
                         <span class="icon">✏️</span>
                     </button>
-                    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deletePrompt(${prompt.id})" title="刪除">
+                    <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); deletePrompt(${
+                      prompt.id
+                    })" title="刪除">
                         <span class="icon">🗑️</span>
                     </button>
                 </div>
             </div>
             <div class="prompt-item-content">${escapeHtml(prompt.content)}</div>
-            ${prompt.category
-        ? `
+            ${
+              prompt.category
+                ? `
                 <div class="prompt-item-footer">
-                    <span class="prompt-item-category">${escapeHtml(prompt.category)}</span>
+                    <span class="prompt-item-category">${escapeHtml(
+                      prompt.category
+                    )}</span>
                 </div>
             `
-        : ""}
+                : ""
+            }
         </div>
-    `)
-        .join("");
+    `
+    )
+    .join("");
 }
+
 function filterPrompts() {
-    const searchTerm = document.getElementById("promptSearch").value;
-    renderPrompts(searchTerm);
+  const searchTerm = document.getElementById("promptSearch").value;
+  renderPrompts(searchTerm);
 }
+
 function usePrompt(id) {
-    const prompt = prompts.find((p) => p.id === id);
-    if (!prompt)
-        return;
-    const feedbackText = document.getElementById("feedbackText");
-    const currentText = feedbackText.value;
-    // 如果有內容，在新行添加
-    if (currentText.trim()) {
-        feedbackText.value = currentText + "\n\n" + prompt.content;
-    }
-    else {
-        feedbackText.value = prompt.content;
-    }
-    updateCharCount();
-    handleUserActivity();
-    showToast("success", "提示詞已使用", `已插入「${prompt.title}」`);
+  const prompt = prompts.find((p) => p.id === id);
+  if (!prompt) return;
+
+  const feedbackText = document.getElementById("feedbackText");
+  const currentText = feedbackText.value;
+
+  // 如果有內容，在新行添加
+  if (currentText.trim()) {
+    feedbackText.value = currentText + "\n\n" + prompt.content;
+  } else {
+    feedbackText.value = prompt.content;
+  }
+
+  updateCharCount();
+  handleUserActivity();
+
+  showToast("success", "提示詞已使用", `已插入「${prompt.title}」`);
 }
+
 async function togglePinPrompt(id) {
-    try {
-        const response = await fetch(`/api/prompts/${id}/pin`, {
-            method: "PUT",
-        });
-        const data = await response.json();
-        if (data.success) {
-            await loadPrompts();
-            showToast("success", "成功", data.prompt.isPinned ? "已釘選提示詞" : "已取消釘選");
-        }
-        else {
-            showToast("error", "錯誤", formatApiError(data));
-        }
+  try {
+    const response = await fetch(`/api/prompts/${id}/pin`, {
+      method: "PUT",
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      await loadPrompts();
+      showToast(
+        "success",
+        "成功",
+        data.prompt.isPinned ? "已釘選提示詞" : "已取消釘選"
+      );
+    } else {
+      showToast("error", "錯誤", formatApiError(data));
     }
-    catch (error) {
-        console.error("切換釘選狀態失敗:", error);
-        showToast("error", "錯誤", "操作失敗");
-    }
+  } catch (error) {
+    console.error("切換釘選狀態失敗:", error);
+    showToast("error", "錯誤", "操作失敗");
+  }
 }
+
 function editPrompt(id) {
-    const prompt = prompts.find((p) => p.id === id);
-    if (!prompt)
-        return;
-    isEditingPrompt = true;
-    editingPromptId = id;
-    document.getElementById("promptModalTitle").textContent = "編輯提示詞";
-    document.getElementById("promptId").value = id;
-    document.getElementById("promptTitle").value = prompt.title;
-    document.getElementById("promptContent").value = prompt.content;
-    document.getElementById("promptCategory").value = prompt.category || "";
-    document.getElementById("promptIsPinned").checked = prompt.isPinned;
-    openPromptModal();
+  const prompt = prompts.find((p) => p.id === id);
+  if (!prompt) return;
+
+  isEditingPrompt = true;
+  editingPromptId = id;
+
+  document.getElementById("promptModalTitle").textContent = "編輯提示詞";
+  document.getElementById("promptId").value = id;
+  document.getElementById("promptTitle").value = prompt.title;
+  document.getElementById("promptContent").value = prompt.content;
+  document.getElementById("promptCategory").value = prompt.category || "";
+  document.getElementById("promptIsPinned").checked = prompt.isPinned;
+
+  openPromptModal();
 }
+
 async function deletePrompt(id) {
-    if (!confirm("確定要刪除此提示詞嗎？"))
-        return;
-    try {
-        const response = await fetch(`/api/prompts/${id}`, {
-            method: "DELETE",
-        });
-        const data = await response.json();
-        if (data.success) {
-            await loadPrompts();
-            showToast("success", "成功", "提示詞已刪除");
-        }
-        else {
-            showToast("error", "錯誤", formatApiError(data));
-        }
+  if (!confirm("確定要刪除此提示詞嗎？")) return;
+
+  try {
+    const response = await fetch(`/api/prompts/${id}`, {
+      method: "DELETE",
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      await loadPrompts();
+      showToast("success", "成功", "提示詞已刪除");
+    } else {
+      showToast("error", "錯誤", formatApiError(data));
     }
-    catch (error) {
-        console.error("刪除提示詞失敗:", error);
-        showToast("error", "錯誤", "刪除失敗");
-    }
+  } catch (error) {
+    console.error("刪除提示詞失敗:", error);
+    showToast("error", "錯誤", "刪除失敗");
+  }
 }
+
 function openPromptModal() {
-    if (!isEditingPrompt) {
-        document.getElementById("promptModalTitle").textContent = "新增提示詞";
-        document.getElementById("promptForm").reset();
-        document.getElementById("promptId").value = "";
-    }
-    document.getElementById("promptModal").classList.add("show");
+  if (!isEditingPrompt) {
+    document.getElementById("promptModalTitle").textContent = "新增提示詞";
+    document.getElementById("promptForm").reset();
+    document.getElementById("promptId").value = "";
+  }
+
+  document.getElementById("promptModal").classList.add("show");
 }
+
 function closePromptModal() {
-    document.getElementById("promptModal").classList.remove("show");
-    isEditingPrompt = false;
-    editingPromptId = null;
+  document.getElementById("promptModal").classList.remove("show");
+  isEditingPrompt = false;
+  editingPromptId = null;
 }
+
 async function savePrompt() {
-    const title = document.getElementById("promptTitle").value.trim();
-    const content = document.getElementById("promptContent").value.trim();
-    const category = document.getElementById("promptCategory").value.trim();
-    const isPinned = document.getElementById("promptIsPinned").checked;
-    if (!title || !content) {
-        showToast("error", "錯誤", "標題和內容為必填欄位");
-        return;
+  const title = document.getElementById("promptTitle").value.trim();
+  const content = document.getElementById("promptContent").value.trim();
+  const category = document.getElementById("promptCategory").value.trim();
+  const isPinned = document.getElementById("promptIsPinned").checked;
+
+  if (!title || !content) {
+    showToast("error", "錯誤", "標題和內容為必填欄位");
+    return;
+  }
+
+  const promptData = {
+    title,
+    content,
+    category: category || undefined,
+    isPinned,
+  };
+
+  try {
+    let response;
+    if (isEditingPrompt && editingPromptId) {
+      // 更新
+      response = await fetch(`/api/prompts/${editingPromptId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(promptData),
+      });
+    } else {
+      // 創建
+      response = await fetch("/api/prompts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(promptData),
+      });
     }
-    const promptData = {
-        title,
-        content,
-        category: category || undefined,
-        isPinned,
-    };
-    try {
-        let response;
-        if (isEditingPrompt && editingPromptId) {
-            // 更新
-            response = await fetch(`/api/prompts/${editingPromptId}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(promptData),
-            });
-        }
-        else {
-            // 創建
-            response = await fetch("/api/prompts", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(promptData),
-            });
-        }
-        const data = await response.json();
-        if (data.success) {
-            await loadPrompts();
-            closePromptModal();
-            showToast("success", "成功", isEditingPrompt ? "提示詞已更新" : "提示詞已創建");
-        }
-        else {
-            showToast("error", "錯誤", formatApiError(data));
-        }
+
+    const data = await response.json();
+
+    if (data.success) {
+      await loadPrompts();
+      closePromptModal();
+      showToast(
+        "success",
+        "成功",
+        isEditingPrompt ? "提示詞已更新" : "提示詞已創建"
+      );
+    } else {
+      showToast("error", "錯誤", formatApiError(data));
     }
-    catch (error) {
-        console.error("保存提示詞失敗:", error);
-        showToast("error", "錯誤", "保存失敗");
-    }
+  } catch (error) {
+    console.error("保存提示詞失敗:", error);
+    showToast("error", "錯誤", "保存失敗");
+  }
 }
+
 // ============ AI 設定 ============
+
 function openAISettingsModal() {
-    if (aiSettings) {
-        document.getElementById("apiUrl").value = aiSettings.apiUrl;
-        document.getElementById("model").value = aiSettings.model;
-        // API Key 欄位預設為空，不從資料庫讀取
-        document.getElementById("apiKey").value = "";
-        document.getElementById("apiKey").placeholder = "留空則保留原有 API Key";
-        document.getElementById("systemPrompt").value = aiSettings.systemPrompt;
-        document.getElementById("mcpToolsPrompt").value = aiSettings.mcpToolsPrompt || "";
-        document.getElementById("temperature").value =
-            aiSettings.temperature || 0.7;
-        document.getElementById("maxTokens").value = aiSettings.maxTokens || 1000;
-        document.getElementById("autoReplyTimerSeconds").value =
-            aiSettings.autoReplyTimerSeconds || 300;
-        document.getElementById("maxToolRounds").value =
-            aiSettings.maxToolRounds || 5;
-        document.getElementById("debugMode").checked =
-            aiSettings.debugMode || false;
-    }
-    document.getElementById("aiSettingsModal").classList.add("show");
+  if (aiSettings) {
+    document.getElementById("apiUrl").value = aiSettings.apiUrl;
+    document.getElementById("model").value = aiSettings.model;
+    // API Key 欄位預設為空，不從資料庫讀取
+    document.getElementById("apiKey").value = "";
+    document.getElementById("apiKey").placeholder = "留空則保留原有 API Key";
+    document.getElementById("systemPrompt").value = aiSettings.systemPrompt;
+    document.getElementById("mcpToolsPrompt").value = aiSettings.mcpToolsPrompt || "";
+    document.getElementById("temperature").value =
+      aiSettings.temperature || 0.7;
+    document.getElementById("maxTokens").value = aiSettings.maxTokens || 1000;
+    document.getElementById("autoReplyTimerSeconds").value =
+      aiSettings.autoReplyTimerSeconds || 300;
+    document.getElementById("maxToolRounds").value =
+      aiSettings.maxToolRounds || 5;
+    document.getElementById("debugMode").checked =
+      aiSettings.debugMode || false;
+  }
+
+  document.getElementById("aiSettingsModal").classList.add("show");
 }
+
 function closeAISettingsModal() {
-    document.getElementById("aiSettingsModal").classList.remove("show");
+  document.getElementById("aiSettingsModal").classList.remove("show");
 }
+
 async function saveAISettings() {
-    const apiUrl = document.getElementById("apiUrl").value.trim();
-    const model = document.getElementById("model").value.trim();
-    const apiKey = document.getElementById("apiKey").value.trim();
-    const systemPrompt = document.getElementById("systemPrompt").value.trim();
-    const mcpToolsPrompt = document.getElementById("mcpToolsPrompt").value.trim();
-    const temperature = parseFloat(document.getElementById("temperature").value);
-    const maxTokens = parseInt(document.getElementById("maxTokens").value);
-    const autoReplyTimerSeconds = parseInt(document.getElementById("autoReplyTimerSeconds").value);
-    const maxToolRoundsValue = parseInt(document.getElementById("maxToolRounds").value);
-    const debugModeValue = document.getElementById("debugMode").checked;
-    const settingsData = {
-        apiUrl: apiUrl || undefined,
-        model: model || undefined,
-        systemPrompt: systemPrompt || undefined,
-        mcpToolsPrompt: mcpToolsPrompt || undefined,
-        temperature,
-        maxTokens,
-        autoReplyTimerSeconds,
-        maxToolRounds: maxToolRoundsValue,
-        debugMode: debugModeValue,
-    };
-    // 只有當 API Key 不是遮罩格式且不為空時才更新
-    if (apiKey && !apiKey.startsWith("***")) {
-        settingsData.apiKey = apiKey;
-    }
+  const apiUrl = document.getElementById("apiUrl").value.trim();
+  const model = document.getElementById("model").value.trim();
+  const apiKey = document.getElementById("apiKey").value.trim();
+  const systemPrompt = document.getElementById("systemPrompt").value.trim();
+  const mcpToolsPrompt = document.getElementById("mcpToolsPrompt").value.trim();
+  const temperature = parseFloat(document.getElementById("temperature").value);
+  const maxTokens = parseInt(document.getElementById("maxTokens").value);
+  const autoReplyTimerSeconds = parseInt(
+    document.getElementById("autoReplyTimerSeconds").value
+  );
+  const maxToolRoundsValue = parseInt(
+    document.getElementById("maxToolRounds").value
+  );
+  const debugModeValue = document.getElementById("debugMode").checked;
+
+  const settingsData = {
+    apiUrl: apiUrl || undefined,
+    model: model || undefined,
+    systemPrompt: systemPrompt || undefined,
+    mcpToolsPrompt: mcpToolsPrompt || undefined,
+    temperature,
+    maxTokens,
+    autoReplyTimerSeconds,
+    maxToolRounds: maxToolRoundsValue,
+    debugMode: debugModeValue,
+  };
+
+  // 只有當 API Key 不是遮罩格式且不為空時才更新
+  if (apiKey && !apiKey.startsWith("***")) {
+    settingsData.apiKey = apiKey;
+  }
+
+  try {
+    const response = await fetch("/api/ai-settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(settingsData),
+    });
+
+    let data;
     try {
-        const response = await fetch("/api/ai-settings", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(settingsData),
-        });
-        let data;
-        try {
-            data = await response.json();
-        }
-        catch (e) {
-            // 不是 JSON 回應，讀取純文字
-            const text = await response.text();
-            console.error("非 JSON 回應:", text);
-            showToast("error", "錯誤", `儲存失敗：${text}`);
-            return;
-        }
-        if (data && data.success) {
-            aiSettings = data.settings;
-            // 更新自動回覆計時器秒數
-            if (aiSettings.autoReplyTimerSeconds !== undefined) {
-                AUTO_REPLY_TIMER_SECONDS = aiSettings.autoReplyTimerSeconds;
-                console.log(`自動回覆時間已更新為: ${AUTO_REPLY_TIMER_SECONDS}s`);
-            }
-            // 更新 AI 交談次數上限
-            if (aiSettings.maxToolRounds !== undefined) {
-                maxToolRounds = aiSettings.maxToolRounds;
-                console.log(`AI 交談次數已更新為: ${maxToolRounds}`);
-            }
-            // 更新 Debug 模式
-            if (aiSettings.debugMode !== undefined) {
-                debugMode = aiSettings.debugMode;
-                console.log(`Debug 模式已更新為: ${debugMode}`);
-            }
-            closeAISettingsModal();
-            showToast("success", "成功", "AI 設定已儲存");
-        }
-        else {
-            // 儘可能顯示詳細錯誤資訊
-            const detailParts = [];
-            if (data.error)
-                detailParts.push(data.error);
-            if (data.details)
-                detailParts.push(typeof data.details === "string"
-                    ? data.details
-                    : JSON.stringify(data.details));
-            if (data.stack)
-                detailParts.push(data.stack);
-            const message = detailParts.join(" \n ");
-            console.error("儲存 AI 設定失敗:", data);
-            showToast("error", "錯誤", message || "儲存 AI 設定失敗");
-        }
+      data = await response.json();
+    } catch (e) {
+      // 不是 JSON 回應，讀取純文字
+      const text = await response.text();
+      console.error("非 JSON 回應:", text);
+      showToast("error", "錯誤", `儲存失敗：${text}`);
+      return;
     }
-    catch (error) {
-        console.error("儲存 AI 設定失敗:", error);
-        // 如果有 response 物件，可嘗試讀取更多內容
-        if (error && error.response) {
-            try {
-                const text = await error.response.text();
-                showToast("error", "錯誤", `儲存失敗：${text}`);
-                return;
-            }
-            catch (e) {
-                // ignore
-            }
-        }
-        showToast("error", "錯誤", error instanceof Error ? error.message : "儲存失敗");
+
+    if (data && data.success) {
+      aiSettings = data.settings;
+
+      // 更新自動回覆計時器秒數
+      if (aiSettings.autoReplyTimerSeconds !== undefined) {
+        AUTO_REPLY_TIMER_SECONDS = aiSettings.autoReplyTimerSeconds;
+        console.log(`自動回覆時間已更新為: ${AUTO_REPLY_TIMER_SECONDS}s`);
+      }
+      
+      // 更新 AI 交談次數上限
+      if (aiSettings.maxToolRounds !== undefined) {
+        maxToolRounds = aiSettings.maxToolRounds;
+        console.log(`AI 交談次數已更新為: ${maxToolRounds}`);
+      }
+      
+      // 更新 Debug 模式
+      if (aiSettings.debugMode !== undefined) {
+        debugMode = aiSettings.debugMode;
+        console.log(`Debug 模式已更新為: ${debugMode}`);
+      }
+      
+      closeAISettingsModal();
+      showToast("success", "成功", "AI 設定已儲存");
+    } else {
+      // 儘可能顯示詳細錯誤資訊
+      const detailParts = [];
+      if (data.error) detailParts.push(data.error);
+      if (data.details)
+        detailParts.push(
+          typeof data.details === "string"
+            ? data.details
+            : JSON.stringify(data.details)
+        );
+      if (data.stack) detailParts.push(data.stack);
+      const message = detailParts.join(" \n ");
+      console.error("儲存 AI 設定失敗:", data);
+      showToast("error", "錯誤", message || "儲存 AI 設定失敗");
     }
-}
-async function testAPIKey() {
-    const apiKeyInput = document.getElementById("apiKey").value.trim();
-    const model = document.getElementById("model").value.trim();
-    if (!model) {
-        showToast("error", "錯誤", "請輸入模型名稱");
+  } catch (error) {
+    console.error("儲存 AI 設定失敗:", error);
+    // 如果有 response 物件，可嘗試讀取更多內容
+    if (error && error.response) {
+      try {
+        const text = await error.response.text();
+        showToast("error", "錯誤", `儲存失敗：${text}`);
         return;
+      } catch (e) {
+        // ignore
+      }
     }
-    showLoadingOverlay("正在測試 API Key...");
-    try {
-        const requestBody = { model };
-        // 判斷是否使用新輸入的 API Key：
-        // 1. API Key 不為空
-        // 2. API Key 不是遮罩格式（不以 *** 開頭）
-        // 如果是遮罩格式或為空，後端會自動使用資料庫中解密的 API Key
-        if (apiKeyInput && !apiKeyInput.startsWith("***")) {
-            requestBody.apiKey = apiKeyInput;
-            console.log("使用新輸入的 API Key 進行測試");
-        }
-        else {
-            console.log("使用資料庫中儲存的 API Key 進行測試");
-        }
-        const response = await fetch("/api/ai-settings/validate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody),
-        });
-        const data = await response.json();
-        if (data.valid) {
-            showToast("success", "測試成功", "API Key 有效");
-        }
-        else {
-            showToast("error", "測試失敗", data.error || "API Key 無效");
-        }
-    }
-    catch (error) {
-        console.error("測試 API Key 失敗:", error);
-        showToast("error", "錯誤", "測試失敗");
-    }
-    finally {
-        hideLoadingOverlay();
-    }
+
+    showToast(
+      "error",
+      "錯誤",
+      error instanceof Error ? error.message : "儲存失敗"
+    );
+  }
 }
+
+async function testAPIKey() {
+  const apiKeyInput = document.getElementById("apiKey").value.trim();
+  const model = document.getElementById("model").value.trim();
+
+  if (!model) {
+    showToast("error", "錯誤", "請輸入模型名稱");
+    return;
+  }
+
+  showLoadingOverlay("正在測試 API Key...");
+
+  try {
+    const requestBody = { model };
+
+    // 判斷是否使用新輸入的 API Key：
+    // 1. API Key 不為空
+    // 2. API Key 不是遮罩格式（不以 *** 開頭）
+    // 如果是遮罩格式或為空，後端會自動使用資料庫中解密的 API Key
+    if (apiKeyInput && !apiKeyInput.startsWith("***")) {
+      requestBody.apiKey = apiKeyInput;
+      console.log("使用新輸入的 API Key 進行測試");
+    } else {
+      console.log("使用資料庫中儲存的 API Key 進行測試");
+    }
+
+    const response = await fetch("/api/ai-settings/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+
+    const data = await response.json();
+
+    if (data.valid) {
+      showToast("success", "測試成功", "API Key 有效");
+    } else {
+      showToast("error", "測試失敗", data.error || "API Key 無效");
+    }
+  } catch (error) {
+    console.error("測試 API Key 失敗:", error);
+    showToast("error", "錯誤", "測試失敗");
+  } finally {
+    hideLoadingOverlay();
+  }
+}
+
 function toggleAPIKeyVisibility() {
-    const apiKeyInput = document.getElementById("apiKey");
-    const toggleBtn = document.getElementById("toggleApiKey");
-    if (apiKeyInput.type === "password") {
-        apiKeyInput.type = "text";
-        toggleBtn.innerHTML = '<span class="icon">🙈</span>';
-    }
-    else {
-        apiKeyInput.type = "password";
-        toggleBtn.innerHTML = '<span class="icon">👁️</span>';
-    }
+  const apiKeyInput = document.getElementById("apiKey");
+  const toggleBtn = document.getElementById("toggleApiKey");
+
+  if (apiKeyInput.type === "password") {
+    apiKeyInput.type = "text";
+    toggleBtn.innerHTML = '<span class="icon">🙈</span>';
+  } else {
+    apiKeyInput.type = "password";
+    toggleBtn.innerHTML = '<span class="icon">👁️</span>';
+  }
 }
+
 // ============ 自動回覆 UI ============
+
 function showAutoReplyWarning(seconds) {
-    const warningEl = document.getElementById("autoReplyWarning");
-    const warningText = document.getElementById("warningText");
-    warningText.textContent = `系統將在 ${seconds} 秒後自動生成回應`;
-    warningEl.style.display = "block";
-    // 每秒更新倒數
-    let remaining = seconds;
-    autoReplyWarningTimeout = setInterval(() => {
-        remaining--;
-        if (remaining > 0) {
-            warningText.textContent = `系統將在 ${remaining} 秒後自動生成回應`;
-        }
-        else {
-            // 倒數結束時隱藏提示
-            clearInterval(autoReplyWarningTimeout);
-            autoReplyWarningTimeout = null;
-            warningEl.style.display = "none";
-        }
-    }, 1000);
-}
-function hideAutoReplyWarning() {
-    const warningEl = document.getElementById("autoReplyWarning");
-    warningEl.style.display = "none";
-    if (autoReplyWarningTimeout) {
-        clearInterval(autoReplyWarningTimeout);
-        autoReplyWarningTimeout = null;
+  const warningEl = document.getElementById("autoReplyWarning");
+  const warningText = document.getElementById("warningText");
+
+  warningText.textContent = `系統將在 ${seconds} 秒後自動生成回應`;
+  warningEl.style.display = "block";
+
+  // 每秒更新倒數
+  let remaining = seconds;
+  autoReplyWarningTimeout = setInterval(() => {
+    remaining--;
+    if (remaining > 0) {
+      warningText.textContent = `系統將在 ${remaining} 秒後自動生成回應`;
+    } else {
+      // 倒數結束時隱藏提示
+      clearInterval(autoReplyWarningTimeout);
+      autoReplyWarningTimeout = null;
+      warningEl.style.display = "none";
     }
+  }, 1000);
 }
+
+function hideAutoReplyWarning() {
+  const warningEl = document.getElementById("autoReplyWarning");
+  warningEl.style.display = "none";
+
+  if (autoReplyWarningTimeout) {
+    clearInterval(autoReplyWarningTimeout);
+    autoReplyWarningTimeout = null;
+  }
+}
+
 /**
  * [已廢棄] 原本用於 AI 回覆對話超時計時
  * 現在由 startCloseCountdown() 統一處理頁面關閉倒數
  */
 function startDialogTimeout() {
-    // 此函數已被 startCloseCountdown() 替代
-    console.log("startDialogTimeout() 已廢棄，使用 startCloseCountdown()");
+  // 此函數已被 startCloseCountdown() 替代
+  console.log("startDialogTimeout() 已廢棄，使用 startCloseCountdown()");
 }
+
 /**
  * 開始自動回應倒數計時（300 秒）
  * 顯示在 auto-reply-timer 容器中（中間下方）
  * 當倒數到 0 秒時自動啟動 AI 回應
  */
 function startAutoReplyTimer() {
-    const timerEl = document.getElementById("auto-reply-timer");
-    const secondsEl = document.getElementById("auto-reply-seconds");
-    if (!timerEl || !secondsEl) {
-        console.warn("自動回應計時器元素未找到");
-        return;
+  const timerEl = document.getElementById("auto-reply-timer");
+  const secondsEl = document.getElementById("auto-reply-seconds");
+
+  if (!timerEl || !secondsEl) {
+    console.warn("自動回應計時器元素未找到");
+    return;
+  }
+
+  // 初始化計時器（300 秒）
+  autoReplyTimerRemaining = AUTO_REPLY_TIMER_SECONDS;
+
+  // 顯示計時器
+  timerEl.classList.add("active");
+
+  // 清空先前的計時器
+  if (autoReplyTimerInterval) {
+    clearInterval(autoReplyTimerInterval);
+  }
+
+  // 更新倒數文本（尊重暫停狀態）
+  const updateCountdown = () => {
+    if (autoReplyTimerPaused) {
+      // 當暫停時，只更新樣式/顯示但不遞減
+      secondsEl.textContent = autoReplyTimerRemaining;
+      return;
     }
-    // 初始化計時器（300 秒）
-    autoReplyTimerRemaining = AUTO_REPLY_TIMER_SECONDS;
-    // 顯示計時器
-    timerEl.classList.add("active");
-    // 清空先前的計時器
-    if (autoReplyTimerInterval) {
-        clearInterval(autoReplyTimerInterval);
+
+    if (autoReplyTimerRemaining > 0) {
+      secondsEl.textContent = autoReplyTimerRemaining;
+      autoReplyTimerRemaining--;
+    } else {
+      // 倒數完成，自動啟動 AI 回應
+      clearInterval(autoReplyTimerInterval);
+      autoReplyTimerInterval = null;
+      console.log("自動回應時間已到，啟動 AI 回應");
+      triggerAutoAIReply();
     }
-    // 更新倒數文本（尊重暫停狀態）
-    const updateCountdown = () => {
-        if (autoReplyTimerPaused) {
-            // 當暫停時，只更新樣式/顯示但不遞減
-            secondsEl.textContent = autoReplyTimerRemaining;
-            return;
-        }
-        if (autoReplyTimerRemaining > 0) {
-            secondsEl.textContent = autoReplyTimerRemaining;
-            autoReplyTimerRemaining--;
-        }
-        else {
-            // 倒數完成，自動啟動 AI 回應
-            clearInterval(autoReplyTimerInterval);
-            autoReplyTimerInterval = null;
-            console.log("自動回應時間已到，啟動 AI 回應");
-            triggerAutoAIReply();
-        }
-    };
-    // 立即顯示第一個倒數值
-    secondsEl.textContent = autoReplyTimerRemaining;
-    // 如果計時器未暫停，先遞減一次
-    if (!autoReplyTimerPaused)
-        autoReplyTimerRemaining--;
-    // 每秒更新一次
-    autoReplyTimerInterval = setInterval(updateCountdown, 1000);
+  };
+
+  // 立即顯示第一個倒數值
+  secondsEl.textContent = autoReplyTimerRemaining;
+  // 如果計時器未暫停，先遞減一次
+  if (!autoReplyTimerPaused) autoReplyTimerRemaining--;
+
+  // 每秒更新一次
+  autoReplyTimerInterval = setInterval(updateCountdown, 1000);
 }
+
 /**
  * 暫停自動回覆計時器
  * @param {boolean} byFocus - 是否由焦點事件引起的暫停
  */
 function pauseAutoReplyTimer(byFocus = false) {
-    autoReplyTimerPaused = true;
-    if (byFocus)
-        autoReplyPausedByFocus = true;
-    const timerEl = document.getElementById("auto-reply-timer");
-    if (timerEl)
-        timerEl.classList.add("paused");
+  autoReplyTimerPaused = true;
+  if (byFocus) autoReplyPausedByFocus = true;
+  const timerEl = document.getElementById("auto-reply-timer");
+  if (timerEl) timerEl.classList.add("paused");
 }
+
 /**
  * 恢復自動回覆計時器
  */
 function resumeAutoReplyTimer() {
-    // 只有在被 focus 暫停但使用者點擊過計時器時才恢復
-    autoReplyTimerPaused = false;
-    autoReplyPausedByFocus = false;
-    const timerEl = document.getElementById("auto-reply-timer");
-    if (timerEl)
-        timerEl.classList.remove("paused");
+  // 只有在被 focus 暫停但使用者點擊過計時器時才恢復
+  autoReplyTimerPaused = false;
+  autoReplyPausedByFocus = false;
+  const timerEl = document.getElementById("auto-reply-timer");
+  if (timerEl) timerEl.classList.remove("paused");
 }
+
 /**
  * 觸發自動 AI 回應
  * 倒數到 0 秒時調用此函數
  * 流程：呼叫 AI 回覆（含工具調用）→ 取得內容 → 彈出 10 秒確認視窗 → 10 秒後提交
  */
 async function triggerAutoAIReply() {
-    console.log("觸發自動 AI 回應...");
-    // 隱藏計時器
-    const timerEl = document.getElementById("auto-reply-timer");
-    if (timerEl) {
-        timerEl.classList.remove("active");
-    }
-    // 檢查是否有 workSummary
-    if (!workSummary) {
-        console.error("無法取得 AI 訊息");
-        showToast("error", "錯誤", "無法取得 AI 訊息，自動回覆失敗");
-        return;
-    }
-    const userContext = document.getElementById("feedbackText").value;
-    // 檢查是否有可用的 MCP 工具
-    let hasMCPTools = false;
+  console.log("觸發自動 AI 回應...");
+
+  // 隱藏計時器
+  const timerEl = document.getElementById("auto-reply-timer");
+  if (timerEl) {
+    timerEl.classList.remove("active");
+  }
+
+  // 檢查是否有 workSummary
+  if (!workSummary) {
+    console.error("無法取得 AI 訊息");
+    showToast("error", "錯誤", "無法取得 AI 訊息，自動回覆失敗");
+    return;
+  }
+
+  const userContext = document.getElementById("feedbackText").value;
+
+  // 檢查是否有可用的 MCP 工具
+  let hasMCPTools = false;
+  try {
+    const toolsResponse = await fetch("/api/mcp-tools");
+    const toolsData = await toolsResponse.json();
+    hasMCPTools = toolsData.success && toolsData.tools && toolsData.tools.length > 0;
+  } catch {
+    hasMCPTools = false;
+  }
+
+  if (!hasMCPTools) {
+    // 沒有 MCP 工具，使用簡單的 AI 回覆
+    showLoadingOverlay("正在自動生成 AI 回覆...");
     try {
-        const toolsResponse = await fetch("/api/mcp-tools");
-        const toolsData = await toolsResponse.json();
-        hasMCPTools = toolsData.success && toolsData.tools && toolsData.tools.length > 0;
-    }
-    catch {
-        hasMCPTools = false;
-    }
-    if (!hasMCPTools) {
-        // 沒有 MCP 工具，使用簡單的 AI 回覆
-        showLoadingOverlay("正在自動生成 AI 回覆...");
-        try {
-            const response = await fetch("/api/ai-reply", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    aiMessage: workSummary,
-                    userContext: userContext,
-                    projectName: currentProjectName || undefined,
-                    projectPath: currentProjectPath || undefined,
-                }),
-            });
-            const data = await response.json();
-            if (data.success) {
-                const pinnedPromptsContent = await getPinnedPromptsContent();
-                let finalReply = data.reply;
-                if (pinnedPromptsContent) {
-                    finalReply = pinnedPromptsContent + "\n\n" + data.reply;
-                }
-                document.getElementById("feedbackText").value = finalReply;
-                updateCharCount();
-                hideLoadingOverlay();
-                showAutoReplyConfirmModal(finalReply);
-            }
-            else {
-                hideLoadingOverlay();
-                showToast("error", "AI 回覆失敗", data.error);
-            }
-        }
-        catch (error) {
-            console.error("自動生成 AI 回覆失敗:", error);
-            hideLoadingOverlay();
-            showToast("error", "錯誤", "無法自動生成 AI 回覆");
-        }
-        return;
-    }
-    // 有 MCP 工具，使用 Streaming Panel 顯示工具調用過程
-    showStreamingPanel();
-    streamingAbortController = new AbortController();
-    // 更新標題
-    const title = document.getElementById("streamingTitle");
-    if (title)
-        title.textContent = "自動 AI 回覆中...";
-    let round = 0;
-    let toolResults = "";
-    let finalReply = "";
-    try {
-        while (round < maxToolRounds) {
-            if (streamingAbortController?.signal.aborted) {
-                throw new Error("使用者取消操作");
-            }
-            round++;
-            updateToolProgressUI(round, "thinking", "AI 思考中...");
-            const response = await fetch("/api/ai-reply", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    aiMessage: workSummary,
-                    userContext: userContext,
-                    includeMCPTools: true,
-                    toolResults: toolResults || undefined,
-                    projectName: currentProjectName || undefined,
-                    projectPath: currentProjectPath || undefined,
-                }),
-            });
-            const data = await response.json();
-            if (!data.success) {
-                addStreamingOutput(data.error || "AI 回覆失敗", "error");
-                updateStreamingStatus("error", "AI 回覆失敗");
-                showToast("error", "AI 回覆失敗", data.error);
-                return;
-            }
-            addStreamingOutput(data.reply, "ai-message");
-            const parsed = parseToolCalls(data.reply);
-            if (!parsed.hasToolCalls) {
-                updateToolProgressUI(round, "done", "完成!");
-                finalReply = parsed.message || data.reply;
-                break;
-            }
-            updateToolProgressUI(round, "executing", "執行工具中...", parsed.toolCalls);
-            const toolCallsDisplay = parsed.toolCalls.map(t => `${t.name}(${JSON.stringify(t.arguments, null, 2)})`).join("\n\n");
-            addStreamingOutput(toolCallsDisplay, "tool-call");
-            const results = await executeMCPTools(parsed.toolCalls);
-            toolResults = formatToolResults(results);
-            addStreamingOutput(toolResults, "tool-result");
-            if (round === maxToolRounds) {
-                updateToolProgressUI(round, "done", "已達最大輪次");
-                finalReply = parsed.message || "AI 工具呼叫已達最大輪次。\n\n" + toolResults;
-                break;
-            }
-        }
-        // 取得釘選提示詞並組合最終回覆
+      const response = await fetch("/api/ai-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          aiMessage: workSummary,
+          userContext: userContext,
+          projectName: currentProjectName || undefined,
+          projectPath: currentProjectPath || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
         const pinnedPromptsContent = await getPinnedPromptsContent();
+        let finalReply = data.reply;
         if (pinnedPromptsContent) {
-            finalReply = pinnedPromptsContent + "\n\n" + finalReply;
+          finalReply = pinnedPromptsContent + "\n\n" + data.reply;
         }
         document.getElementById("feedbackText").value = finalReply;
         updateCharCount();
-        await new Promise(r => setTimeout(r, 1000));
-        if (!debugMode)
-            hideStreamingPanel();
-        // 彈出確認視窗
+        hideLoadingOverlay();
         showAutoReplyConfirmModal(finalReply);
+      } else {
+        hideLoadingOverlay();
+        showToast("error", "AI 回覆失敗", data.error);
+      }
+    } catch (error) {
+      console.error("自動生成 AI 回覆失敗:", error);
+      hideLoadingOverlay();
+      showToast("error", "錯誤", "無法自動生成 AI 回覆");
     }
-    catch (error) {
-        console.error("自動生成 AI 回覆失敗:", error);
-        if (error.message !== "使用者取消操作") {
-            addStreamingOutput(error.message || "無法自動生成 AI 回覆", "error");
-            showToast("error", "錯誤", "無法自動生成 AI 回覆");
-        }
+    return;
+  }
+
+  // 有 MCP 工具，使用 Streaming Panel 顯示工具調用過程
+  showStreamingPanel();
+  streamingAbortController = new AbortController();
+  
+  // 更新標題
+  const title = document.getElementById("streamingTitle");
+  if (title) title.textContent = "自動 AI 回覆中...";
+
+  let round = 0;
+  let toolResults = "";
+  let finalReply = "";
+
+  try {
+    while (round < maxToolRounds) {
+      if (streamingAbortController?.signal.aborted) {
+        throw new Error("使用者取消操作");
+      }
+      
+      round++;
+      updateToolProgressUI(round, "thinking", "AI 思考中...");
+
+      const response = await fetch("/api/ai-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          aiMessage: workSummary,
+          userContext: userContext,
+          includeMCPTools: true,
+          toolResults: toolResults || undefined,
+          projectName: currentProjectName || undefined,
+          projectPath: currentProjectPath || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        addStreamingOutput(data.error || "AI 回覆失敗", "error");
+        updateStreamingStatus("error", "AI 回覆失敗");
+        showToast("error", "AI 回覆失敗", data.error);
+        return;
+      }
+
+      addStreamingOutput(data.reply, "ai-message");
+      const parsed = parseToolCalls(data.reply);
+
+      if (!parsed.hasToolCalls) {
+        updateToolProgressUI(round, "done", "完成!");
+        finalReply = parsed.message || data.reply;
+        break;
+      }
+
+      updateToolProgressUI(round, "executing", "執行工具中...", parsed.toolCalls);
+      
+      const toolCallsDisplay = parsed.toolCalls.map(t => 
+        `${t.name}(${JSON.stringify(t.arguments, null, 2)})`
+      ).join("\n\n");
+      addStreamingOutput(toolCallsDisplay, "tool-call");
+
+      const results = await executeMCPTools(parsed.toolCalls);
+      toolResults = formatToolResults(results);
+      addStreamingOutput(toolResults, "tool-result");
+
+      if (round === maxToolRounds) {
+        updateToolProgressUI(round, "done", "已達最大輪次");
+        finalReply = parsed.message || "AI 工具呼叫已達最大輪次。\n\n" + toolResults;
+        break;
+      }
     }
-    finally {
-        if (!debugMode)
-            hideStreamingPanel();
+
+    // 取得釘選提示詞並組合最終回覆
+    const pinnedPromptsContent = await getPinnedPromptsContent();
+    if (pinnedPromptsContent) {
+      finalReply = pinnedPromptsContent + "\n\n" + finalReply;
     }
+
+    document.getElementById("feedbackText").value = finalReply;
+    updateCharCount();
+    
+    await new Promise(r => setTimeout(r, 1000));
+    if (!debugMode) hideStreamingPanel();
+    
+    // 彈出確認視窗
+    showAutoReplyConfirmModal(finalReply);
+    
+  } catch (error) {
+    console.error("自動生成 AI 回覆失敗:", error);
+    if (error.message !== "使用者取消操作") {
+      addStreamingOutput(error.message || "無法自動生成 AI 回覆", "error");
+      showToast("error", "錯誤", "無法自動生成 AI 回覆");
+    }
+  } finally {
+    if (!debugMode) hideStreamingPanel();
+  }
 }
+
 /**
  * 開始自動回覆倒數計時
  * 用於自動回覆觸發時，不自動提交反饋
  * 倒數完成時由 showAutoReplyConfirmModal 控制提交邏輯
  */
 function startAutoReplyCountdown() {
-    // 在連接狀態區塊中顯示自動回覆計時器
-    const timerEl = document.getElementById("auto-reply-timer");
-    const secondsEl = document.getElementById("auto-reply-seconds");
-    if (!timerEl || !secondsEl) {
-        console.warn("自動回覆計時器元素未找到");
-        return;
+  // 在連接狀態區塊中顯示自動回覆計時器
+  const timerEl = document.getElementById("auto-reply-timer");
+  const secondsEl = document.getElementById("auto-reply-seconds");
+
+  if (!timerEl || !secondsEl) {
+    console.warn("自動回覆計時器元素未找到");
+    return;
+  }
+
+  // 從環境變數計算倒數秒數 (DIALOG_TIMEOUT_MS = 60000 毫秒 = 60 秒)
+  const totalSeconds = Math.ceil(DIALOG_TIMEOUT_MS / 1000);
+  autoReplyCountdownRemaining = totalSeconds;
+
+  // 顯示計時器 (使用 CSS class 而非 inline style)
+  timerEl.classList.add("active");
+
+  // 清空先前的計時器
+  if (autoReplyCountdownInterval) {
+    clearInterval(autoReplyCountdownInterval);
+  }
+
+  // 更新倒數文本
+  const updateCountdown = () => {
+    if (autoReplyCountdownRemaining > 0) {
+      secondsEl.textContent = autoReplyCountdownRemaining;
+      autoReplyCountdownRemaining--;
+    } else {
+      // 倒數完成
+      clearInterval(autoReplyCountdownInterval);
+      timerEl.classList.remove("active");
+      console.log("倒數計時完成");
     }
-    // 從環境變數計算倒數秒數 (DIALOG_TIMEOUT_MS = 60000 毫秒 = 60 秒)
-    const totalSeconds = Math.ceil(DIALOG_TIMEOUT_MS / 1000);
-    autoReplyCountdownRemaining = totalSeconds;
-    // 顯示計時器 (使用 CSS class 而非 inline style)
-    timerEl.classList.add("active");
-    // 清空先前的計時器
-    if (autoReplyCountdownInterval) {
-        clearInterval(autoReplyCountdownInterval);
-    }
-    // 更新倒數文本
-    const updateCountdown = () => {
-        if (autoReplyCountdownRemaining > 0) {
-            secondsEl.textContent = autoReplyCountdownRemaining;
-            autoReplyCountdownRemaining--;
-        }
-        else {
-            // 倒數完成
-            clearInterval(autoReplyCountdownInterval);
-            timerEl.classList.remove("active");
-            console.log("倒數計時完成");
-        }
-    };
-    // 立即顯示第一個倒數值
-    secondsEl.textContent = autoReplyCountdownRemaining;
-    autoReplyCountdownRemaining--;
-    // 每秒更新一次
-    autoReplyCountdownInterval = setInterval(updateCountdown, 1000);
+  };
+
+  // 立即顯示第一個倒數值
+  secondsEl.textContent = autoReplyCountdownRemaining;
+  autoReplyCountdownRemaining--;
+
+  // 每秒更新一次
+  autoReplyCountdownInterval = setInterval(updateCountdown, 1000);
 }
+
 /**
  * 停止自動回覆倒數計時
  */
 function stopAutoReplyCountdown() {
-    if (autoReplyCountdownInterval) {
-        clearInterval(autoReplyCountdownInterval);
-        autoReplyCountdownInterval = null;
-    }
-    // 注意: close-cd 是獨立的頁面關閉倒數，不在此處理
+  if (autoReplyCountdownInterval) {
+    clearInterval(autoReplyCountdownInterval);
+    autoReplyCountdownInterval = null;
+  }
+  // 注意: close-cd 是獨立的頁面關閉倒數，不在此處理
 }
+
 function cancelAutoReply() {
-    if (socket && sessionId) {
-        socket.emit("cancel_auto_reply", { sessionId });
-    }
-    hideAutoReplyWarning();
+  if (socket && sessionId) {
+    socket.emit("cancel_auto_reply", { sessionId });
+  }
+  hideAutoReplyWarning();
 }
+
 /**
  * 顯示自動回覆確認模態框
  */
@@ -1908,294 +2238,335 @@ function cancelAutoReply() {
  * 彈出 10 秒確認視窗，超過 10 秒後自動提交
  */
 function showAutoReplyConfirmModal(replyContent) {
-    const modal = document.getElementById("autoReplyConfirmModal");
-    const preview = document.getElementById("autoReplyPreview");
-    const countdown = document.getElementById("autoReplyCountdown");
-    if (!modal) {
-        console.warn("自動回覆確認模態框未找到");
-        return;
+  const modal = document.getElementById("autoReplyConfirmModal");
+  const preview = document.getElementById("autoReplyPreview");
+  const countdown = document.getElementById("autoReplyCountdown");
+
+  if (!modal) {
+    console.warn("自動回覆確認模態框未找到");
+    return;
+  }
+
+  // 顯示預覽內容
+  preview.textContent = replyContent;
+
+  // 顯示模態框
+  modal.style.display = "flex";
+
+  // 儲存回覆內容
+  autoReplyData = replyContent;
+
+  // 10 秒倒數
+  const totalSeconds = 10;
+  countdown.textContent = totalSeconds;
+
+  // 開始倒數 (用於模態框中的顯示)
+  let remainingSeconds = totalSeconds;
+  if (autoReplyConfirmationTimeout) {
+    clearInterval(autoReplyConfirmationTimeout);
+  }
+
+  autoReplyConfirmationTimeout = setInterval(() => {
+    remainingSeconds--;
+    countdown.textContent = remainingSeconds;
+
+    if (remainingSeconds <= 0) {
+      clearInterval(autoReplyConfirmationTimeout);
+      autoReplyConfirmationTimeout = null;
+      // 10 秒到達，自動確認並提交
+      console.log("10 秒倒數結束，自動提交回應");
+      confirmAutoReplySubmit();
     }
-    // 顯示預覽內容
-    preview.textContent = replyContent;
-    // 顯示模態框
-    modal.style.display = "flex";
-    // 儲存回覆內容
-    autoReplyData = replyContent;
-    // 10 秒倒數
-    const totalSeconds = 10;
-    countdown.textContent = totalSeconds;
-    // 開始倒數 (用於模態框中的顯示)
-    let remainingSeconds = totalSeconds;
-    if (autoReplyConfirmationTimeout) {
-        clearInterval(autoReplyConfirmationTimeout);
-    }
-    autoReplyConfirmationTimeout = setInterval(() => {
-        remainingSeconds--;
-        countdown.textContent = remainingSeconds;
-        if (remainingSeconds <= 0) {
-            clearInterval(autoReplyConfirmationTimeout);
-            autoReplyConfirmationTimeout = null;
-            // 10 秒到達，自動確認並提交
-            console.log("10 秒倒數結束，自動提交回應");
-            confirmAutoReplySubmit();
-        }
-    }, 1000);
+  }, 1000);
 }
+
 /**
  * 隱藏自動回覆確認模態框
  */
 function hideAutoReplyConfirmModal() {
-    const modal = document.getElementById("autoReplyConfirmModal");
-    if (modal) {
-        modal.style.display = "none";
-    }
-    if (autoReplyConfirmationTimeout) {
-        clearInterval(autoReplyConfirmationTimeout);
-        autoReplyConfirmationTimeout = null;
-    }
+  const modal = document.getElementById("autoReplyConfirmModal");
+  if (modal) {
+    modal.style.display = "none";
+  }
+
+  if (autoReplyConfirmationTimeout) {
+    clearInterval(autoReplyConfirmationTimeout);
+    autoReplyConfirmationTimeout = null;
+  }
 }
+
 /**
  * 確認自動回覆提交
  */
 function confirmAutoReplySubmit() {
-    hideAutoReplyConfirmModal();
-    if (autoReplyData) {
-        // 填入回覆內容
-        document.getElementById("feedbackText").value = autoReplyData;
-        updateCharCount();
-        // 清除資料
-        autoReplyData = null;
-        // 提交反饋
-        console.log("確認自動回覆，提交反饋");
-        submitFeedback();
-    }
+  hideAutoReplyConfirmModal();
+
+  if (autoReplyData) {
+    // 填入回覆內容
+    document.getElementById("feedbackText").value = autoReplyData;
+    updateCharCount();
+
+    // 清除資料
+    autoReplyData = null;
+
+    // 提交反饋
+    console.log("確認自動回覆，提交反饋");
+    submitFeedback();
+  }
 }
+
 /**
  * 取消自動回覆
  */
 function cancelAutoReplyConfirm() {
-    hideAutoReplyConfirmModal();
-    autoReplyData = null;
-    console.log("已取消自動回覆");
+  hideAutoReplyConfirmModal();
+  autoReplyData = null;
+  console.log("已取消自動回覆");
 }
+
 // ============ UI 輔助函數 ============
+
 function showToast(type, title, message) {
-    const container = document.getElementById("toastContainer");
-    const toast = document.createElement("div");
-    toast.className = `toast ${type}`;
-    toast.innerHTML = `
+  const container = document.getElementById("toastContainer");
+
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `
         <div class="toast-icon">${getToastIcon(type)}</div>
         <div class="toast-content">
             <div class="toast-title">${escapeHtml(title)}</div>
             <div class="toast-message">${escapeHtml(message)}</div>
         </div>
     `;
-    container.appendChild(toast);
-    // 3 秒後自動移除
-    setTimeout(() => {
-        toast.style.opacity = "0";
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+
+  container.appendChild(toast);
+
+  // 3 秒後自動移除
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
 }
+
 function getToastIcon(type) {
-    switch (type) {
-        case "success":
-            return "✅";
-        case "error":
-            return "❌";
-        case "info":
-            return "ℹ️";
-        default:
-            return "📢";
-    }
+  switch (type) {
+    case "success":
+      return "✅";
+    case "error":
+      return "❌";
+    case "info":
+      return "ℹ️";
+    default:
+      return "📢";
+  }
 }
+
 // 將 API 回傳的錯誤物件格式化為字串（包含 details 與 stack）
 function formatApiError(data) {
-    if (!data)
-        return "未知錯誤";
-    if (typeof data === "string")
-        return data;
-    try {
-        const parts = [];
-        if (data.error)
-            parts.push(data.error);
-        if (data.details)
-            parts.push(typeof data.details === "string"
-                ? data.details
-                : JSON.stringify(data.details));
-        if (data.stack)
-            parts.push(data.stack);
-        return parts.join("\n") || JSON.stringify(data);
-    }
-    catch (e) {
-        return String(data);
-    }
+  if (!data) return "未知錯誤";
+  if (typeof data === "string") return data;
+  try {
+    const parts = [];
+    if (data.error) parts.push(data.error);
+    if (data.details)
+      parts.push(
+        typeof data.details === "string"
+          ? data.details
+          : JSON.stringify(data.details)
+      );
+    if (data.stack) parts.push(data.stack);
+    return parts.join("\n") || JSON.stringify(data);
+  } catch (e) {
+    return String(data);
+  }
 }
+
 // 顯示通用提醒彈窗
 function showAlertModal(title, message) {
-    const modal = document.getElementById("alertModal");
-    if (!modal)
-        return;
-    const titleEl = document.getElementById("alertModalTitle");
-    const bodyEl = document.getElementById("alertModalBody");
-    if (titleEl)
-        titleEl.textContent = title;
-    if (bodyEl)
-        bodyEl.textContent = message;
-    modal.classList.add("show");
+  const modal = document.getElementById("alertModal");
+  if (!modal) return;
+  const titleEl = document.getElementById("alertModalTitle");
+  const bodyEl = document.getElementById("alertModalBody");
+
+  if (titleEl) titleEl.textContent = title;
+  if (bodyEl) bodyEl.textContent = message;
+
+  modal.classList.add("show");
 }
+
 function hideAlertModal() {
-    const modal = document.getElementById("alertModal");
-    if (!modal)
-        return;
-    modal.classList.remove("show");
+  const modal = document.getElementById("alertModal");
+  if (!modal) return;
+  modal.classList.remove("show");
 }
+
 function showLoadingOverlay(text = "處理中...") {
-    document.getElementById("loadingText").textContent = text;
-    document.getElementById("loadingOverlay").style.display = "flex";
+  document.getElementById("loadingText").textContent = text;
+  document.getElementById("loadingOverlay").style.display = "flex";
 }
+
 function hideLoadingOverlay() {
-    document.getElementById("loadingOverlay").style.display = "none";
+  document.getElementById("loadingOverlay").style.display = "none";
 }
+
 // ============ 日誌檢視器功能 ============
+
 let currentLogPage = 1;
 let totalLogPages = 1;
 let logSources = [];
+
 async function openLogViewerModal() {
-    const modal = document.getElementById("logViewerModal");
-    if (modal) {
-        modal.classList.add("show");
-        // 載入日誌來源列表
-        await loadLogSources();
-        // 載入第一頁日誌
-        await loadLogs(1);
-    }
+  const modal = document.getElementById("logViewerModal");
+  if (modal) {
+    modal.classList.add("show");
+
+    // 載入日誌來源列表
+    await loadLogSources();
+
+    // 載入第一頁日誌
+    await loadLogs(1);
+  }
 }
+
 function closeLogViewerModal() {
-    const modal = document.getElementById("logViewerModal");
-    if (modal) {
-        modal.classList.remove("show");
-    }
+  const modal = document.getElementById("logViewerModal");
+  if (modal) {
+    modal.classList.remove("show");
+  }
 }
+
 async function loadLogSources() {
-    try {
-        const response = await fetch("/api/logs/sources");
-        if (response.ok) {
-            const data = await response.json();
-            logSources = data.sources || [];
-            // 更新來源下拉選單
-            const sourceFilter = document.getElementById("logSourceFilter");
-            if (sourceFilter) {
-                // 保留第一個選項
-                sourceFilter.innerHTML = '<option value="">全部來源</option>';
-                logSources.forEach((source) => {
-                    const option = document.createElement("option");
-                    option.value = source;
-                    option.textContent = source;
-                    sourceFilter.appendChild(option);
-                });
-            }
-        }
+  try {
+    const response = await fetch("/api/logs/sources");
+    if (response.ok) {
+      const data = await response.json();
+      logSources = data.sources || [];
+
+      // 更新來源下拉選單
+      const sourceFilter = document.getElementById("logSourceFilter");
+      if (sourceFilter) {
+        // 保留第一個選項
+        sourceFilter.innerHTML = '<option value="">全部來源</option>';
+        logSources.forEach((source) => {
+          const option = document.createElement("option");
+          option.value = source;
+          option.textContent = source;
+          sourceFilter.appendChild(option);
+        });
+      }
     }
-    catch (error) {
-        console.error("載入日誌來源失敗:", error);
-    }
+  } catch (error) {
+    console.error("載入日誌來源失敗:", error);
+  }
 }
+
 async function loadLogs(page = 1) {
-    const container = document.getElementById("logEntriesContainer");
-    if (!container)
-        return;
-    // 顯示載入中
-    container.innerHTML =
-        '<div class="log-loading"><div class="spinner"></div>載入中...</div>';
-    try {
-        // 收集篩選參數
-        const params = new URLSearchParams();
-        params.set("page", page.toString());
-        params.set("limit", "50");
-        const level = document.getElementById("logLevelFilter").value;
-        if (level)
-            params.set("level", level);
-        const source = document.getElementById("logSourceFilter").value;
-        if (source)
-            params.set("source", source);
-        const search = document.getElementById("logSearch").value.trim();
-        if (search)
-            params.set("search", search);
-        const startDate = document.getElementById("logStartDate").value;
-        if (startDate)
-            params.set("startDate", startDate);
-        const endDate = document.getElementById("logEndDate").value;
-        if (endDate)
-            params.set("endDate", endDate);
-        const response = await fetch(`/api/logs?${params.toString()}`);
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        const data = await response.json();
-        const logs = data.logs || [];
-        currentLogPage = data.page || 1;
-        totalLogPages = data.totalPages || 1;
-        // 渲染日誌條目
-        if (logs.length === 0) {
-            container.innerHTML = `
+  const container = document.getElementById("logEntriesContainer");
+  if (!container) return;
+
+  // 顯示載入中
+  container.innerHTML =
+    '<div class="log-loading"><div class="spinner"></div>載入中...</div>';
+
+  try {
+    // 收集篩選參數
+    const params = new URLSearchParams();
+    params.set("page", page.toString());
+    params.set("limit", "50");
+
+    const level = document.getElementById("logLevelFilter").value;
+    if (level) params.set("level", level);
+
+    const source = document.getElementById("logSourceFilter").value;
+    if (source) params.set("source", source);
+
+    const search = document.getElementById("logSearch").value.trim();
+    if (search) params.set("search", search);
+
+    const startDate = document.getElementById("logStartDate").value;
+    if (startDate) params.set("startDate", startDate);
+
+    const endDate = document.getElementById("logEndDate").value;
+    if (endDate) params.set("endDate", endDate);
+
+    const response = await fetch(`/api/logs?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const logs = data.logs || [];
+    currentLogPage = data.page || 1;
+    totalLogPages = data.totalPages || 1;
+
+    // 渲染日誌條目
+    if (logs.length === 0) {
+      container.innerHTML = `
         <div class="placeholder">
           <span class="icon">📭</span>
           <p>沒有符合條件的日誌記錄</p>
         </div>
       `;
-        }
-        else {
-            container.innerHTML = logs.map((log) => renderLogEntry(log)).join("");
-        }
-        // 更新分頁控制
-        updateLogPagination();
+    } else {
+      container.innerHTML = logs.map((log) => renderLogEntry(log)).join("");
     }
-    catch (error) {
-        console.error("載入日誌失敗:", error);
-        container.innerHTML = `
+
+    // 更新分頁控制
+    updateLogPagination();
+  } catch (error) {
+    console.error("載入日誌失敗:", error);
+    container.innerHTML = `
       <div class="placeholder">
         <span class="icon">❌</span>
         <p>載入日誌失敗: ${error.message}</p>
       </div>
     `;
-    }
+  }
 }
+
 function renderLogEntry(log) {
-    const timestamp = new Date(log.timestamp).toLocaleString("zh-TW", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: false,
-    });
-    const levelClass = `log-level-${log.level}`;
-    const searchTerm = document.getElementById("logSearch").value.trim();
-    // 高亮搜尋詞
-    let message = escapeHtml(log.message);
-    if (searchTerm) {
-        const regex = new RegExp(`(${escapeRegex(searchTerm)})`, "gi");
-        message = message.replace(regex, "<mark>$1</mark>");
+  const timestamp = new Date(log.timestamp).toLocaleString("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const levelClass = `log-level-${log.level}`;
+  const searchTerm = document.getElementById("logSearch").value.trim();
+
+  // 高亮搜尋詞
+  let message = escapeHtml(log.message);
+  if (searchTerm) {
+    const regex = new RegExp(`(${escapeRegex(searchTerm)})`, "gi");
+    message = message.replace(regex, "<mark>$1</mark>");
+  }
+
+  // 格式化 meta 資訊
+  let metaHtml = "";
+  if (log.meta) {
+    try {
+      const metaObj =
+        typeof log.meta === "string" ? JSON.parse(log.meta) : log.meta;
+      if (Object.keys(metaObj).length > 0) {
+        metaHtml = `<div class="log-meta"><pre>${escapeHtml(
+          JSON.stringify(metaObj, null, 2)
+        )}</pre></div>`;
+      }
+    } catch (e) {
+      // 如果無法解析，顯示原始字串
+      if (log.meta) {
+        metaHtml = `<div class="log-meta">${escapeHtml(
+          String(log.meta)
+        )}</div>`;
+      }
     }
-    // 格式化 meta 資訊
-    let metaHtml = "";
-    if (log.meta) {
-        try {
-            const metaObj = typeof log.meta === "string" ? JSON.parse(log.meta) : log.meta;
-            if (Object.keys(metaObj).length > 0) {
-                metaHtml = `<div class="log-meta"><pre>${escapeHtml(JSON.stringify(metaObj, null, 2))}</pre></div>`;
-            }
-        }
-        catch (e) {
-            // 如果無法解析，顯示原始字串
-            if (log.meta) {
-                metaHtml = `<div class="log-meta">${escapeHtml(String(log.meta))}</div>`;
-            }
-        }
-    }
-    return `
+  }
+
+  return `
     <div class="log-entry">
       <div class="log-entry-header">
         <span class="log-timestamp">${timestamp}</span>
@@ -2207,416 +2578,497 @@ function renderLogEntry(log) {
     </div>
   `;
 }
+
 function updateLogPagination() {
-    const pageInfo = document.getElementById("logPageInfo");
-    const prevBtn = document.getElementById("logPrevPage");
-    const nextBtn = document.getElementById("logNextPage");
-    if (pageInfo) {
-        pageInfo.textContent = `${currentLogPage} / ${totalLogPages}`;
-    }
-    if (prevBtn) {
-        prevBtn.disabled = currentLogPage <= 1;
-    }
-    if (nextBtn) {
-        nextBtn.disabled = currentLogPage >= totalLogPages;
-    }
+  const pageInfo = document.getElementById("logPageInfo");
+  const prevBtn = document.getElementById("logPrevPage");
+  const nextBtn = document.getElementById("logNextPage");
+
+  if (pageInfo) {
+    pageInfo.textContent = `${currentLogPage} / ${totalLogPages}`;
+  }
+
+  if (prevBtn) {
+    prevBtn.disabled = currentLogPage <= 1;
+  }
+
+  if (nextBtn) {
+    nextBtn.disabled = currentLogPage >= totalLogPages;
+  }
 }
+
 function searchLogs() {
-    loadLogs(1);
+  loadLogs(1);
 }
+
 async function clearOldLogs() {
-    // 預設清除 7 天前的日誌
-    const daysToKeep = 7;
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
-    if (!confirm(`確定要清除 ${daysToKeep} 天前的所有日誌嗎？此操作無法復原。`)) {
-        return;
+  // 預設清除 7 天前的日誌
+  const daysToKeep = 7;
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+
+  if (!confirm(`確定要清除 ${daysToKeep} 天前的所有日誌嗎？此操作無法復原。`)) {
+    return;
+  }
+
+  try {
+    showLoadingOverlay("清除舊日誌中...");
+
+    const response = await fetch(
+      `/api/logs?endDate=${cutoffDate.toISOString().split("T")[0]}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
-    try {
-        showLoadingOverlay("清除舊日誌中...");
-        const response = await fetch(`/api/logs?endDate=${cutoffDate.toISOString().split("T")[0]}`, {
-            method: "DELETE",
-        });
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-        const data = await response.json();
-        showToast("success", "清除成功", `已刪除 ${data.deletedCount || 0} 條舊日誌`);
-        // 重新載入日誌
-        await loadLogs(1);
-    }
-    catch (error) {
-        console.error("清除舊日誌失敗:", error);
-        showToast("error", "清除失敗", error.message);
-    }
-    finally {
-        hideLoadingOverlay();
-    }
+
+    const data = await response.json();
+    showToast(
+      "success",
+      "清除成功",
+      `已刪除 ${data.deletedCount || 0} 條舊日誌`
+    );
+
+    // 重新載入日誌
+    await loadLogs(1);
+  } catch (error) {
+    console.error("清除舊日誌失敗:", error);
+    showToast("error", "清除失敗", error.message);
+  } finally {
+    hideLoadingOverlay();
+  }
 }
+
 // HTML 轉義
 function escapeHtml(str) {
-    if (!str)
-        return "";
-    return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
+
 // 正則表達式轉義
 function escapeRegex(str) {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
 function escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
 }
+
 // ============ 全局函數（供 HTML 調用） ============
+
 window.removeImage = removeImage;
 window.usePrompt = usePrompt;
 window.togglePinPrompt = togglePinPrompt;
 window.editPrompt = editPrompt;
 window.deletePrompt = deletePrompt;
 window.openPromptModal = openPromptModal;
+
 // ============ MCP Servers 管理 ============
+
 let mcpServers = [];
 let editingMcpServerId = null;
+
 async function loadMCPServers() {
-    try {
-        const response = await fetch("/api/mcp-servers");
-        if (!response.ok)
-            throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        if (data.success) {
-            mcpServers = data.servers || [];
-            renderMCPServerList();
-        }
+  try {
+    const response = await fetch("/api/mcp-servers");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    if (data.success) {
+      mcpServers = data.servers || [];
+      renderMCPServerList();
     }
-    catch (error) {
-        console.error("載入 MCP Servers 失敗:", error);
-        showToast("error", "錯誤", "載入 MCP Servers 失敗");
-    }
+  } catch (error) {
+    console.error("載入 MCP Servers 失敗:", error);
+    showToast("error", "錯誤", "載入 MCP Servers 失敗");
+  }
 }
+
 function renderMCPServerList() {
-    const container = document.getElementById("mcpServerList");
-    if (!mcpServers || mcpServers.length === 0) {
-        container.innerHTML = `
+  const container = document.getElementById("mcpServerList");
+
+  if (!mcpServers || mcpServers.length === 0) {
+    container.innerHTML = `
       <div class="placeholder">
         <span class="icon">🔌</span>
         <p>尚無 MCP Server</p>
       </div>
     `;
-        return;
-    }
-    container.innerHTML = mcpServers
-        .map((server) => {
-        const state = server.state || { status: "disconnected", tools: [] };
-        const toolsCount = state.tools?.length || 0;
-        const statusText = getStatusText(state.status);
-        return `
+    return;
+  }
+
+  container.innerHTML = mcpServers
+    .map((server) => {
+      const state = server.state || { status: "disconnected", tools: [] };
+      const toolsCount = state.tools?.length || 0;
+      const statusText = getStatusText(state.status);
+
+      return `
       <div class="mcp-server-item" data-id="${server.id}">
-        <div class="mcp-server-status ${state.status}" title="${statusText}"></div>
+        <div class="mcp-server-status ${
+          state.status
+        }" title="${statusText}"></div>
         <div class="mcp-server-info">
           <div class="mcp-server-name">${escapeHtml(server.name)}</div>
           <div class="mcp-server-details">
             <span class="mcp-server-transport">${server.transport}</span>
-            ${state.status === "connected"
-            ? `<span class="mcp-server-tools-count">${toolsCount} 工具</span>`
-            : ""}
-            ${!server.enabled
-            ? '<span style="color: var(--text-muted)">已停用</span>'
-            : ""}
+            ${
+              state.status === "connected"
+                ? `<span class="mcp-server-tools-count">${toolsCount} 工具</span>`
+                : ""
+            }
+            ${
+              !server.enabled
+                ? '<span style="color: var(--text-muted)">已停用</span>'
+                : ""
+            }
           </div>
-          ${state.error
-            ? `<div class="mcp-server-error">錯誤: ${escapeHtml(state.error)}</div>`
-            : ""}
-          ${state.status === "connected" && toolsCount > 0
-            ? renderToolsList(state.tools)
-            : ""}
+          ${
+            state.error
+              ? `<div class="mcp-server-error">錯誤: ${escapeHtml(
+                  state.error
+                )}</div>`
+              : ""
+          }
+          ${
+            state.status === "connected" && toolsCount > 0
+              ? renderToolsList(state.tools)
+              : ""
+          }
         </div>
         <div class="mcp-server-actions">
-          ${state.status === "connected"
-            ? `<button class="btn btn-ghost btn-disconnect" onclick="disconnectMCPServer(${server.id})" title="斷開">🔌</button>`
-            : `<button class="btn btn-ghost btn-connect" onclick="connectMCPServer(${server.id})" title="連接" ${!server.enabled ? "disabled" : ""}>🔗</button>`}
-          <button class="btn btn-ghost btn-edit" onclick="editMCPServer(${server.id})" title="編輯">✏️</button>
-          <button class="btn btn-ghost btn-delete" onclick="deleteMCPServerConfirm(${server.id})" title="刪除">🗑️</button>
+          ${
+            state.status === "connected"
+              ? `<button class="btn btn-ghost btn-disconnect" onclick="disconnectMCPServer(${server.id})" title="斷開">🔌</button>`
+              : `<button class="btn btn-ghost btn-connect" onclick="connectMCPServer(${
+                  server.id
+                })" title="連接" ${
+                  !server.enabled ? "disabled" : ""
+                }>🔗</button>`
+          }
+          <button class="btn btn-ghost btn-edit" onclick="editMCPServer(${
+            server.id
+          })" title="編輯">✏️</button>
+          <button class="btn btn-ghost btn-delete" onclick="deleteMCPServerConfirm(${
+            server.id
+          })" title="刪除">🗑️</button>
         </div>
       </div>
     `;
     })
-        .join("");
+    .join("");
 }
+
 function renderToolsList(tools) {
-    if (!tools || tools.length === 0)
-        return "";
-    const displayTools = tools.slice(0, 5);
-    const remaining = tools.length - 5;
-    return `
+  if (!tools || tools.length === 0) return "";
+
+  const displayTools = tools.slice(0, 5);
+  const remaining = tools.length - 5;
+
+  return `
     <div class="mcp-tools-list">
       ${displayTools
-        .map((tool) => `
+        .map(
+          (tool) => `
         <div class="mcp-tool-item">
           <span class="mcp-tool-name">${escapeHtml(tool.name)}</span>
-          <span class="mcp-tool-desc">${escapeHtml(tool.description || "")}</span>
+          <span class="mcp-tool-desc">${escapeHtml(
+            tool.description || ""
+          )}</span>
         </div>
-      `)
+      `
+        )
         .join("")}
-      ${remaining > 0
-        ? `<div class="mcp-tool-item" style="color: var(--text-muted)">...還有 ${remaining} 個工具</div>`
-        : ""}
+      ${
+        remaining > 0
+          ? `<div class="mcp-tool-item" style="color: var(--text-muted)">...還有 ${remaining} 個工具</div>`
+          : ""
+      }
     </div>
   `;
 }
+
 function getStatusText(status) {
-    const texts = {
-        disconnected: "未連接",
-        connecting: "連接中...",
-        connected: "已連接",
-        error: "連接錯誤",
-    };
-    return texts[status] || status;
+  const texts = {
+    disconnected: "未連接",
+    connecting: "連接中...",
+    connected: "已連接",
+    error: "連接錯誤",
+  };
+  return texts[status] || status;
 }
+
 function openMCPServersModal() {
-    document.getElementById("mcpServersModal").classList.add("show");
-    loadMCPServers();
+  document.getElementById("mcpServersModal").classList.add("show");
+  loadMCPServers();
 }
+
 function closeMCPServersModal() {
-    document.getElementById("mcpServersModal").classList.remove("show");
+  document.getElementById("mcpServersModal").classList.remove("show");
 }
+
 function openMCPServerEditModal(server = null) {
-    editingMcpServerId = server?.id || null;
-    document.getElementById("mcpServerEditTitle").textContent = server
-        ? "編輯 MCP Server"
-        : "新增 MCP Server";
-    document.getElementById("mcpServerId").value = server?.id || "";
-    document.getElementById("mcpServerName").value = server?.name || "";
-    document.getElementById("mcpServerTransport").value =
-        server?.transport || "stdio";
-    document.getElementById("mcpServerCommand").value = server?.command || "";
-    document.getElementById("mcpServerArgs").value = (server?.args || []).join("\n");
-    document.getElementById("mcpServerEnv").value = server?.env
-        ? Object.entries(server.env)
-            .map(([k, v]) => `${k}=${v}`)
-            .join("\n")
-        : "";
-    document.getElementById("mcpServerUrl").value = server?.url || "";
-    document.getElementById("mcpServerEnabled").checked =
-        server?.enabled !== false;
-    onTransportChange();
-    document.getElementById("mcpServerEditModal").classList.add("show");
+  editingMcpServerId = server?.id || null;
+
+  document.getElementById("mcpServerEditTitle").textContent = server
+    ? "編輯 MCP Server"
+    : "新增 MCP Server";
+  document.getElementById("mcpServerId").value = server?.id || "";
+  document.getElementById("mcpServerName").value = server?.name || "";
+  document.getElementById("mcpServerTransport").value =
+    server?.transport || "stdio";
+  document.getElementById("mcpServerCommand").value = server?.command || "";
+  document.getElementById("mcpServerArgs").value = (server?.args || []).join(
+    "\n"
+  );
+  document.getElementById("mcpServerEnv").value = server?.env
+    ? Object.entries(server.env)
+        .map(([k, v]) => `${k}=${v}`)
+        .join("\n")
+    : "";
+  document.getElementById("mcpServerUrl").value = server?.url || "";
+  document.getElementById("mcpServerEnabled").checked =
+    server?.enabled !== false;
+
+  onTransportChange();
+  document.getElementById("mcpServerEditModal").classList.add("show");
 }
+
 function closeMCPServerEditModal() {
-    document.getElementById("mcpServerEditModal").classList.remove("show");
-    editingMcpServerId = null;
+  document.getElementById("mcpServerEditModal").classList.remove("show");
+  editingMcpServerId = null;
 }
+
 function onTransportChange() {
-    const transport = document.getElementById("mcpServerTransport").value;
-    const stdioSettings = document.getElementById("stdioSettings");
-    const httpSettings = document.getElementById("httpSettings");
-    if (transport === "stdio") {
-        stdioSettings.style.display = "block";
-        httpSettings.style.display = "none";
-    }
-    else {
-        stdioSettings.style.display = "none";
-        httpSettings.style.display = "block";
-    }
+  const transport = document.getElementById("mcpServerTransport").value;
+  const stdioSettings = document.getElementById("stdioSettings");
+  const httpSettings = document.getElementById("httpSettings");
+
+  if (transport === "stdio") {
+    stdioSettings.style.display = "block";
+    httpSettings.style.display = "none";
+  } else {
+    stdioSettings.style.display = "none";
+    httpSettings.style.display = "block";
+  }
 }
+
 async function saveMCPServer() {
-    const id = document.getElementById("mcpServerId").value;
-    const name = document.getElementById("mcpServerName").value.trim();
-    const transport = document.getElementById("mcpServerTransport").value;
-    const command = document.getElementById("mcpServerCommand").value.trim();
-    const argsText = document.getElementById("mcpServerArgs").value.trim();
-    const envText = document.getElementById("mcpServerEnv").value.trim();
-    const url = document.getElementById("mcpServerUrl").value.trim();
-    const enabled = document.getElementById("mcpServerEnabled").checked;
-    if (!name) {
-        showToast("error", "錯誤", "請輸入名稱");
-        return;
-    }
-    if (transport === "stdio" && !command) {
-        showToast("error", "錯誤", "stdio 傳輸方式需要指定命令");
-        return;
-    }
-    if ((transport === "sse" || transport === "streamable-http") && !url) {
-        showToast("error", "錯誤", `${transport} 傳輸方式需要指定 URL`);
-        return;
-    }
-    const args = argsText
-        ? argsText.split("\n").filter((a) => a.trim())
-        : undefined;
-    const env = envText
-        ? Object.fromEntries(envText
-            .split("\n")
-            .filter((line) => line.includes("="))
-            .map((line) => {
+  const id = document.getElementById("mcpServerId").value;
+  const name = document.getElementById("mcpServerName").value.trim();
+  const transport = document.getElementById("mcpServerTransport").value;
+  const command = document.getElementById("mcpServerCommand").value.trim();
+  const argsText = document.getElementById("mcpServerArgs").value.trim();
+  const envText = document.getElementById("mcpServerEnv").value.trim();
+  const url = document.getElementById("mcpServerUrl").value.trim();
+  const enabled = document.getElementById("mcpServerEnabled").checked;
+
+  if (!name) {
+    showToast("error", "錯誤", "請輸入名稱");
+    return;
+  }
+
+  if (transport === "stdio" && !command) {
+    showToast("error", "錯誤", "stdio 傳輸方式需要指定命令");
+    return;
+  }
+
+  if ((transport === "sse" || transport === "streamable-http") && !url) {
+    showToast("error", "錯誤", `${transport} 傳輸方式需要指定 URL`);
+    return;
+  }
+
+  const args = argsText
+    ? argsText.split("\n").filter((a) => a.trim())
+    : undefined;
+  const env = envText
+    ? Object.fromEntries(
+        envText
+          .split("\n")
+          .filter((line) => line.includes("="))
+          .map((line) => {
             const idx = line.indexOf("=");
             return [
-                line.substring(0, idx).trim(),
-                line.substring(idx + 1).trim(),
+              line.substring(0, idx).trim(),
+              line.substring(idx + 1).trim(),
             ];
-        }))
-        : undefined;
-    const data = {
-        name,
-        transport,
-        command: transport === "stdio" ? command : undefined,
-        args: transport === "stdio" ? args : undefined,
-        env: transport === "stdio" ? env : undefined,
-        url: transport !== "stdio" ? url : undefined,
-        enabled,
-    };
-    try {
-        showLoadingOverlay("儲存中...");
-        const response = await fetch(id ? `/api/mcp-servers/${id}` : "/api/mcp-servers", {
-            method: id ? "PUT" : "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data),
-        });
-        if (!response.ok)
-            throw new Error(`HTTP ${response.status}`);
-        const result = await response.json();
-        if (result.success) {
-            showToast("success", "成功", id ? "MCP Server 已更新" : "MCP Server 已建立");
-            closeMCPServerEditModal();
-            await loadMCPServers();
-        }
-        else {
-            throw new Error(result.error || "儲存失敗");
-        }
+          })
+      )
+    : undefined;
+
+  const data = {
+    name,
+    transport,
+    command: transport === "stdio" ? command : undefined,
+    args: transport === "stdio" ? args : undefined,
+    env: transport === "stdio" ? env : undefined,
+    url: transport !== "stdio" ? url : undefined,
+    enabled,
+  };
+
+  try {
+    showLoadingOverlay("儲存中...");
+
+    const response = await fetch(
+      id ? `/api/mcp-servers/${id}` : "/api/mcp-servers",
+      {
+        method: id ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }
+    );
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const result = await response.json();
+    if (result.success) {
+      showToast(
+        "success",
+        "成功",
+        id ? "MCP Server 已更新" : "MCP Server 已建立"
+      );
+      closeMCPServerEditModal();
+      await loadMCPServers();
+    } else {
+      throw new Error(result.error || "儲存失敗");
     }
-    catch (error) {
-        console.error("儲存 MCP Server 失敗:", error);
-        showToast("error", "錯誤", error.message);
-    }
-    finally {
-        hideLoadingOverlay();
-    }
+  } catch (error) {
+    console.error("儲存 MCP Server 失敗:", error);
+    showToast("error", "錯誤", error.message);
+  } finally {
+    hideLoadingOverlay();
+  }
 }
+
 async function connectMCPServer(id) {
-    try {
-        showLoadingOverlay("連接中...");
-        const response = await fetch(`/api/mcp-servers/${id}/connect`, {
-            method: "POST",
-        });
-        if (!response.ok)
-            throw new Error(`HTTP ${response.status}`);
-        const result = await response.json();
-        if (result.success) {
-            showToast("success", "成功", "MCP Server 已連接");
-        }
-        else {
-            showToast("warning", "連接失敗", result.state?.error || "未知錯誤");
-        }
-        await loadMCPServers();
+  try {
+    showLoadingOverlay("連接中...");
+    const response = await fetch(`/api/mcp-servers/${id}/connect`, {
+      method: "POST",
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const result = await response.json();
+    if (result.success) {
+      showToast("success", "成功", "MCP Server 已連接");
+    } else {
+      showToast("warning", "連接失敗", result.state?.error || "未知錯誤");
     }
-    catch (error) {
-        console.error("連接 MCP Server 失敗:", error);
-        showToast("error", "錯誤", error.message);
-    }
-    finally {
-        hideLoadingOverlay();
-    }
+    await loadMCPServers();
+  } catch (error) {
+    console.error("連接 MCP Server 失敗:", error);
+    showToast("error", "錯誤", error.message);
+  } finally {
+    hideLoadingOverlay();
+  }
 }
+
 async function disconnectMCPServer(id) {
-    try {
-        showLoadingOverlay("斷開中...");
-        const response = await fetch(`/api/mcp-servers/${id}/disconnect`, {
-            method: "POST",
-        });
-        if (!response.ok)
-            throw new Error(`HTTP ${response.status}`);
-        showToast("success", "成功", "MCP Server 已斷開");
-        await loadMCPServers();
-    }
-    catch (error) {
-        console.error("斷開 MCP Server 失敗:", error);
-        showToast("error", "錯誤", error.message);
-    }
-    finally {
-        hideLoadingOverlay();
-    }
+  try {
+    showLoadingOverlay("斷開中...");
+    const response = await fetch(`/api/mcp-servers/${id}/disconnect`, {
+      method: "POST",
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    showToast("success", "成功", "MCP Server 已斷開");
+    await loadMCPServers();
+  } catch (error) {
+    console.error("斷開 MCP Server 失敗:", error);
+    showToast("error", "錯誤", error.message);
+  } finally {
+    hideLoadingOverlay();
+  }
 }
+
 function editMCPServer(id) {
-    const server = mcpServers.find((s) => s.id === id);
-    if (server) {
-        openMCPServerEditModal(server);
-    }
+  const server = mcpServers.find((s) => s.id === id);
+  if (server) {
+    openMCPServerEditModal(server);
+  }
 }
+
 async function deleteMCPServerConfirm(id) {
-    const server = mcpServers.find((s) => s.id === id);
-    if (!server)
-        return;
-    if (!confirm(`確定要刪除 MCP Server "${server.name}" 嗎？此操作無法復原。`)) {
-        return;
-    }
-    try {
-        showLoadingOverlay("刪除中...");
-        const response = await fetch(`/api/mcp-servers/${id}`, {
-            method: "DELETE",
-        });
-        if (!response.ok)
-            throw new Error(`HTTP ${response.status}`);
-        showToast("success", "成功", "MCP Server 已刪除");
-        await loadMCPServers();
-    }
-    catch (error) {
-        console.error("刪除 MCP Server 失敗:", error);
-        showToast("error", "錯誤", error.message);
-    }
-    finally {
-        hideLoadingOverlay();
-    }
+  const server = mcpServers.find((s) => s.id === id);
+  if (!server) return;
+
+  if (!confirm(`確定要刪除 MCP Server "${server.name}" 嗎？此操作無法復原。`)) {
+    return;
+  }
+
+  try {
+    showLoadingOverlay("刪除中...");
+    const response = await fetch(`/api/mcp-servers/${id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    showToast("success", "成功", "MCP Server 已刪除");
+    await loadMCPServers();
+  } catch (error) {
+    console.error("刪除 MCP Server 失敗:", error);
+    showToast("error", "錯誤", error.message);
+  } finally {
+    hideLoadingOverlay();
+  }
 }
+
 async function connectAllMCPServers() {
-    try {
-        showLoadingOverlay("連接所有 MCP Servers...");
-        const response = await fetch("/api/mcp-servers/connect-all", {
-            method: "POST",
-        });
-        if (!response.ok)
-            throw new Error(`HTTP ${response.status}`);
-        const result = await response.json();
-        if (result.success) {
-            const succeeded = result.results.filter((r) => r.success).length;
-            const total = result.results.length;
-            showToast("success", "完成", `已連接 ${succeeded}/${total} 個 MCP Servers`);
-        }
-        await loadMCPServers();
+  try {
+    showLoadingOverlay("連接所有 MCP Servers...");
+    const response = await fetch("/api/mcp-servers/connect-all", {
+      method: "POST",
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const result = await response.json();
+    if (result.success) {
+      const succeeded = result.results.filter((r) => r.success).length;
+      const total = result.results.length;
+      showToast(
+        "success",
+        "完成",
+        `已連接 ${succeeded}/${total} 個 MCP Servers`
+      );
     }
-    catch (error) {
-        console.error("連接所有 MCP Servers 失敗:", error);
-        showToast("error", "錯誤", error.message);
-    }
-    finally {
-        hideLoadingOverlay();
-    }
+    await loadMCPServers();
+  } catch (error) {
+    console.error("連接所有 MCP Servers 失敗:", error);
+    showToast("error", "錯誤", error.message);
+  } finally {
+    hideLoadingOverlay();
+  }
 }
+
 async function disconnectAllMCPServers() {
-    try {
-        showLoadingOverlay("斷開所有 MCP Servers...");
-        const response = await fetch("/api/mcp-servers/disconnect-all", {
-            method: "POST",
-        });
-        if (!response.ok)
-            throw new Error(`HTTP ${response.status}`);
-        showToast("success", "成功", "已斷開所有 MCP Servers");
-        await loadMCPServers();
-    }
-    catch (error) {
-        console.error("斷開所有 MCP Servers 失敗:", error);
-        showToast("error", "錯誤", error.message);
-    }
-    finally {
-        hideLoadingOverlay();
-    }
+  try {
+    showLoadingOverlay("斷開所有 MCP Servers...");
+    const response = await fetch("/api/mcp-servers/disconnect-all", {
+      method: "POST",
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    showToast("success", "成功", "已斷開所有 MCP Servers");
+    await loadMCPServers();
+  } catch (error) {
+    console.error("斷開所有 MCP Servers 失敗:", error);
+    showToast("error", "錯誤", error.message);
+  } finally {
+    hideLoadingOverlay();
+  }
 }
+
 // MCP Servers 全局函數
 window.connectMCPServer = connectMCPServer;
 window.disconnectMCPServer = disconnectMCPServer;
 window.editMCPServer = editMCPServer;
 window.deleteMCPServerConfirm = deleteMCPServerConfirm;
-//# sourceMappingURL=app.js.map
