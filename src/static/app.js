@@ -996,22 +996,39 @@ function addStreamingOutput(content, type = "ai-message") {
     "error": "error-message"
   };
   
-  const div = document.createElement("div");
-  div.className = typeClasses[type] || "ai-message";
+  // 使用 details/summary 實現可收合的輸出
+  const details = document.createElement("details");
+  details.className = typeClasses[type] || "ai-message";
+  details.open = true; // 預設展開
+  
+  const summary = document.createElement("summary");
+  const contentDiv = document.createElement("div");
+  contentDiv.className = "details-content";
   
   // 處理內容顯示
   if (type === "tool-call") {
-    div.innerHTML = `<strong>🔧 調用工具:</strong><br><pre>${escapeHtml(content)}</pre>`;
+    summary.innerHTML = `🔧 調用工具`;
+    contentDiv.innerHTML = `<pre>${escapeHtml(content)}</pre>`;
   } else if (type === "tool-result") {
-    div.innerHTML = `<strong>📋 工具結果:</strong><br><pre>${escapeHtml(truncateResult(content))}</pre>`;
+    // 工具結果：摘要顯示成功/失敗狀態，完整內容在展開區
+    const isSuccess = content.includes("SUCCESS");
+    const statusIcon = isSuccess ? "✅" : "❌";
+    summary.innerHTML = `📋 工具結果 ${statusIcon}`;
+    contentDiv.innerHTML = `<pre>${escapeHtml(content)}</pre>`;
   } else if (type === "error") {
-    div.innerHTML = `<strong>❌ 錯誤:</strong> ${escapeHtml(content)}`;
-    div.style.color = "var(--accent-red)";
+    summary.innerHTML = `❌ 錯誤`;
+    contentDiv.innerHTML = escapeHtml(content);
+    details.style.color = "var(--accent-red)";
   } else {
-    div.textContent = content;
+    // AI 訊息：較短則直接顯示，較長則可收合
+    const shortContent = content.length > 200 ? content.substring(0, 200) + "..." : content;
+    summary.innerHTML = `💬 AI 回應`;
+    contentDiv.textContent = content;
   }
   
-  container.appendChild(div);
+  details.appendChild(summary);
+  details.appendChild(contentDiv);
+  container.appendChild(details);
   
   // 重新添加 cursor
   if (cursor) {

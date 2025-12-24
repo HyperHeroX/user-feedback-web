@@ -131,6 +131,8 @@ function createTables() {
       temperature REAL,
       max_tokens INTEGER,
       auto_reply_timer_seconds INTEGER DEFAULT 300,
+      max_tool_rounds INTEGER DEFAULT 5,
+      debug_mode INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
@@ -154,6 +156,24 @@ function createTables() {
                 ADD COLUMN mcp_tools_prompt TEXT
             `);
             logger.info('Successfully migrated ai_settings table - added mcp_tools_prompt column');
+        }
+        // 遷移：添加 max_tool_rounds 欄位 (AI 交談次數上限)
+        const hasMaxToolRoundsColumn = columnCheck.some(col => col.name === 'max_tool_rounds');
+        if (!hasMaxToolRoundsColumn) {
+            db.exec(`
+                ALTER TABLE ai_settings 
+                ADD COLUMN max_tool_rounds INTEGER DEFAULT 5
+            `);
+            logger.info('Successfully migrated ai_settings table - added max_tool_rounds column');
+        }
+        // 遷移：添加 debug_mode 欄位 (Debug 模式)
+        const hasDebugModeColumn = columnCheck.some(col => col.name === 'debug_mode');
+        if (!hasDebugModeColumn) {
+            db.exec(`
+                ALTER TABLE ai_settings 
+                ADD COLUMN debug_mode INTEGER DEFAULT 0
+            `);
+            logger.info('Successfully migrated ai_settings table - added debug_mode column');
         }
     }
     catch (error) {
@@ -292,6 +312,11 @@ function initDefaultSettings() {
 2. 專案的開發計劃和規範（如讀取 openspec 目錄中的文件）
 3. 當前的任務和進度
 
+**路徑使用規則**: 在調用 MCP 工具時：
+- 所有需要路徑參數的工具（如 list_dir, read_file, find_file 等）必須使用**完整的專案路徑 {project_path}** 作為基礎路徑
+- 不要使用相對路徑如 "." 或 "./"，應使用完整路徑如 "{project_path}" 或 "{project_path}/src"
+- 例如：list_dir 應使用 "directory": "{project_path}" 而非 "directory": "."
+
 **請務必先調用工具查詢專案資訊**，然後根據查詢結果提供精確的回覆。
 
 ## MCP 工具使用說明
@@ -310,10 +335,12 @@ function initDefaultSettings() {
 工具執行後，結果會回傳給你。你可以繼續調用更多工具，或根據結果提供最終回覆。
 當你不需要調用工具時，直接以純文字回覆即可。`;
         db.prepare(`
-      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, temperature, max_tokens, auto_reply_timer_seconds, mcp_tools_prompt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, temperature, max_tokens, auto_reply_timer_seconds, mcp_tools_prompt, max_tool_rounds, debug_mode)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run('https://generativelanguage.googleapis.com/v1beta', 'gemini-2.0-flash-exp', encrypt('YOUR_API_KEY_HERE'), // 加密預設值
-        defaultSystemPrompt, 0.7, 1000, 300, defaultMcpToolsPrompt);
+        defaultSystemPrompt, 0.7, 1000, 300, defaultMcpToolsPrompt, 5, // 預設 AI 交談次數
+        0 // 預設 Debug 模式關閉
+        );
     }
     // 檢查使用者偏好設定
     const preferences = db.prepare('SELECT COUNT(*) as count FROM user_preferences').get();
@@ -363,6 +390,11 @@ function migrateMcpToolsPromptIfNeeded() {
 1. 專案的架構和結構（如使用 get_symbols_overview, list_dir 等）
 2. 專案的開發計劃和規範（如讀取 openspec 目錄中的文件）
 3. 當前的任務和進度
+
+**路徑使用規則**: 在調用 MCP 工具時：
+- 所有需要路徑參數的工具（如 list_dir, read_file, find_file 等）必須使用**完整的專案路徑 {project_path}** 作為基礎路徑
+- 不要使用相對路徑如 "." 或 "./"，應使用完整路徑如 "{project_path}" 或 "{project_path}/src"
+- 例如：list_dir 應使用 "directory": "{project_path}" 而非 "directory": "."
 
 **請務必先調用工具查詢專案資訊**，然後根據查詢結果提供精確的回覆。
 
@@ -601,6 +633,7 @@ export function getAISettings() {
       id, api_url as apiUrl, model, api_key as apiKey, system_prompt as systemPrompt,
       mcp_tools_prompt as mcpToolsPrompt,
       temperature, max_tokens as maxTokens, auto_reply_timer_seconds as autoReplyTimerSeconds,
+      max_tool_rounds as maxToolRounds, debug_mode as debugMode,
       created_at as createdAt, updated_at as updatedAt
     FROM ai_settings
     ORDER BY id DESC
@@ -621,6 +654,10 @@ export function getAISettings() {
         logger.error('[Database] Failed to decrypt API key:', error);
         logger.error(`[Database] 使用的加密密碼: ${process.env['MCP_ENCRYPTION_PASSWORD'] ? '已設置' : '未設置(使用預設值)'}`);
         settings.apiKey = '';
+    }
+    // SQLite INTEGER 轉換為 boolean
+    if (settings.debugMode !== undefined) {
+        settings.debugMode = Boolean(settings.debugMode);
     }
     return settings;
 }
@@ -673,6 +710,14 @@ export function updateAISettings(data) {
             updates.push('auto_reply_timer_seconds = ?');
             values.push(data.autoReplyTimerSeconds);
         }
+        if (data.maxToolRounds !== undefined) {
+            updates.push('max_tool_rounds = ?');
+            values.push(data.maxToolRounds);
+        }
+        if (data.debugMode !== undefined) {
+            updates.push('debug_mode = ?');
+            values.push(data.debugMode ? 1 : 0); // SQLite 布爾值轉換為 INTEGER
+        }
         if (updates.length > 0) {
             updates.push('updated_at = CURRENT_TIMESTAMP');
             values.push(existing.id);
@@ -693,9 +738,10 @@ export function updateAISettings(data) {
     else {
         // 創建新設定
         db.prepare(`
-      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, mcp_tools_prompt, temperature, max_tokens, auto_reply_timer_seconds)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(data.apiUrl || 'https://generativelanguage.googleapis.com/v1beta', data.model || 'gemini-2.0-flash-exp', data.apiKey ? encrypt(data.apiKey) : encrypt('YOUR_API_KEY_HERE'), data.systemPrompt || '', data.mcpToolsPrompt || null, data.temperature ?? 0.7, data.maxTokens ?? 1000, data.autoReplyTimerSeconds ?? 300);
+      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, mcp_tools_prompt, temperature, max_tokens, auto_reply_timer_seconds, max_tool_rounds, debug_mode)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(data.apiUrl || 'https://generativelanguage.googleapis.com/v1beta', data.model || 'gemini-2.0-flash-exp', data.apiKey ? encrypt(data.apiKey) : encrypt('YOUR_API_KEY_HERE'), data.systemPrompt || '', data.mcpToolsPrompt || null, data.temperature ?? 0.7, data.maxTokens ?? 1000, data.autoReplyTimerSeconds ?? 300, data.maxToolRounds ?? 5, data.debugMode ? 1 : 0 // SQLite 布爾值轉換為 INTEGER
+        );
     }
     const settings = getAISettings();
     if (!settings)

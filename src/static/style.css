@@ -1766,7 +1766,7 @@ textarea.form-control {
 
 .streaming-output .tool-call-display {
     margin: var(--spacing-sm) 0;
-    padding: var(--spacing-sm);
+    padding: 0;
     background: var(--bg-tertiary);
     border-radius: var(--radius-sm);
     border-left: 3px solid var(--accent-blue);
@@ -1774,7 +1774,7 @@ textarea.form-control {
 
 .streaming-output .tool-result-display {
     margin: var(--spacing-sm) 0;
-    padding: var(--spacing-sm);
+    padding: 0;
     background: var(--bg-tertiary);
     border-radius: var(--radius-sm);
     border-left: 3px solid var(--accent-green);
@@ -1782,7 +1782,57 @@ textarea.form-control {
 
 .streaming-output .ai-message {
     margin: var(--spacing-sm) 0;
+    padding: 0;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--accent-yellow);
     color: var(--text-primary);
+}
+
+/* details/summary 可收合樣式 */
+.streaming-output details {
+    cursor: pointer;
+}
+
+.streaming-output details summary {
+    padding: var(--spacing-sm);
+    font-weight: 600;
+    font-size: 12px;
+    user-select: none;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.streaming-output details summary::-webkit-details-marker {
+    display: none;
+}
+
+.streaming-output details summary::before {
+    content: "▶";
+    font-size: 10px;
+    transition: transform 0.2s ease;
+    color: var(--text-secondary);
+}
+
+.streaming-output details[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.streaming-output details .details-content {
+    padding: 0 var(--spacing-sm) var(--spacing-sm) var(--spacing-sm);
+    border-top: 1px solid var(--border-color);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.streaming-output details .details-content pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 11px;
+    line-height: 1.4;
 }
 
 .streaming-output .streaming-cursor {

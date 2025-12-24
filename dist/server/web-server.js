@@ -671,6 +671,8 @@ export class WebServer {
                         temperature: settings.temperature,
                         maxTokens: settings.maxTokens,
                         autoReplyTimerSeconds: settings.autoReplyTimerSeconds,
+                        maxToolRounds: settings.maxToolRounds ?? 5,
+                        debugMode: settings.debugMode ?? false,
                         createdAt: settings.createdAt,
                         updatedAt: settings.updatedAt
                     }
@@ -704,6 +706,8 @@ export class WebServer {
                         temperature: settings.temperature,
                         maxTokens: settings.maxTokens,
                         autoReplyTimerSeconds: settings.autoReplyTimerSeconds,
+                        maxToolRounds: settings.maxToolRounds ?? 5,
+                        debugMode: settings.debugMode ?? false,
                         createdAt: settings.createdAt,
                         updatedAt: settings.updatedAt
                     }

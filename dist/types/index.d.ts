@@ -171,6 +171,8 @@ export interface AISettings {
     temperature?: number;
     maxTokens?: number;
     autoReplyTimerSeconds?: number;
+    maxToolRounds?: number;
+    debugMode?: boolean;
     createdAt: string;
     updatedAt: string;
 }
@@ -183,6 +185,8 @@ export interface AISettingsRequest {
     temperature?: number;
     maxTokens?: number;
     autoReplyTimerSeconds?: number;
+    maxToolRounds?: number;
+    debugMode?: boolean;
 }
 export interface AISettingsResponse {
     id: number;
@@ -192,6 +196,8 @@ export interface AISettingsResponse {
     systemPrompt: string;
     temperature?: number;
     maxTokens?: number;
+    maxToolRounds?: number;
+    debugMode?: boolean;
     createdAt: string;
     updatedAt: string;
 }

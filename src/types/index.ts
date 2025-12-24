@@ -220,6 +220,8 @@ export interface AISettings {
   temperature?: number;
   maxTokens?: number;
   autoReplyTimerSeconds?: number;
+  maxToolRounds?: number; // AI 交談次數上限
+  debugMode?: boolean; // Debug 模式
   createdAt: string;
   updatedAt: string;
 }
@@ -234,6 +236,8 @@ export interface AISettingsRequest {
   temperature?: number;
   maxTokens?: number;
   autoReplyTimerSeconds?: number;
+  maxToolRounds?: number; // AI 交談次數上限
+  debugMode?: boolean; // Debug 模式
 }
 
 // AI 設定響應類型（API Key 遮罩）
@@ -245,6 +249,8 @@ export interface AISettingsResponse {
   systemPrompt: string;
   temperature?: number;
   maxTokens?: number;
+  maxToolRounds?: number; // AI 交談次數上限
+  debugMode?: boolean; // Debug 模式
   createdAt: string;
   updatedAt: string;
 }
