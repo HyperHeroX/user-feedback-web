@@ -108,35 +108,59 @@ export function formatToolResults(results) {
 /**
  * 建構包含工具描述的 system prompt 片段
  * @param tools 可用的 MCP 工具列表
+ * @param projectName 專案名稱（可選）
+ * @param projectPath 專案路徑（可選）
  * @returns system prompt 片段
  */
-export function buildToolsPrompt(tools) {
+export function buildToolsPrompt(tools, projectName, projectPath) {
     if (tools.length === 0) {
         return '';
     }
-    const lines = [
-        '',
-        '## Available MCP Tools',
-        'You can call the following tools by responding with a JSON object containing a "tool_calls" array.',
-        'Format:',
-        '```json',
-        '{',
-        '  "tool_calls": [',
-        '    { "name": "tool_name", "arguments": { "param1": "value1" } }',
-        '  ],',
-        '  "message": "Optional message to show while executing"',
-        '}',
-        '```',
-        '',
-        'Available tools:',
-    ];
+    const lines = [];
+    // 專案背景資訊
+    if (projectName || projectPath) {
+        lines.push('');
+        lines.push('## 專案背景資訊');
+        lines.push(`當前專案: ${projectName || '未命名專案'}`);
+        if (projectPath) {
+            lines.push(`專案路徑: ${projectPath}`);
+        }
+        lines.push('');
+        lines.push('**重要指示**: 在回覆之前，你應該先使用 MCP 工具來查詢專案的背景資訊：');
+        lines.push('1. 專案的架構和結構（如使用 get_symbols_overview, list_dir 等）');
+        lines.push('2. 專案的開發計劃和規範（如讀取 openspec 目錄中的文件）');
+        lines.push('3. 當前的任務和進度');
+        lines.push('');
+        lines.push('**請務必先調用工具查詢專案資訊**，然後根據查詢結果提供精確的回覆。');
+    }
+    // 工具使用說明
+    lines.push('');
+    lines.push('## MCP 工具使用說明');
+    lines.push('');
+    lines.push('當你需要使用工具時，請回覆一個 JSON 格式的工具調用請求（不要有其他文字）：');
+    lines.push('');
+    lines.push('```json');
+    lines.push('{');
+    lines.push('  "tool_calls": [');
+    lines.push('    { "name": "工具名稱", "arguments": { "參數名": "參數值" } }');
+    lines.push('  ],');
+    lines.push('  "message": "說明你正在做什麼（可選）"');
+    lines.push('}');
+    lines.push('```');
+    lines.push('');
+    lines.push('工具執行後，結果會回傳給你。你可以繼續調用更多工具，或根據結果提供最終回覆。');
+    lines.push('當你不需要調用工具時，直接以純文字回覆即可。');
+    lines.push('');
+    lines.push('## 可用工具列表');
+    lines.push('');
     for (const tool of tools) {
         lines.push(`### ${tool.name}`);
         if (tool.description) {
             lines.push(tool.description);
         }
         if (tool.inputSchema) {
-            lines.push('Input schema:');
+            lines.push('');
+            lines.push('參數格式:');
             lines.push('```json');
             lines.push(JSON.stringify(tool.inputSchema, null, 2));
             lines.push('```');

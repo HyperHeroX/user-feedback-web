@@ -167,6 +167,7 @@ export interface AISettings {
     model: string;
     apiKey: string;
     systemPrompt: string;
+    mcpToolsPrompt?: string;
     temperature?: number;
     maxTokens?: number;
     autoReplyTimerSeconds?: number;
@@ -178,6 +179,7 @@ export interface AISettingsRequest {
     model?: string;
     apiKey?: string;
     systemPrompt?: string;
+    mcpToolsPrompt?: string;
     temperature?: number;
     maxTokens?: number;
     autoReplyTimerSeconds?: number;
@@ -198,6 +200,8 @@ export interface AIReplyRequest {
     userContext?: string;
     includeMCPTools?: boolean;
     toolResults?: string;
+    projectName?: string;
+    projectPath?: string;
 }
 export interface AIReplyResponse {
     success: boolean;
@@ -286,6 +290,45 @@ export interface MCPToolInfo {
     description: string;
     inputSchema: Record<string, unknown>;
     serverId?: number;
+    enabled?: boolean;
+}
+export interface MCPToolEnableConfig {
+    id: number;
+    serverId: number;
+    toolName: string;
+    enabled: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+export interface UpdateToolEnableRequest {
+    serverId: number;
+    toolName: string;
+    enabled: boolean;
+}
+export interface BatchUpdateToolEnableRequest {
+    serverId: number;
+    tools: Array<{
+        toolName: string;
+        enabled: boolean;
+    }>;
+}
+export type MCPServerLogType = 'connect' | 'disconnect' | 'error' | 'tool_call' | 'info';
+export interface MCPServerLog {
+    id?: number;
+    serverId: number;
+    serverName: string;
+    type: MCPServerLogType;
+    message: string;
+    details?: string;
+    createdAt?: string;
+}
+export interface SerenaMCPPreset {
+    name: string;
+    transport: MCPTransportType;
+    command: string;
+    args: string[];
+    env?: Record<string, string>;
+    projectPath?: string;
 }
 export interface MCPResourceInfo {
     uri: string;

@@ -22,7 +22,7 @@ import { projectManager } from '../utils/project-manager.js';
 import { getPackageVersion } from '../utils/version.js';
 
 const VERSION = getPackageVersion();
-import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled } from '../utils/database.js';
+import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled, getToolEnableConfigs, setToolEnabled, batchSetToolEnabled, queryMCPServerLogs, getRecentMCPServerErrors, cleanupOldMCPServerLogs } from '../utils/database.js';
 import { maskApiKey } from '../utils/crypto-helper.js';
 import { generateAIReply, validateAPIKey } from '../utils/ai-service.js';
 import { mcpClientManager } from '../utils/mcp-client-manager.js';
@@ -284,6 +284,11 @@ export class WebServer {
     // Dashboard 路由
     this.app.get('/dashboard', (req, res) => {
       res.sendFile('dashboard.html', { root: staticPath });
+    });
+
+    // MCP 設定頁面路由
+    this.app.get('/mcp-settings', (req, res) => {
+      res.sendFile('mcp-settings.html', { root: staticPath });
     });
 
     // 主页路由 - Session 頁面
@@ -762,6 +767,7 @@ export class WebServer {
             model: settings.model,
             apiKeyMasked: maskApiKey(settings.apiKey),
             systemPrompt: settings.systemPrompt,
+            mcpToolsPrompt: settings.mcpToolsPrompt,
             temperature: settings.temperature,
             maxTokens: settings.maxTokens,
             autoReplyTimerSeconds: settings.autoReplyTimerSeconds,
@@ -797,6 +803,7 @@ export class WebServer {
             model: settings.model,
             apiKeyMasked: maskApiKey(settings.apiKey),
             systemPrompt: settings.systemPrompt,
+            mcpToolsPrompt: settings.mcpToolsPrompt,
             temperature: settings.temperature,
             maxTokens: settings.maxTokens,
             autoReplyTimerSeconds: settings.autoReplyTimerSeconds,
@@ -1444,6 +1451,170 @@ export class WebServer {
       }
     });
 
+    // ============ MCP Tool 啟用管理 API ============
+
+    // 獲取 Server 的工具列表（包含啟用狀態）
+    this.app.get('/api/mcp-servers/:id/tools/config', (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+          res.status(400).json({ success: false, error: '無效的 Server ID' });
+          return;
+        }
+
+        const tools = mcpClientManager.getServerTools(id, true);
+        res.json({ success: true, tools });
+      } catch (error) {
+        logger.error('獲取工具配置失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取工具配置失敗'
+        });
+      }
+    });
+
+    // 設定單一工具啟用狀態
+    this.app.put('/api/mcp-servers/:id/tools/:toolName/enable', (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const toolName = decodeURIComponent(req.params.toolName);
+        const { enabled } = req.body;
+
+        if (isNaN(id)) {
+          res.status(400).json({ success: false, error: '無效的 Server ID' });
+          return;
+        }
+
+        if (typeof enabled !== 'boolean') {
+          res.status(400).json({ success: false, error: 'enabled 參數必須是布林值' });
+          return;
+        }
+
+        setToolEnabled(id, toolName, enabled);
+        logger.info(`設定工具啟用狀態: Server ${id}, ${toolName} -> ${enabled ? '啟用' : '停用'}`);
+        res.json({ success: true });
+      } catch (error) {
+        logger.error('設定工具啟用狀態失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '設定工具啟用狀態失敗'
+        });
+      }
+    });
+
+    // 批次設定工具啟用狀態
+    this.app.put('/api/mcp-servers/:id/tools/batch-enable', (req, res) => {
+      try {
+        const id = parseInt(req.params.id);
+        const { tools } = req.body;
+
+        if (isNaN(id)) {
+          res.status(400).json({ success: false, error: '無效的 Server ID' });
+          return;
+        }
+
+        if (!Array.isArray(tools)) {
+          res.status(400).json({ success: false, error: 'tools 必須是陣列' });
+          return;
+        }
+
+        batchSetToolEnabled(id, tools.map(t => ({
+          toolName: t.toolName,
+          enabled: t.enabled
+        })));
+
+        logger.info(`批次設定工具啟用狀態: Server ${id}, 共 ${tools.length} 個工具`);
+        res.json({ success: true });
+      } catch (error) {
+        logger.error('批次設定工具啟用狀態失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '批次設定工具啟用狀態失敗'
+        });
+      }
+    });
+
+    // ============ Serena MCP 預設配置 API ============
+
+    // 獲取 Serena 預設配置
+    this.app.get('/api/mcp-presets/serena', (req, res) => {
+      try {
+        const projectPath = req.query['projectPath'] as string || '';
+        
+        const preset = {
+          name: 'Serena',
+          transport: 'stdio' as const,
+          command: 'uvx',
+          args: [
+            '--from',
+            'git+https://github.com/oraios/serena',
+            'serena',
+            'start-mcp-server',
+            ...(projectPath ? ['--project', projectPath] : ['--project-from-cwd'])
+          ],
+          env: {},
+          description: 'Serena MCP Server - 智慧程式碼分析工具'
+        };
+
+        res.json({ success: true, preset });
+      } catch (error) {
+        logger.error('獲取 Serena 預設配置失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取預設配置失敗'
+        });
+      }
+    });
+
+    // 使用 Serena 預設配置創建 MCP Server
+    this.app.post('/api/mcp-presets/serena/create', async (req, res) => {
+      try {
+        const { projectPath, autoConnect = true } = req.body;
+
+        const serverData = {
+          name: 'Serena',
+          transport: 'stdio' as const,
+          command: 'uvx',
+          args: [
+            '--from',
+            'git+https://github.com/oraios/serena',
+            'serena',
+            'start-mcp-server',
+            ...(projectPath ? ['--project', projectPath] : ['--project-from-cwd'])
+          ],
+          env: {},
+          enabled: true
+        };
+
+        const server = createMCPServer(serverData);
+        logger.info(`創建 Serena MCP Server: ID ${server.id}`);
+
+        let state = null;
+        if (autoConnect) {
+          state = await mcpClientManager.connect(server);
+          if (state.status === 'connected') {
+            logger.info(`Serena MCP Server 連接成功: ID ${server.id}, 工具數量: ${state.tools.length}`);
+          } else {
+            logger.error(`Serena MCP Server 連接失敗: ID ${server.id}, 錯誤: ${state.error}`);
+          }
+        }
+
+        res.json({
+          success: true,
+          server: {
+            ...server,
+            state: state || { id: server.id, status: 'disconnected', tools: [], resources: [], prompts: [] }
+          }
+        });
+      } catch (error) {
+        logger.error('創建 Serena MCP Server 失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '創建 Serena MCP Server 失敗'
+        });
+      }
+    });
+
     // 自動連接已啟用的 MCP Servers
     this.app.post('/api/mcp-servers/connect-all', async (req, res) => {
       try {
@@ -1482,6 +1653,101 @@ export class WebServer {
         res.status(500).json({
           success: false,
           error: error instanceof Error ? error.message : '斷開失敗'
+        });
+      }
+    });
+
+    // ============ MCP Server 日誌 API ============
+
+    // 查詢 MCP Server 日誌
+    this.app.get('/api/mcp-servers/logs', (req, res) => {
+      try {
+        const serverIdParam = req.query['serverId'] as string | undefined;
+        const type = req.query['type'] as string | undefined;
+        const limit = req.query['limit'] ? parseInt(req.query['limit'] as string) : 100;
+        const offset = req.query['offset'] ? parseInt(req.query['offset'] as string) : 0;
+
+        const options: {
+          serverId?: number;
+          type?: 'connect' | 'disconnect' | 'error' | 'tool_call' | 'info';
+          limit?: number;
+          offset?: number;
+        } = { limit, offset };
+
+        if (serverIdParam) {
+          options.serverId = parseInt(serverIdParam);
+        }
+        if (type) {
+          options.type = type as 'connect' | 'disconnect' | 'error' | 'tool_call' | 'info';
+        }
+
+        const result = queryMCPServerLogs(options);
+
+        res.json({ success: true, ...result });
+      } catch (error) {
+        logger.error('查詢 MCP Server 日誌失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '查詢日誌失敗'
+        });
+      }
+    });
+
+    // 獲取特定 Server 的日誌
+    this.app.get('/api/mcp-servers/:id/logs', (req, res) => {
+      try {
+        const serverId = parseInt(req.params.id);
+        const type = req.query['type'] as string | undefined;
+        const limit = req.query['limit'] ? parseInt(req.query['limit'] as string) : 100;
+        const offset = req.query['offset'] ? parseInt(req.query['offset'] as string) : 0;
+
+        const result = queryMCPServerLogs({
+          serverId,
+          type: type as any,
+          limit,
+          offset
+        });
+
+        res.json({ success: true, ...result });
+      } catch (error) {
+        logger.error(`獲取 MCP Server ${req.params.id} 日誌失敗:`, error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取日誌失敗'
+        });
+      }
+    });
+
+    // 獲取最近的錯誤日誌
+    this.app.get('/api/mcp-servers/errors', (req, res) => {
+      try {
+        const serverId = req.query['serverId'] ? parseInt(req.query['serverId'] as string) : undefined;
+        const limit = req.query['limit'] ? parseInt(req.query['limit'] as string) : 50;
+
+        const errors = getRecentMCPServerErrors(serverId, limit);
+        res.json({ success: true, errors });
+      } catch (error) {
+        logger.error('獲取 MCP Server 錯誤日誌失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取錯誤日誌失敗'
+        });
+      }
+    });
+
+    // 清理舊的 MCP Server 日誌
+    this.app.delete('/api/mcp-servers/logs/cleanup', (req, res) => {
+      try {
+        const daysToKeep = req.query['daysToKeep'] ? parseInt(req.query['daysToKeep'] as string) : 7;
+        const deletedCount = cleanupOldMCPServerLogs(daysToKeep);
+
+        logger.info(`清理 MCP Server 日誌: 刪除了 ${deletedCount} 筆記錄`);
+        res.json({ success: true, deletedCount });
+      } catch (error) {
+        logger.error('清理 MCP Server 日誌失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '清理日誌失敗'
         });
       }
     });
@@ -1530,10 +1796,24 @@ export class WebServer {
         if (latestSession) {
           // 有活躍會話，分配給用戶端
           logger.info(`為用戶端 ${socket.id} 分配會話: ${latestSession.sessionId}`);
+          
+          // 獲取專案資訊
+          let projectName: string | undefined;
+          let projectPath: string | undefined;
+          if (latestSession.session.projectId) {
+            const project = projectManager.getProject(latestSession.session.projectId);
+            if (project) {
+              projectName = project.name;
+              projectPath = project.path;
+            }
+          }
+          
           socket.emit('session_assigned', {
             session_id: latestSession.sessionId,
             work_summary: latestSession.session.workSummary,
-            timeout: latestSession.session.timeout // 傳遞逾時時間（毫秒）
+            timeout: latestSession.session.timeout, // 傳遞逾時時間（毫秒）
+            project_name: projectName,
+            project_path: projectPath
           });
         } else {
           // 無活躍會話

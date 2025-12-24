@@ -16,6 +16,7 @@ import {
     MCPToolCallResult,
 } from '../types/index.js';
 import { logger } from './logger.js';
+import { getToolEnableConfigs, isToolEnabled, insertMCPServerLog } from './database.js';
 
 interface MCPClientInstance {
     client: Client;
@@ -81,11 +82,39 @@ class MCPClientManager {
             this.clients.set(config.id, instance);
             logger.info(`MCP Server connected: ${config.name} (ID: ${config.id})`);
 
+            insertMCPServerLog({
+                serverId: config.id,
+                serverName: config.name,
+                type: 'connect',
+                message: `連線成功，工具數量: ${instance.state.tools.length}`,
+                details: JSON.stringify({
+                    toolCount: instance.state.tools.length,
+                    resourceCount: instance.state.resources.length,
+                    promptCount: instance.state.prompts.length
+                })
+            });
+
             return instance.state;
         } catch (error) {
             state.status = 'error';
-            state.error = error instanceof Error ? error.message : String(error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            state.error = errorMessage;
             logger.error(`Failed to connect MCP Server ${config.name}:`, error);
+
+            insertMCPServerLog({
+                serverId: config.id,
+                serverName: config.name,
+                type: 'error',
+                message: `連線失敗: ${errorMessage}`,
+                details: JSON.stringify({
+                    command: config.command,
+                    args: config.args,
+                    transport: config.transport,
+                    error: errorMessage,
+                    stack: error instanceof Error ? error.stack : undefined
+                })
+            });
+
             return state;
         }
     }
@@ -94,11 +123,29 @@ class MCPClientManager {
         const instance = this.clients.get(serverId);
         if (!instance) return;
 
+        const serverName = instance.state.id ? `Server ${instance.state.id}` : 'Unknown';
+
         try {
             await instance.client.close();
             logger.info(`MCP Server disconnected: ID ${serverId}`);
+
+            insertMCPServerLog({
+                serverId,
+                serverName,
+                type: 'disconnect',
+                message: '連線已斷開'
+            });
         } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             logger.error(`Error disconnecting MCP Server ${serverId}:`, error);
+
+            insertMCPServerLog({
+                serverId,
+                serverName,
+                type: 'error',
+                message: `斷開連線時發生錯誤: ${errorMessage}`,
+                details: JSON.stringify({ error: errorMessage })
+            });
         } finally {
             this.clients.delete(serverId);
         }
@@ -210,27 +257,47 @@ class MCPClientManager {
         return instance?.state.status === 'connected';
     }
 
-    getAllTools(): MCPToolInfo[] {
+    getAllTools(filterEnabled = true): MCPToolInfo[] {
         const tools: MCPToolInfo[] = [];
         for (const [serverId, instance] of this.clients.entries()) {
             if (instance.state.status === 'connected') {
-                const toolsWithServerId = instance.state.tools.map(tool => ({
-                    ...tool,
-                    serverId
-                }));
+                const enableConfigs = filterEnabled ? getToolEnableConfigs(serverId) : new Map();
+                const toolsWithServerId = instance.state.tools
+                    .filter(tool => !filterEnabled || enableConfigs.get(tool.name) !== false)
+                    .map(tool => ({
+                        ...tool,
+                        serverId,
+                        enabled: filterEnabled ? enableConfigs.get(tool.name) !== false : true
+                    }));
                 tools.push(...toolsWithServerId);
             }
         }
         return tools;
     }
 
+    getServerTools(serverId: number, includeDisabled = false): MCPToolInfo[] {
+        const instance = this.clients.get(serverId);
+        if (!instance || instance.state.status !== 'connected') {
+            return [];
+        }
+
+        const enableConfigs = getToolEnableConfigs(serverId);
+        return instance.state.tools.map(tool => ({
+            ...tool,
+            serverId,
+            enabled: enableConfigs.get(tool.name) !== false
+        })).filter(tool => includeDisabled || tool.enabled);
+    }
+
     async callTool(
         serverId: number,
         toolName: string,
-        args?: Record<string, unknown>
+        args?: Record<string, unknown>,
+        bypassEnableCheck = false
     ): Promise<MCPToolCallResult> {
         const instance = this.clients.get(serverId);
         if (!instance) {
+            logger.error(`MCP Server not found: ${serverId}`);
             return {
                 success: false,
                 error: `MCP Server not found: ${serverId}`,
@@ -238,9 +305,18 @@ class MCPClientManager {
         }
 
         if (instance.state.status !== 'connected') {
+            logger.error(`MCP Server not connected: ${serverId}`);
             return {
                 success: false,
                 error: `MCP Server not connected: ${serverId}`,
+            };
+        }
+
+        if (!bypassEnableCheck && !isToolEnabled(serverId, toolName)) {
+            logger.warn(`Tool ${toolName} is disabled on server ${serverId}`);
+            return {
+                success: false,
+                error: `Tool ${toolName} is disabled`,
             };
         }
 

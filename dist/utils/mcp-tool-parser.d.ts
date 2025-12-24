@@ -32,11 +32,13 @@ export declare function formatToolResults(results: ToolExecutionResult[]): strin
 /**
  * 建構包含工具描述的 system prompt 片段
  * @param tools 可用的 MCP 工具列表
+ * @param projectName 專案名稱（可選）
+ * @param projectPath 專案路徑（可選）
  * @returns system prompt 片段
  */
 export declare function buildToolsPrompt(tools: Array<{
     name: string;
     description?: string;
     inputSchema?: unknown;
-}>): string;
+}>, projectName?: string, projectPath?: string): string;
 //# sourceMappingURL=mcp-tool-parser.d.ts.map

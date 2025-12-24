@@ -24,7 +24,9 @@ import type {
     MCPServerConfig,
     CreateMCPServerRequest,
     UpdateMCPServerRequest,
-    MCPTransportType
+    MCPTransportType,
+    MCPServerLog,
+    MCPServerLogType
 } from '../types/index.js';
 
 const DB_DIR = path.join(process.cwd(), 'data');
@@ -123,6 +125,9 @@ export function initDatabase(): Database.Database {
     // 遷移系統提示詞（若使用舊版未修改的提示詞）
     migrateSystemPromptIfNeeded();
 
+    // 遷移 MCP 工具提示詞（為現有記錄設定預設值）
+    migrateMcpToolsPromptIfNeeded();
+
     return db;
 }
 
@@ -160,6 +165,7 @@ function createTables(): void {
       model TEXT NOT NULL,
       api_key TEXT NOT NULL,
       system_prompt TEXT NOT NULL,
+      mcp_tools_prompt TEXT,
       temperature REAL,
       max_tokens INTEGER,
       auto_reply_timer_seconds INTEGER DEFAULT 300,
@@ -174,14 +180,24 @@ function createTables(): void {
             'PRAGMA table_info(ai_settings)'
         ).all() as Array<{ name: string }>;
 
-        const hasColumn = columnCheck.some(col => col.name === 'auto_reply_timer_seconds');
+        const hasAutoReplyColumn = columnCheck.some(col => col.name === 'auto_reply_timer_seconds');
 
-        if (!hasColumn) {
+        if (!hasAutoReplyColumn) {
             db.exec(`
                 ALTER TABLE ai_settings 
                 ADD COLUMN auto_reply_timer_seconds INTEGER DEFAULT 300
             `);
             logger.info('Successfully migrated ai_settings table - added auto_reply_timer_seconds column');
+        }
+
+        // 遷移：添加 mcp_tools_prompt 欄位
+        const hasMcpToolsPromptColumn = columnCheck.some(col => col.name === 'mcp_tools_prompt');
+        if (!hasMcpToolsPromptColumn) {
+            db.exec(`
+                ALTER TABLE ai_settings 
+                ADD COLUMN mcp_tools_prompt TEXT
+            `);
+            logger.info('Successfully migrated ai_settings table - added mcp_tools_prompt column');
         }
     } catch (error) {
         logger.warn('Migration check failed (may be normal for new DBs):', error);
@@ -242,6 +258,50 @@ function createTables(): void {
     db.exec(`
     CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled)
   `);
+
+    // MCP Tool 啟用配置表
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS mcp_tool_enables (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      server_id INTEGER NOT NULL,
+      tool_name TEXT NOT NULL,
+      enabled INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (server_id) REFERENCES mcp_servers(id) ON DELETE CASCADE,
+      UNIQUE(server_id, tool_name)
+    )
+  `);
+
+    // MCP Tool 啟用配置索引
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_mcp_tool_enables_server ON mcp_tool_enables(server_id)
+  `);
+
+    // MCP Server 日誌表 - 記錄連線、錯誤等事件
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS mcp_server_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      server_id INTEGER NOT NULL,
+      server_name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      message TEXT NOT NULL,
+      details TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (server_id) REFERENCES mcp_servers(id) ON DELETE CASCADE
+    )
+  `);
+
+    // MCP Server 日誌索引
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_mcp_server_logs_server ON mcp_server_logs(server_id)
+  `);
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_mcp_server_logs_type ON mcp_server_logs(type)
+  `);
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_mcp_server_logs_created ON mcp_server_logs(created_at DESC)
+  `);
 }
 
 /**
@@ -277,9 +337,36 @@ function initDefaultSettings(): void {
 
 保持回應簡短（2-3句話），除非需要更詳細的說明。`;
 
+        const defaultMcpToolsPrompt = `## 專案背景資訊
+當前專案: {project_name}
+專案路徑: {project_path}
+
+**重要指示**: 在回覆之前，你應該先使用 MCP 工具來查詢專案的背景資訊：
+1. 專案的架構和結構（如使用 get_symbols_overview, list_dir 等）
+2. 專案的開發計劃和規範（如讀取 openspec 目錄中的文件）
+3. 當前的任務和進度
+
+**請務必先調用工具查詢專案資訊**，然後根據查詢結果提供精確的回覆。
+
+## MCP 工具使用說明
+
+當你需要使用工具時，請回覆一個 JSON 格式的工具調用請求（不要有其他文字）：
+
+\`\`\`json
+{
+  "tool_calls": [
+    { "name": "工具名稱", "arguments": { "參數名": "參數值" } }
+  ],
+  "message": "說明你正在做什麼（可選）"
+}
+\`\`\`
+
+工具執行後，結果會回傳給你。你可以繼續調用更多工具，或根據結果提供最終回覆。
+當你不需要調用工具時，直接以純文字回覆即可。`;
+
         db.prepare(`
-      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, temperature, max_tokens, auto_reply_timer_seconds)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, temperature, max_tokens, auto_reply_timer_seconds, mcp_tools_prompt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
             'https://generativelanguage.googleapis.com/v1beta',
             'gemini-2.0-flash-exp',
@@ -287,7 +374,8 @@ function initDefaultSettings(): void {
             defaultSystemPrompt,
             0.7,
             1000,
-            300
+            300,
+            defaultMcpToolsPrompt
         );
     }
 
@@ -315,6 +403,57 @@ function migrateSystemPromptIfNeeded(): void {
         db.prepare('UPDATE ai_settings SET system_prompt = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(newPrompt, row.id);
         logger.info(`[Database] 系統提示詞已自動升級至 ${CURRENT_PROMPT_VERSION}`);
     }
+}
+
+/**
+ * 為現有記錄設定預設的 MCP 工具提示詞
+ */
+function migrateMcpToolsPromptIfNeeded(): void {
+    if (!db) return;
+
+    const row = db.prepare('SELECT id, mcp_tools_prompt FROM ai_settings ORDER BY id DESC LIMIT 1').get() as { id: number; mcp_tools_prompt: string | null } | undefined;
+    if (!row) {
+        logger.debug('[Database] 沒有找到 ai_settings 記錄，跳過 MCP 工具提示詞遷移');
+        return;
+    }
+
+    logger.debug(`[Database] 當前 mcp_tools_prompt 值: ${row.mcp_tools_prompt === null ? 'NULL' : row.mcp_tools_prompt === '' ? '空字串' : '有值 (' + row.mcp_tools_prompt.length + ' 字元)'}`);
+
+    // 如果已經有 mcp_tools_prompt 則不需要遷移
+    if (row.mcp_tools_prompt && row.mcp_tools_prompt.trim() !== '') {
+        logger.debug('[Database] MCP 工具提示詞已存在，跳過遷移');
+        return;
+    }
+
+    const defaultMcpToolsPrompt = `## 專案背景資訊
+當前專案: {project_name}
+專案路徑: {project_path}
+
+**重要指示**: 在回覆之前，你應該先使用 MCP 工具來查詢專案的背景資訊：
+1. 專案的架構和結構（如使用 get_symbols_overview, list_dir 等）
+2. 專案的開發計劃和規範（如讀取 openspec 目錄中的文件）
+3. 當前的任務和進度
+
+**請務必先調用工具查詢專案資訊**，然後根據查詢結果提供精確的回覆。
+
+## MCP 工具使用說明
+
+當你需要使用工具時，請回覆一個 JSON 格式的工具調用請求（不要有其他文字）：
+
+\`\`\`json
+{
+  "tool_calls": [
+    { "name": "工具名稱", "arguments": { "參數名": "參數值" } }
+  ],
+  "message": "說明你正在做什麼（可選）"
+}
+\`\`\`
+
+工具執行後，結果會回傳給你。你可以繼續調用更多工具，或根據結果提供最終回覆。
+當你不需要調用工具時，直接以純文字回覆即可。`;
+
+    db.prepare('UPDATE ai_settings SET mcp_tools_prompt = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(defaultMcpToolsPrompt, row.id);
+    logger.info('[Database] MCP 工具提示詞已設定預設值');
 }
 
 /**
@@ -563,6 +702,7 @@ export function getAISettings(): AISettings | undefined {
     const row = db.prepare(`
     SELECT 
       id, api_url as apiUrl, model, api_key as apiKey, system_prompt as systemPrompt,
+      mcp_tools_prompt as mcpToolsPrompt,
       temperature, max_tokens as maxTokens, auto_reply_timer_seconds as autoReplyTimerSeconds,
       created_at as createdAt, updated_at as updatedAt
     FROM ai_settings
@@ -627,6 +767,10 @@ export function updateAISettings(data: AISettingsRequest): AISettings {
             updates.push('system_prompt = ?');
             values.push(data.systemPrompt);
         }
+        if (data.mcpToolsPrompt !== undefined) {
+            updates.push('mcp_tools_prompt = ?');
+            values.push(data.mcpToolsPrompt);
+        }
         if (data.temperature !== undefined) {
             updates.push('temperature = ?');
             values.push(data.temperature);
@@ -659,13 +803,14 @@ export function updateAISettings(data: AISettingsRequest): AISettings {
     } else {
         // 創建新設定
         db.prepare(`
-      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, temperature, max_tokens, auto_reply_timer_seconds)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO ai_settings (api_url, model, api_key, system_prompt, mcp_tools_prompt, temperature, max_tokens, auto_reply_timer_seconds)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
             data.apiUrl || 'https://generativelanguage.googleapis.com/v1beta',
             data.model || 'gemini-2.0-flash-exp',
             data.apiKey ? encrypt(data.apiKey) : encrypt('YOUR_API_KEY_HERE'),
             data.systemPrompt || '',
+            data.mcpToolsPrompt || null,
             data.temperature ?? 0.7,
             data.maxTokens ?? 1000,
             data.autoReplyTimerSeconds ?? 300
@@ -1191,4 +1336,217 @@ export function toggleMCPServerEnabled(id: number): MCPServerConfig {
 
     logger.info(`切換 MCP Server 啟用狀態: ${updated.name} (ID: ${id}) -> ${updated.enabled ? '啟用' : '停用'}`);
     return updated;
+}
+
+// ============ MCP Tool 啟用配置 ============
+
+/**
+ * 獲取 Server 的工具啟用配置
+ */
+export function getToolEnableConfigs(serverId: number): Map<string, boolean> {
+    const db = tryGetDb();
+    if (!db) throw new Error('Database unavailable');
+
+    const rows = db.prepare(`
+        SELECT tool_name, enabled FROM mcp_tool_enables WHERE server_id = ?
+    `).all(serverId) as Array<{ tool_name: string; enabled: number }>;
+
+    const configs = new Map<string, boolean>();
+    for (const row of rows) {
+        configs.set(row.tool_name, row.enabled === 1);
+    }
+    return configs;
+}
+
+/**
+ * 設定單一工具的啟用狀態
+ */
+export function setToolEnabled(serverId: number, toolName: string, enabled: boolean): void {
+    const db = tryGetDb();
+    if (!db) throw new Error('Database unavailable');
+
+    db.prepare(`
+        INSERT INTO mcp_tool_enables (server_id, tool_name, enabled)
+        VALUES (?, ?, ?)
+        ON CONFLICT(server_id, tool_name) DO UPDATE SET
+            enabled = excluded.enabled,
+            updated_at = CURRENT_TIMESTAMP
+    `).run(serverId, toolName, enabled ? 1 : 0);
+
+    logger.info(`設定工具啟用狀態: Server ${serverId}, 工具 ${toolName} -> ${enabled ? '啟用' : '停用'}`);
+}
+
+/**
+ * 批次設定工具啟用狀態
+ */
+export function batchSetToolEnabled(
+    serverId: number,
+    tools: Array<{ toolName: string; enabled: boolean }>
+): void {
+    const db = tryGetDb();
+    if (!db) throw new Error('Database unavailable');
+
+    const stmt = db.prepare(`
+        INSERT INTO mcp_tool_enables (server_id, tool_name, enabled)
+        VALUES (?, ?, ?)
+        ON CONFLICT(server_id, tool_name) DO UPDATE SET
+            enabled = excluded.enabled,
+            updated_at = CURRENT_TIMESTAMP
+    `);
+
+    const transaction = db.transaction(() => {
+        for (const tool of tools) {
+            stmt.run(serverId, tool.toolName, tool.enabled ? 1 : 0);
+        }
+    });
+
+    transaction();
+    logger.info(`批次設定工具啟用狀態: Server ${serverId}, 共 ${tools.length} 個工具`);
+}
+
+/**
+ * 檢查工具是否啟用（預設啟用）
+ */
+export function isToolEnabled(serverId: number, toolName: string): boolean {
+    const db = tryGetDb();
+    if (!db) return true;
+
+    const row = db.prepare(`
+        SELECT enabled FROM mcp_tool_enables WHERE server_id = ? AND tool_name = ?
+    `).get(serverId, toolName) as { enabled: number } | undefined;
+
+    return row ? row.enabled === 1 : true;
+}
+
+/**
+ * 刪除 Server 的所有工具配置（在刪除 Server 時使用）
+ */
+export function deleteToolEnableConfigs(serverId: number): void {
+    const db = tryGetDb();
+    if (!db) return;
+
+    db.prepare('DELETE FROM mcp_tool_enables WHERE server_id = ?').run(serverId);
+    logger.info(`刪除工具啟用配置: Server ${serverId}`);
+}
+
+// ============ MCP Server 日誌相關函數 ============
+
+/**
+ * 插入 MCP Server 日誌
+ */
+export function insertMCPServerLog(log: Omit<MCPServerLog, 'id' | 'createdAt'>): void {
+    const db = tryGetDb();
+    if (!db) return;
+
+    try {
+        db.prepare(`
+            INSERT INTO mcp_server_logs (server_id, server_name, type, message, details)
+            VALUES (?, ?, ?, ?, ?)
+        `).run(
+            log.serverId,
+            log.serverName,
+            log.type,
+            log.message,
+            log.details || null
+        );
+    } catch (error) {
+        process.stderr.write(`[Database] Failed to insert MCP server log: ${error}\n`);
+    }
+}
+
+/**
+ * 查詢 MCP Server 日誌
+ */
+export function queryMCPServerLogs(options: {
+    serverId?: number;
+    type?: MCPServerLogType;
+    limit?: number;
+    offset?: number;
+}): { logs: MCPServerLog[]; total: number } {
+    const db = tryGetDb();
+    if (!db) return { logs: [], total: 0 };
+
+    const conditions: string[] = [];
+    const params: (number | string)[] = [];
+
+    if (options.serverId !== undefined) {
+        conditions.push('server_id = ?');
+        params.push(options.serverId);
+    }
+
+    if (options.type) {
+        conditions.push('type = ?');
+        params.push(options.type);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countRow = db.prepare(`
+        SELECT COUNT(*) as total FROM mcp_server_logs ${whereClause}
+    `).get(...params) as { total: number };
+
+    const limit = options.limit || 100;
+    const offset = options.offset || 0;
+
+    const rows = db.prepare(`
+        SELECT 
+            id, server_id as serverId, server_name as serverName, 
+            type, message, details, created_at as createdAt
+        FROM mcp_server_logs
+        ${whereClause}
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+    `).all(...params, limit, offset) as MCPServerLog[];
+
+    return {
+        logs: rows,
+        total: countRow.total
+    };
+}
+
+/**
+ * 獲取最近的 MCP Server 錯誤日誌
+ */
+export function getRecentMCPServerErrors(serverId?: number, limit: number = 50): MCPServerLog[] {
+    const db = tryGetDb();
+    if (!db) return [];
+
+    if (serverId !== undefined) {
+        return db.prepare(`
+            SELECT 
+                id, server_id as serverId, server_name as serverName, 
+                type, message, details, created_at as createdAt
+            FROM mcp_server_logs
+            WHERE server_id = ? AND type = 'error'
+            ORDER BY created_at DESC
+            LIMIT ?
+        `).all(serverId, limit) as MCPServerLog[];
+    }
+
+    return db.prepare(`
+        SELECT 
+            id, server_id as serverId, server_name as serverName, 
+            type, message, details, created_at as createdAt
+        FROM mcp_server_logs
+        WHERE type = 'error'
+        ORDER BY created_at DESC
+        LIMIT ?
+    `).all(limit) as MCPServerLog[];
+}
+
+/**
+ * 清理舊的 MCP Server 日誌（保留最近 N 天）
+ */
+export function cleanupOldMCPServerLogs(daysToKeep: number = 7): number {
+    const db = tryGetDb();
+    if (!db) return 0;
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+
+    const result = db.prepare(`
+        DELETE FROM mcp_server_logs WHERE created_at < ?
+    `).run(cutoffDate.toISOString());
+
+    return result.changes;
 }

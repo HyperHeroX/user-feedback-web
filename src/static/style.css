@@ -209,6 +209,23 @@ body {
     gap: var(--spacing-sm);
 }
 
+.project-info {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: default;
+}
+
+.project-info:hover {
+    color: var(--text-primary);
+}
+
 .panel-content {
     flex: 1;
     overflow-y: auto;

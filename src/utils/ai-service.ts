@@ -58,7 +58,34 @@ export async function generateAIReply(request: AIReplyRequest): Promise<AIReplyR
         if (request.includeMCPTools) {
             try {
                 const allTools = mcpClientManager.getAllTools();
-                mcpToolsPrompt = buildToolsPrompt(allTools);
+                
+                // 優先使用資料庫中的自定義 MCP 工具提示詞
+                if (settings.mcpToolsPrompt) {
+                    // 替換佔位符
+                    mcpToolsPrompt = settings.mcpToolsPrompt
+                        .replace(/\{project_name\}/g, request.projectName || '未命名專案')
+                        .replace(/\{project_path\}/g, request.projectPath || '');
+                    
+                    // 附加工具列表
+                    if (allTools.length > 0) {
+                        mcpToolsPrompt += '\n\n## 可用工具列表\n\n';
+                        for (const tool of allTools) {
+                            mcpToolsPrompt += `### ${tool.name}\n`;
+                            if (tool.description) {
+                                mcpToolsPrompt += `${tool.description}\n`;
+                            }
+                            if (tool.inputSchema) {
+                                mcpToolsPrompt += '\n參數格式:\n```json\n';
+                                mcpToolsPrompt += JSON.stringify(tool.inputSchema, null, 2);
+                                mcpToolsPrompt += '\n```\n';
+                            }
+                            mcpToolsPrompt += '\n';
+                        }
+                    }
+                } else {
+                    // 使用預設的 buildToolsPrompt
+                    mcpToolsPrompt = buildToolsPrompt(allTools, request.projectName, request.projectPath);
+                }
             } catch {
                 logger.warn('Failed to get MCP tools for AI prompt');
             }

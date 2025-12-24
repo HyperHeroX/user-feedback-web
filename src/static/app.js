@@ -8,6 +8,8 @@
 let socket = null;
 let sessionId = null;
 let workSummary = null;
+let currentProjectName = null;
+let currentProjectPath = null;
 let currentImages = [];
 let prompts = [];
 let aiSettings = null;
@@ -78,6 +80,11 @@ function initSocketIO() {
     console.log("會話已分配:", data);
     sessionId = data.session_id;
     workSummary = data.work_summary;
+    currentProjectName = data.project_name || null;
+    currentProjectPath = data.project_path || null;
+
+    // 顯示專案資訊
+    displayProjectInfo(currentProjectName, currentProjectPath);
 
     // 顯示 AI 訊息
     displayAIMessage(workSummary);
@@ -637,6 +644,20 @@ async function getPinnedPromptsContent() {
 
 // ============ AI 訊息顯示 ============
 
+function displayProjectInfo(projectName, projectPath) {
+  const projectInfoEl = document.getElementById("projectInfo");
+  if (!projectInfoEl) return;
+
+  if (projectName || projectPath) {
+    const name = projectName || "未命名專案";
+    const path = projectPath ? ` (${projectPath})` : "";
+    projectInfoEl.innerHTML = `<span class="icon">📁</span> ${name}${path}`;
+    projectInfoEl.title = projectPath || projectName || "";
+  } else {
+    projectInfoEl.innerHTML = "";
+  }
+}
+
 function displayAIMessage(message) {
   const displayEl = document.getElementById("aiMessageDisplay");
 
@@ -682,6 +703,8 @@ async function generateAIReply() {
       body: JSON.stringify({
         aiMessage: workSummary,
         userContext: userContext,
+        projectName: currentProjectName || undefined,
+        projectPath: currentProjectPath || undefined,
       }),
     });
 
@@ -916,6 +939,8 @@ async function generateAIReplyWithTools() {
           userContext: userContext,
           includeMCPTools: true,
           toolResults: toolResults || undefined,
+          projectName: currentProjectName || undefined,
+          projectPath: currentProjectPath || undefined,
         }),
       });
 
@@ -1458,6 +1483,7 @@ function openAISettingsModal() {
     document.getElementById("apiKey").value = "";
     document.getElementById("apiKey").placeholder = "留空則保留原有 API Key";
     document.getElementById("systemPrompt").value = aiSettings.systemPrompt;
+    document.getElementById("mcpToolsPrompt").value = aiSettings.mcpToolsPrompt || "";
     document.getElementById("temperature").value =
       aiSettings.temperature || 0.7;
     document.getElementById("maxTokens").value = aiSettings.maxTokens || 1000;
@@ -1477,6 +1503,7 @@ async function saveAISettings() {
   const model = document.getElementById("model").value.trim();
   const apiKey = document.getElementById("apiKey").value.trim();
   const systemPrompt = document.getElementById("systemPrompt").value.trim();
+  const mcpToolsPrompt = document.getElementById("mcpToolsPrompt").value.trim();
   const temperature = parseFloat(document.getElementById("temperature").value);
   const maxTokens = parseInt(document.getElementById("maxTokens").value);
   const autoReplyTimerSeconds = parseInt(
@@ -1487,6 +1514,7 @@ async function saveAISettings() {
     apiUrl: apiUrl || undefined,
     model: model || undefined,
     systemPrompt: systemPrompt || undefined,
+    mcpToolsPrompt: mcpToolsPrompt || undefined,
     temperature,
     maxTokens,
     autoReplyTimerSeconds,
@@ -1775,6 +1803,9 @@ async function triggerAutoAIReply() {
       body: JSON.stringify({
         aiMessage: workSummary,
         userContext: userContext,
+        includeMCPTools: true,
+        projectName: currentProjectName || undefined,
+        projectPath: currentProjectPath || undefined,
       }),
     });
 

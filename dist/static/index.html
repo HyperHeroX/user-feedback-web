@@ -41,6 +41,7 @@
                     <span class="icon">🤖</span>
                     AI 工作匯報
                 </h3>
+                <span id="projectInfo" class="project-info"></span>
             </div>
             <div class="panel-content">
                 <div id="aiMessageDisplay" class="ai-message-display">
@@ -205,6 +206,12 @@
                     <div class="form-group">
                         <label for="systemPrompt">系統提示詞</label>
                         <textarea id="systemPrompt" class="form-control" rows="6" placeholder="設定 AI 的行為和回應風格..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="mcpToolsPrompt">MCP 工具提示詞</label>
+                        <textarea id="mcpToolsPrompt" class="form-control" rows="8" placeholder="設定 MCP 工具的使用說明，會在 AI 回覆時附加到提示詞中..."></textarea>
+                        <small class="form-hint">定義 AI 如何使用 MCP 工具收集專案資訊。{project_name} 和 {project_path} 會被替換為實際值。</small>
                     </div>
 
                     <div class="form-row">

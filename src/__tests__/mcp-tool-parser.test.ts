@@ -120,7 +120,7 @@ describe('mcp-tool-parser', () => {
       ];
 
       const prompt = buildToolsPrompt(tools);
-      expect(prompt).toContain('Available MCP Tools');
+      expect(prompt).toContain('可用工具列表');
       expect(prompt).toContain('list_files');
       expect(prompt).toContain('List files in directory');
       expect(prompt).toContain('tool_calls');
@@ -129,6 +129,18 @@ describe('mcp-tool-parser', () => {
     it('should return empty string for no tools', () => {
       const prompt = buildToolsPrompt([]);
       expect(prompt).toBe('');
+    });
+
+    it('should include project information when provided', () => {
+      const tools = [
+        { name: 'get_symbols_overview', description: 'Get symbols overview' },
+      ];
+
+      const prompt = buildToolsPrompt(tools, 'MyProject', '/path/to/project');
+      expect(prompt).toContain('專案背景資訊');
+      expect(prompt).toContain('當前專案: MyProject');
+      expect(prompt).toContain('專案路徑: /path/to/project');
+      expect(prompt).toContain('請務必先調用工具');
     });
   });
 });

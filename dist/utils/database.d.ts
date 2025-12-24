@@ -3,7 +3,7 @@
  * 使用 better-sqlite3 進行資料持久化
  */
 import Database from 'better-sqlite3';
-import type { Prompt, CreatePromptRequest, UpdatePromptRequest, AISettings, AISettingsRequest, UserPreferences, LogEntry, LogQueryOptions, LogQueryResult, LogDeleteOptions, MCPServerConfig, CreateMCPServerRequest, UpdateMCPServerRequest } from '../types/index.js';
+import type { Prompt, CreatePromptRequest, UpdatePromptRequest, AISettings, AISettingsRequest, UserPreferences, LogEntry, LogQueryOptions, LogQueryResult, LogDeleteOptions, MCPServerConfig, CreateMCPServerRequest, UpdateMCPServerRequest, MCPServerLog, MCPServerLogType } from '../types/index.js';
 /**
  * 初始化資料庫
  * 創建資料目錄和資料表
@@ -121,4 +121,51 @@ export declare function deleteMCPServer(id: number): boolean;
  * 切換 MCP Server 啟用狀態
  */
 export declare function toggleMCPServerEnabled(id: number): MCPServerConfig;
+/**
+ * 獲取 Server 的工具啟用配置
+ */
+export declare function getToolEnableConfigs(serverId: number): Map<string, boolean>;
+/**
+ * 設定單一工具的啟用狀態
+ */
+export declare function setToolEnabled(serverId: number, toolName: string, enabled: boolean): void;
+/**
+ * 批次設定工具啟用狀態
+ */
+export declare function batchSetToolEnabled(serverId: number, tools: Array<{
+    toolName: string;
+    enabled: boolean;
+}>): void;
+/**
+ * 檢查工具是否啟用（預設啟用）
+ */
+export declare function isToolEnabled(serverId: number, toolName: string): boolean;
+/**
+ * 刪除 Server 的所有工具配置（在刪除 Server 時使用）
+ */
+export declare function deleteToolEnableConfigs(serverId: number): void;
+/**
+ * 插入 MCP Server 日誌
+ */
+export declare function insertMCPServerLog(log: Omit<MCPServerLog, 'id' | 'createdAt'>): void;
+/**
+ * 查詢 MCP Server 日誌
+ */
+export declare function queryMCPServerLogs(options: {
+    serverId?: number;
+    type?: MCPServerLogType;
+    limit?: number;
+    offset?: number;
+}): {
+    logs: MCPServerLog[];
+    total: number;
+};
+/**
+ * 獲取最近的 MCP Server 錯誤日誌
+ */
+export declare function getRecentMCPServerErrors(serverId?: number, limit?: number): MCPServerLog[];
+/**
+ * 清理舊的 MCP Server 日誌（保留最近 N 天）
+ */
+export declare function cleanupOldMCPServerLogs(daysToKeep?: number): number;
 //# sourceMappingURL=database.d.ts.map

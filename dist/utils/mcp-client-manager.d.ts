@@ -19,8 +19,9 @@ declare class MCPClientManager {
     getState(serverId: number): MCPServerState | null;
     getAllStates(): MCPServerState[];
     isConnected(serverId: number): boolean;
-    getAllTools(): MCPToolInfo[];
-    callTool(serverId: number, toolName: string, args?: Record<string, unknown>): Promise<MCPToolCallResult>;
+    getAllTools(filterEnabled?: boolean): MCPToolInfo[];
+    getServerTools(serverId: number, includeDisabled?: boolean): MCPToolInfo[];
+    callTool(serverId: number, toolName: string, args?: Record<string, unknown>, bypassEnableCheck?: boolean): Promise<MCPToolCallResult>;
     readResource(serverId: number, uri: string): Promise<string | null>;
     getPrompt(serverId: number, name: string, args?: Record<string, string>): Promise<string | null>;
     findServerWithTool(toolName: string): number | null;

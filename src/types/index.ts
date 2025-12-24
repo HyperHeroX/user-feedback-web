@@ -216,6 +216,7 @@ export interface AISettings {
   model: string;
   apiKey: string; // 加密儲存
   systemPrompt: string;
+  mcpToolsPrompt?: string; // MCP 工具使用提示詞
   temperature?: number;
   maxTokens?: number;
   autoReplyTimerSeconds?: number;
@@ -229,6 +230,7 @@ export interface AISettingsRequest {
   model?: string;
   apiKey?: string;
   systemPrompt?: string;
+  mcpToolsPrompt?: string;
   temperature?: number;
   maxTokens?: number;
   autoReplyTimerSeconds?: number;
@@ -253,6 +255,8 @@ export interface AIReplyRequest {
   userContext?: string;
   includeMCPTools?: boolean;
   toolResults?: string;
+  projectName?: string;
+  projectPath?: string;
 }
 
 // AI 回覆響應類型
@@ -376,6 +380,54 @@ export interface MCPToolInfo {
   description: string;
   inputSchema: Record<string, unknown>;
   serverId?: number;
+  enabled?: boolean;
+}
+
+// MCP Tool 啟用設定
+export interface MCPToolEnableConfig {
+  id: number;
+  serverId: number;
+  toolName: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 更新 MCP Tool 啟用狀態請求
+export interface UpdateToolEnableRequest {
+  serverId: number;
+  toolName: string;
+  enabled: boolean;
+}
+
+// 批次更新 MCP Tool 啟用狀態請求
+export interface BatchUpdateToolEnableRequest {
+  serverId: number;
+  tools: Array<{ toolName: string; enabled: boolean }>;
+}
+
+// MCP Server 日誌類型
+export type MCPServerLogType = 'connect' | 'disconnect' | 'error' | 'tool_call' | 'info';
+
+// MCP Server 日誌
+export interface MCPServerLog {
+  id?: number;
+  serverId: number;
+  serverName: string;
+  type: MCPServerLogType;
+  message: string;
+  details?: string;
+  createdAt?: string;
+}
+
+// Serena MCP 預設配置
+export interface SerenaMCPPreset {
+  name: string;
+  transport: MCPTransportType;
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+  projectPath?: string;
 }
 
 // MCP Resource 資訊

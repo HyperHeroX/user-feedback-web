@@ -2,6 +2,7 @@
  * 圖片處理器測試
  */
 
+import { jest } from '@jest/globals';
 import { ImageProcessor } from '../utils/image-processor.js';
 import { MCPError, ImageData } from '../types/index.js';
 
