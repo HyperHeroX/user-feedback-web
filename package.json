@@ -1,7 +1,10 @@
 {
   "name": "user-web-feedback",
   "version": "2.2.0",
-  "description": "基于Node.js的MCP反馈收集器 - 支持AI工作汇报和用户反馈收集",
+  "description": "基於Node.js的MCP回饋收集器 - 支持AI工作彙報和用戶回饋收集",
+  "publishConfig": {
+    "registry": "http://192.168.160.113:34873/"
+  },
   "main": "dist/index.js",
   "bin": {
     "user-web-feedback": "dist/cli.js"
