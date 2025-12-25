@@ -14,6 +14,12 @@
     toggleApiKey: document.getElementById("toggleApiKey"),
     aiModel: document.getElementById("aiModel"),
     systemPrompt: document.getElementById("systemPrompt"),
+    mcpToolsPrompt: document.getElementById("mcpToolsPrompt"),
+    temperature: document.getElementById("temperature"),
+    maxTokens: document.getElementById("maxTokens"),
+    autoReplyTimerSeconds: document.getElementById("autoReplyTimerSeconds"),
+    maxToolRounds: document.getElementById("maxToolRounds"),
+    debugMode: document.getElementById("debugMode"),
     testAiBtn: document.getElementById("testAiBtn"),
     saveAiBtn: document.getElementById("saveAiBtn"),
     // User Preferences
@@ -56,6 +62,12 @@
         elements.apiKey.value = data.settings.apiKey || "";
         elements.aiModel.value = data.settings.model || "";
         elements.systemPrompt.value = data.settings.systemPrompt || "";
+        elements.mcpToolsPrompt.value = data.settings.mcpToolsPrompt || "";
+        elements.temperature.value = data.settings.temperature ?? 0.7;
+        elements.maxTokens.value = data.settings.maxTokens ?? 1000;
+        elements.autoReplyTimerSeconds.value = data.settings.autoReplyTimerSeconds ?? 300;
+        elements.maxToolRounds.value = data.settings.maxToolRounds ?? 5;
+        elements.debugMode.checked = data.settings.debugMode || false;
       }
     } catch (error) {
       console.error("Failed to load AI settings:", error);
@@ -123,6 +135,12 @@
       apiKey: elements.apiKey.value,
       model: elements.aiModel.value,
       systemPrompt: elements.systemPrompt.value,
+      mcpToolsPrompt: elements.mcpToolsPrompt.value,
+      temperature: parseFloat(elements.temperature.value) || 0.7,
+      maxTokens: parseInt(elements.maxTokens.value) || 1000,
+      autoReplyTimerSeconds: parseInt(elements.autoReplyTimerSeconds.value) || 300,
+      maxToolRounds: parseInt(elements.maxToolRounds.value) || 5,
+      debugMode: elements.debugMode.checked,
     };
 
     if (!settings.apiKey) {

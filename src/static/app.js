@@ -182,51 +182,67 @@ function initEventListeners() {
     });
   }
 
-  // AI 設定按鈕
-  document
-    .getElementById("aiSettingsBtn")
-    .addEventListener("click", openAISettingsModal);
+  // AI 設定按鈕（可能已移至導覽欄）
+  const aiSettingsBtn = document.getElementById("aiSettingsBtn");
+  if (aiSettingsBtn) {
+    aiSettingsBtn.addEventListener("click", openAISettingsModal);
+  }
 
-  // MCP Servers 按鈕
-  document
-    .getElementById("mcpServersBtn")
-    .addEventListener("click", openMCPServersModal);
-  document
-    .getElementById("closeMcpServers")
-    .addEventListener("click", closeMCPServersModal);
-  document
-    .getElementById("addMcpServer")
-    .addEventListener("click", () => openMCPServerEditModal());
-  document
-    .getElementById("closeMcpServerEdit")
-    .addEventListener("click", closeMCPServerEditModal);
-  document
-    .getElementById("cancelMcpServer")
-    .addEventListener("click", closeMCPServerEditModal);
-  document
-    .getElementById("saveMcpServer")
-    .addEventListener("click", saveMCPServer);
-  document
-    .getElementById("connectAllMcpServers")
-    .addEventListener("click", connectAllMCPServers);
-  document
-    .getElementById("disconnectAllMcpServers")
-    .addEventListener("click", disconnectAllMCPServers);
-  document
-    .getElementById("mcpServerTransport")
-    .addEventListener("change", onTransportChange);
+  // MCP Servers 按鈕（可能已移至導覽欄）
+  const mcpServersBtn = document.getElementById("mcpServersBtn");
+  if (mcpServersBtn) {
+    mcpServersBtn.addEventListener("click", openMCPServersModal);
+  }
+  const closeMcpServers = document.getElementById("closeMcpServers");
+  if (closeMcpServers) {
+    closeMcpServers.addEventListener("click", closeMCPServersModal);
+  }
+  const addMcpServer = document.getElementById("addMcpServer");
+  if (addMcpServer) {
+    addMcpServer.addEventListener("click", () => openMCPServerEditModal());
+  }
+  const closeMcpServerEdit = document.getElementById("closeMcpServerEdit");
+  if (closeMcpServerEdit) {
+    closeMcpServerEdit.addEventListener("click", closeMCPServerEditModal);
+  }
+  const cancelMcpServer = document.getElementById("cancelMcpServer");
+  if (cancelMcpServer) {
+    cancelMcpServer.addEventListener("click", closeMCPServerEditModal);
+  }
+  const saveMcpServerBtn = document.getElementById("saveMcpServer");
+  if (saveMcpServerBtn) {
+    saveMcpServerBtn.addEventListener("click", saveMCPServer);
+  }
+  const connectAllBtn = document.getElementById("connectAllMcpServers");
+  if (connectAllBtn) {
+    connectAllBtn.addEventListener("click", connectAllMCPServers);
+  }
+  const disconnectAllBtn = document.getElementById("disconnectAllMcpServers");
+  if (disconnectAllBtn) {
+    disconnectAllBtn.addEventListener("click", disconnectAllMCPServers);
+  }
+  const mcpServerTransport = document.getElementById("mcpServerTransport");
+  if (mcpServerTransport) {
+    mcpServerTransport.addEventListener("change", onTransportChange);
+  }
 
   // 彈窗控制
-  document
-    .getElementById("closeAiSettings")
-    .addEventListener("click", closeAISettingsModal);
-  document
-    .getElementById("saveAiSettings")
-    .addEventListener("click", saveAISettings);
-  document.getElementById("testApiKey").addEventListener("click", testAPIKey);
-  document
-    .getElementById("toggleApiKey")
-    .addEventListener("click", toggleAPIKeyVisibility);
+  const closeAiSettingsBtn = document.getElementById("closeAiSettings");
+  if (closeAiSettingsBtn) {
+    closeAiSettingsBtn.addEventListener("click", closeAISettingsModal);
+  }
+  const saveAiSettingsBtn = document.getElementById("saveAiSettings");
+  if (saveAiSettingsBtn) {
+    saveAiSettingsBtn.addEventListener("click", saveAISettings);
+  }
+  const testApiKeyBtn = document.getElementById("testApiKey");
+  if (testApiKeyBtn) {
+    testApiKeyBtn.addEventListener("click", testAPIKey);
+  }
+  const toggleApiKeyBtn = document.getElementById("toggleApiKey");
+  if (toggleApiKeyBtn) {
+    toggleApiKeyBtn.addEventListener("click", toggleAPIKeyVisibility);
+  }
 
   // 通用提醒彈窗確定按鈕
   const alertOkBtn = document.getElementById("alertModalOk");
@@ -242,32 +258,44 @@ function initEventListeners() {
     .addEventListener("click", closePromptModal);
   document.getElementById("savePrompt").addEventListener("click", savePrompt);
 
-  // 日誌檢視器按鈕
-  document
-    .getElementById("logViewerBtn")
-    .addEventListener("click", openLogViewerModal);
-  document
-    .getElementById("closeLogViewer")
-    .addEventListener("click", closeLogViewerModal);
-  document.getElementById("logSearchBtn").addEventListener("click", searchLogs);
-  document
-    .getElementById("logRefreshBtn")
-    .addEventListener("click", () => loadLogs(1));
-  document
-    .getElementById("logPrevPage")
-    .addEventListener("click", () => handlePagination("prev"));
-  document
-    .getElementById("logNextPage")
-    .addEventListener("click", () => handlePagination("next"));
-  document
-    .getElementById("clearOldLogs")
-    .addEventListener("click", clearOldLogs);
-  document.getElementById("logSearch").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      searchLogs();
-    }
-  });
+  // 日誌檢視器按鈕（可能已移至導覽欄）
+  const logViewerBtn = document.getElementById("logViewerBtn");
+  if (logViewerBtn) {
+    logViewerBtn.addEventListener("click", openLogViewerModal);
+  }
+  const closeLogViewer = document.getElementById("closeLogViewer");
+  if (closeLogViewer) {
+    closeLogViewer.addEventListener("click", closeLogViewerModal);
+  }
+  const logSearchBtn = document.getElementById("logSearchBtn");
+  if (logSearchBtn) {
+    logSearchBtn.addEventListener("click", searchLogs);
+  }
+  const logRefreshBtn = document.getElementById("logRefreshBtn");
+  if (logRefreshBtn) {
+    logRefreshBtn.addEventListener("click", () => loadLogs(1));
+  }
+  const logPrevPage = document.getElementById("logPrevPage");
+  if (logPrevPage) {
+    logPrevPage.addEventListener("click", () => handlePagination("prev"));
+  }
+  const logNextPage = document.getElementById("logNextPage");
+  if (logNextPage) {
+    logNextPage.addEventListener("click", () => handlePagination("next"));
+  }
+  const clearOldLogsBtn = document.getElementById("clearOldLogs");
+  if (clearOldLogsBtn) {
+    clearOldLogsBtn.addEventListener("click", clearOldLogs);
+  }
+  const logSearch = document.getElementById("logSearch");
+  if (logSearch) {
+    logSearch.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        searchLogs();
+      }
+    });
+  }
 
   // 點擊自動回覆計時區塊可切換暫停/繼續
   const setupTimerClick = (element) => {

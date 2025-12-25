@@ -14,7 +14,9 @@
         .settings-container {
             max-width: 900px;
             margin: 20px auto;
-            padding: 0 20px;
+            padding: 0 20px 40px 20px;
+            height: calc(100vh - 60px);
+            overflow-y: auto;
         }
 
         .page-header {
@@ -206,6 +208,44 @@
                 <label class="form-label" for="systemPrompt">系統提示詞</label>
                 <textarea id="systemPrompt" class="form-textarea" placeholder="自定義系統提示詞..."></textarea>
                 <p class="form-help">留空將使用預設提示詞</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="mcpToolsPrompt">MCP 工具提示詞</label>
+                <textarea id="mcpToolsPrompt" class="form-textarea" placeholder="設定 MCP 工具的使用說明..."></textarea>
+                <p class="form-help">定義 AI 如何使用 MCP 工具。{project_name} 和 {project_path} 會被替換為實際值</p>
+            </div>
+
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label class="form-label" for="temperature">Temperature</label>
+                    <input type="number" id="temperature" class="form-input" min="0" max="2" step="0.1" value="0.7">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="maxTokens">Max Tokens</label>
+                    <input type="number" id="maxTokens" class="form-input" min="100" max="4000" step="100" value="1000">
+                </div>
+            </div>
+
+            <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label class="form-label" for="autoReplyTimerSeconds">自動回覆時間（秒）</label>
+                    <input type="number" id="autoReplyTimerSeconds" class="form-input" min="30" max="600" step="10" value="300">
+                    <p class="form-help">30-600 秒，預設 300 秒</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="maxToolRounds">AI 交談次數上限</label>
+                    <input type="number" id="maxToolRounds" class="form-input" min="1" max="20" step="1" value="5">
+                    <p class="form-help">1-20 次，預設 5 次</p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="debugMode" />
+                    <label for="debugMode">🔧 Debug 模式</label>
+                </div>
+                <p class="form-help">開啟後 Streaming Panel 不會自動關閉</p>
             </div>
 
             <div class="form-actions">

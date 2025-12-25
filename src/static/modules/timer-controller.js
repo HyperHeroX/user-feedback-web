@@ -137,6 +137,7 @@ export function startAutoReplyTimer() {
   }
 
   setAutoReplyTimerRemaining(getAutoReplyTimerSeconds());
+  timerEl.style.display = "inline-flex";
   timerEl.classList.add("active");
   timerEl.classList.remove("paused");
 
