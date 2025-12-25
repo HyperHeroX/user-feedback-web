@@ -446,4 +446,90 @@ export interface DashboardProjectActivityEvent {
     projectId: string;
     lastActivityAt: string;
 }
+export type AIMode = 'api' | 'cli';
+export type CLIToolType = 'gemini' | 'claude';
+export interface CLIToolInfo {
+    name: CLIToolType;
+    installed: boolean;
+    version: string | null | undefined;
+    path: string | null | undefined;
+    command: string;
+}
+export interface CLIDetectionResult {
+    tools: CLIToolInfo[];
+    timestamp: string;
+}
+export interface CLIExecuteOptions {
+    tool: CLIToolType;
+    prompt: string;
+    timeout?: number | undefined;
+    workingDirectory?: string | undefined;
+    outputFormat?: 'text' | 'json' | undefined;
+}
+export interface CLIExecuteResult {
+    success: boolean;
+    output: string;
+    error?: string | undefined;
+    exitCode: number;
+    executionTime: number;
+}
+export declare enum CLIErrorCode {
+    NOT_INSTALLED = "CLI_NOT_INSTALLED",
+    TIMEOUT = "CLI_TIMEOUT",
+    EXECUTION_FAILED = "CLI_EXECUTION_FAILED",
+    PARSE_ERROR = "CLI_PARSE_ERROR",
+    PERMISSION_DENIED = "CLI_PERMISSION_DENIED"
+}
+export interface CLISettings {
+    id: number;
+    aiMode: AIMode;
+    cliTool: CLIToolType;
+    cliTimeout: number;
+    cliFallbackToApi: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+export interface CLISettingsRequest {
+    aiMode?: AIMode;
+    cliTool?: CLIToolType;
+    cliTimeout?: number;
+    cliFallbackToApi?: boolean;
+}
+export interface CLISettingsResponse {
+    success: boolean;
+    settings?: CLISettings;
+    error?: string;
+}
+export type CLITerminalStatus = 'running' | 'idle' | 'error' | 'stopped';
+export interface CLITerminal {
+    id: string;
+    projectName: string;
+    projectPath: string;
+    tool: CLIToolType;
+    startedAt: string;
+    lastActivityAt: string;
+    status: CLITerminalStatus;
+    pid?: number | undefined;
+}
+export interface CLIExecutionLog {
+    id: number;
+    terminalId: string;
+    prompt: string;
+    response: string | null;
+    executionTime: number;
+    success: boolean;
+    error?: string | undefined;
+    createdAt: string;
+}
+export interface CLITerminalsResponse {
+    success: boolean;
+    terminals?: CLITerminal[];
+    error?: string;
+}
+export interface CLIDetectionResponse {
+    success: boolean;
+    tools?: CLIToolInfo[];
+    timestamp?: string;
+    error?: string;
+}
 //# sourceMappingURL=index.d.ts.map

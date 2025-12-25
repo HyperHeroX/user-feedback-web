@@ -1,6 +1,6 @@
 /**
  * AI 整合服務
- * 使用 Google Gemini API 生成回覆
+ * 使用 Google Gemini API 或 CLI 工具生成回覆
  */
 import type { AIReplyRequest, AIReplyResponse } from '../types/index.js';
 /**

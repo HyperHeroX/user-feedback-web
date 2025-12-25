@@ -579,3 +579,121 @@ export interface DashboardProjectActivityEvent {
   projectId: string;
   lastActivityAt: string;
 }
+
+// ==================== CLI Mode Types ====================
+
+// AI 回應模式
+export type AIMode = 'api' | 'cli';
+
+// CLI 工具類型
+export type CLIToolType = 'gemini' | 'claude';
+
+// CLI 工具資訊
+export interface CLIToolInfo {
+  name: CLIToolType;
+  installed: boolean;
+  version: string | null | undefined;
+  path: string | null | undefined;
+  command: string;
+}
+
+// CLI 檢測結果
+export interface CLIDetectionResult {
+  tools: CLIToolInfo[];
+  timestamp: string;
+}
+
+// CLI 執行選項
+export interface CLIExecuteOptions {
+  tool: CLIToolType;
+  prompt: string;
+  timeout?: number | undefined;
+  workingDirectory?: string | undefined;
+  outputFormat?: 'text' | 'json' | undefined;
+}
+
+// CLI 執行結果
+export interface CLIExecuteResult {
+  success: boolean;
+  output: string;
+  error?: string | undefined;
+  exitCode: number;
+  executionTime: number;
+}
+
+// CLI 錯誤碼
+export enum CLIErrorCode {
+  NOT_INSTALLED = 'CLI_NOT_INSTALLED',
+  TIMEOUT = 'CLI_TIMEOUT',
+  EXECUTION_FAILED = 'CLI_EXECUTION_FAILED',
+  PARSE_ERROR = 'CLI_PARSE_ERROR',
+  PERMISSION_DENIED = 'CLI_PERMISSION_DENIED'
+}
+
+// CLI 設定
+export interface CLISettings {
+  id: number;
+  aiMode: AIMode;
+  cliTool: CLIToolType;
+  cliTimeout: number;
+  cliFallbackToApi: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// CLI 設定請求
+export interface CLISettingsRequest {
+  aiMode?: AIMode;
+  cliTool?: CLIToolType;
+  cliTimeout?: number;
+  cliFallbackToApi?: boolean;
+}
+
+// CLI 設定回應
+export interface CLISettingsResponse {
+  success: boolean;
+  settings?: CLISettings;
+  error?: string;
+}
+
+// CLI 終端機狀態
+export type CLITerminalStatus = 'running' | 'idle' | 'error' | 'stopped';
+
+// CLI 終端機
+export interface CLITerminal {
+  id: string;
+  projectName: string;
+  projectPath: string;
+  tool: CLIToolType;
+  startedAt: string;
+  lastActivityAt: string;
+  status: CLITerminalStatus;
+  pid?: number | undefined;
+}
+
+// CLI 執行日誌
+export interface CLIExecutionLog {
+  id: number;
+  terminalId: string;
+  prompt: string;
+  response: string | null;
+  executionTime: number;
+  success: boolean;
+  error?: string | undefined;
+  createdAt: string;
+}
+
+// CLI 終端機列表回應
+export interface CLITerminalsResponse {
+  success: boolean;
+  terminals?: CLITerminal[];
+  error?: string;
+}
+
+// CLI 檢測回應
+export interface CLIDetectionResponse {
+  success: boolean;
+  tools?: CLIToolInfo[];
+  timestamp?: string;
+  error?: string;
+}

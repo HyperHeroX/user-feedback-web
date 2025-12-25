@@ -22,6 +22,18 @@
     debugMode: document.getElementById("debugMode"),
     testAiBtn: document.getElementById("testAiBtn"),
     saveAiBtn: document.getElementById("saveAiBtn"),
+    // CLI Settings
+    aiModeApi: document.getElementById("aiModeApi"),
+    aiModeCli: document.getElementById("aiModeCli"),
+    cliTool: document.getElementById("cliTool"),
+    cliToolGroup: document.getElementById("cliToolGroup"),
+    cliToolStatus: document.getElementById("cliToolStatus"),
+    cliTimeout: document.getElementById("cliTimeout"),
+    cliTimeoutGroup: document.getElementById("cliTimeoutGroup"),
+    cliFallbackToApi: document.getElementById("cliFallbackToApi"),
+    cliFallbackGroup: document.getElementById("cliFallbackGroup"),
+    detectCliBtn: document.getElementById("detectCliBtn"),
+    saveCliBtn: document.getElementById("saveCliBtn"),
     // User Preferences
     autoSubmitOnTimeout: document.getElementById("autoSubmitOnTimeout"),
     confirmBeforeSubmit: document.getElementById("confirmBeforeSubmit"),
@@ -30,9 +42,13 @@
     toastContainer: document.getElementById("toastContainer"),
   };
 
+  // CLI 工具檢測結果緩存
+  let cliDetectionResult = null;
+
   function init() {
     setupEventListeners();
     loadAISettings();
+    loadCLISettings();
     loadPreferences();
   }
 
@@ -42,8 +58,25 @@
     elements.testAiBtn.addEventListener("click", testAIConnection);
     elements.saveAiBtn.addEventListener("click", saveAISettings);
 
+    // CLI Settings
+    elements.aiModeApi.addEventListener("change", handleAIModeChange);
+    elements.aiModeCli.addEventListener("change", handleAIModeChange);
+    elements.detectCliBtn.addEventListener("click", detectCLITools);
+    elements.saveCliBtn.addEventListener("click", saveCLISettings);
+
     // User Preferences
     elements.savePreferencesBtn.addEventListener("click", savePreferences);
+  }
+
+  function handleAIModeChange() {
+    const isCLIMode = elements.aiModeCli.checked;
+    elements.cliToolGroup.style.display = isCLIMode ? "block" : "none";
+    elements.cliTimeoutGroup.style.display = isCLIMode ? "block" : "none";
+    elements.cliFallbackGroup.style.display = isCLIMode ? "block" : "none";
+    
+    if (isCLIMode && !cliDetectionResult) {
+      detectCLITools();
+    }
   }
 
   function toggleApiKeyVisibility() {
@@ -91,6 +124,111 @@
     } catch (error) {
       console.error("Failed to load preferences:", error);
       showToast("載入用戶偏好失敗", "error");
+    }
+  }
+
+  async function loadCLISettings() {
+    try {
+      const response = await fetch(`${API_BASE}/api/cli/settings`);
+      const data = await response.json();
+
+      if (data.success && data.settings) {
+        const settings = data.settings;
+        
+        if (settings.aiMode === "cli") {
+          elements.aiModeCli.checked = true;
+          elements.cliToolGroup.style.display = "block";
+          elements.cliTimeoutGroup.style.display = "block";
+          elements.cliFallbackGroup.style.display = "block";
+        } else {
+          elements.aiModeApi.checked = true;
+        }
+        
+        elements.cliTool.value = settings.cliTool || "gemini";
+        elements.cliTimeout.value = Math.round((settings.cliTimeout || 120000) / 1000);
+        elements.cliFallbackToApi.checked = settings.cliFallbackToApi !== false;
+        
+        // 如果是 CLI 模式，檢測工具
+        if (settings.aiMode === "cli") {
+          detectCLITools();
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load CLI settings:", error);
+    }
+  }
+
+  async function detectCLITools() {
+    elements.cliToolStatus.textContent = "正在檢測已安裝的 CLI 工具...";
+    elements.detectCliBtn.disabled = true;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/cli/detect?refresh=true`);
+      const data = await response.json();
+
+      if (data.success && data.tools) {
+        cliDetectionResult = data.tools;
+        
+        const installedTools = data.tools.filter(t => t.installed);
+        
+        if (installedTools.length === 0) {
+          elements.cliToolStatus.textContent = "⚠️ 未檢測到任何 CLI 工具，請先安裝 Gemini CLI 或 Claude CLI";
+          elements.cliToolStatus.style.color = "var(--accent-orange)";
+        } else {
+          const toolNames = installedTools.map(t => `${t.name} (v${t.version})`).join(", ");
+          elements.cliToolStatus.textContent = `✅ 已檢測到: ${toolNames}`;
+          elements.cliToolStatus.style.color = "var(--accent-green)";
+          
+          // 更新下拉選單
+          elements.cliTool.innerHTML = "";
+          installedTools.forEach(tool => {
+            const option = document.createElement("option");
+            option.value = tool.name;
+            option.textContent = `${tool.name === "gemini" ? "Gemini CLI" : "Claude CLI"} (v${tool.version})`;
+            elements.cliTool.appendChild(option);
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to detect CLI tools:", error);
+      elements.cliToolStatus.textContent = "❌ CLI 工具檢測失敗";
+      elements.cliToolStatus.style.color = "var(--accent-red)";
+    } finally {
+      elements.detectCliBtn.disabled = false;
+    }
+  }
+
+  async function saveCLISettings() {
+    const settings = {
+      aiMode: elements.aiModeCli.checked ? "cli" : "api",
+      cliTool: elements.cliTool.value,
+      cliTimeout: parseInt(elements.cliTimeout.value) * 1000,
+      cliFallbackToApi: elements.cliFallbackToApi.checked,
+    };
+
+    elements.saveCliBtn.disabled = true;
+    elements.saveCliBtn.textContent = "儲存中...";
+
+    try {
+      const response = await fetch(`${API_BASE}/api/cli/settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        showToast("CLI 設定已儲存", "success");
+      } else {
+        showToast(`儲存失敗: ${data.error || "未知錯誤"}`, "error");
+      }
+    } catch (error) {
+      console.error("Save CLI settings failed:", error);
+      showToast("儲存失敗", "error");
+    } finally {
+      elements.saveCliBtn.disabled = false;
+      elements.saveCliBtn.textContent = "儲存 CLI 設定";
     }
   }
 

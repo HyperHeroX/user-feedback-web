@@ -71,6 +71,8 @@
         return "mcp-settings";
       } else if (path.startsWith("/logs")) {
         return "logs";
+      } else if (path.startsWith("/terminals")) {
+        return "terminals";
       } else if (path.startsWith("/settings")) {
         return "settings";
       }

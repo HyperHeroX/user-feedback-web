@@ -168,4 +168,49 @@ export declare function getRecentMCPServerErrors(serverId?: number, limit?: numb
  * 清理舊的 MCP Server 日誌（保留最近 N 天）
  */
 export declare function cleanupOldMCPServerLogs(daysToKeep?: number): number;
+import type { CLISettings, CLISettingsRequest, CLITerminal, CLIExecutionLog } from '../types/index.js';
+/**
+ * 取得 CLI 設定
+ */
+export declare function getCLISettings(): CLISettings | null;
+/**
+ * 更新 CLI 設定
+ */
+export declare function updateCLISettings(settings: CLISettingsRequest): CLISettings | null;
+/**
+ * 建立 CLI 終端機記錄
+ */
+export declare function createCLITerminal(terminal: Omit<CLITerminal, 'startedAt' | 'lastActivityAt'>): CLITerminal | null;
+/**
+ * 取得單一 CLI 終端機
+ */
+export declare function getCLITerminalById(id: string): CLITerminal | null;
+/**
+ * 取得所有 CLI 終端機
+ */
+export declare function getCLITerminals(): CLITerminal[];
+/**
+ * 更新 CLI 終端機
+ */
+export declare function updateCLITerminal(id: string, data: Partial<Pick<CLITerminal, 'status' | 'lastActivityAt' | 'pid'>>): boolean;
+/**
+ * 刪除 CLI 終端機
+ */
+export declare function deleteCLITerminal(id: string): boolean;
+/**
+ * 更新終端機最後活動時間
+ */
+export declare function updateCLITerminalActivity(id: string): boolean;
+/**
+ * 新增 CLI 執行日誌
+ */
+export declare function insertCLIExecutionLog(log: Omit<CLIExecutionLog, 'id' | 'createdAt'>): number;
+/**
+ * 取得 CLI 執行日誌
+ */
+export declare function getCLIExecutionLogs(terminalId: string, limit?: number): CLIExecutionLog[];
+/**
+ * 清理舊的 CLI 執行日誌
+ */
+export declare function cleanupOldCLIExecutionLogs(daysToKeep?: number): number;
 //# sourceMappingURL=database.d.ts.map

@@ -254,6 +254,57 @@
             </div>
         </section>
 
+        <!-- CLI 模式設定 -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <span class="icon">💻</span>
+                CLI 模式設定
+            </h2>
+            
+            <div class="form-group">
+                <label class="form-label">AI 回應模式</label>
+                <div class="radio-group" style="display: flex; gap: 20px; margin-top: 8px;">
+                    <label class="radio-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="aiMode" value="api" id="aiModeApi" checked>
+                        <span>🔌 API 模式</span>
+                    </label>
+                    <label class="radio-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="radio" name="aiMode" value="cli" id="aiModeCli">
+                        <span>💻 CLI 模式</span>
+                    </label>
+                </div>
+                <p class="form-help">API 模式使用 Google Gemini API，CLI 模式使用本機安裝的 CLI 工具</p>
+            </div>
+
+            <div class="form-group" id="cliToolGroup" style="display: none;">
+                <label class="form-label" for="cliTool">CLI 工具</label>
+                <select id="cliTool" class="form-select">
+                    <option value="gemini">Gemini CLI</option>
+                    <option value="claude">Claude CLI</option>
+                </select>
+                <p class="form-help" id="cliToolStatus">正在檢測已安裝的 CLI 工具...</p>
+            </div>
+
+            <div class="form-group" id="cliTimeoutGroup" style="display: none;">
+                <label class="form-label" for="cliTimeout">CLI 執行超時（秒）</label>
+                <input type="number" id="cliTimeout" class="form-input" min="30" max="600" step="10" value="120">
+                <p class="form-help">30-600 秒，預設 120 秒</p>
+            </div>
+
+            <div class="form-group" id="cliFallbackGroup" style="display: none;">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="cliFallbackToApi" checked />
+                    <label for="cliFallbackToApi">CLI 失敗時自動切換到 API 模式</label>
+                </div>
+                <p class="form-help">啟用後，當 CLI 執行失敗時會自動使用 API 模式</p>
+            </div>
+
+            <div class="form-actions">
+                <button id="detectCliBtn" class="btn btn-secondary">🔍 重新檢測 CLI 工具</button>
+                <button id="saveCliBtn" class="btn btn-primary">儲存 CLI 設定</button>
+            </div>
+        </section>
+
         <!-- 用戶偏好 -->
         <section class="settings-section">
             <h2 class="section-title">

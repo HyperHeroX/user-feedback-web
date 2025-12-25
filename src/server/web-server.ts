@@ -11,7 +11,7 @@ import compression from 'compression';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { Config, FeedbackData, MCPError, ConvertImagesRequest, ConvertImagesResponse, CreatePromptRequest, UpdatePromptRequest, AISettingsRequest, AIReplyRequest, ReorderPromptsRequest, LogQueryOptions, LogDeleteOptions, CreateMCPServerRequest, UpdateMCPServerRequest, MCPToolCallRequest } from '../types/index.js';
+import { Config, FeedbackData, MCPError, ConvertImagesRequest, ConvertImagesResponse, CreatePromptRequest, UpdatePromptRequest, AISettingsRequest, AIReplyRequest, ReorderPromptsRequest, LogQueryOptions, LogDeleteOptions, CreateMCPServerRequest, UpdateMCPServerRequest, MCPToolCallRequest, CLISettingsRequest } from '../types/index.js';
 import { logger } from '../utils/logger.js';
 import { PortManager } from '../utils/port-manager.js';
 import { ImageProcessor } from '../utils/image-processor.js';
@@ -22,10 +22,11 @@ import { projectManager } from '../utils/project-manager.js';
 import { getPackageVersion } from '../utils/version.js';
 
 const VERSION = getPackageVersion();
-import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled, getToolEnableConfigs, setToolEnabled, batchSetToolEnabled, queryMCPServerLogs, getRecentMCPServerErrors, cleanupOldMCPServerLogs } from '../utils/database.js';
+import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled, getToolEnableConfigs, setToolEnabled, batchSetToolEnabled, queryMCPServerLogs, getRecentMCPServerErrors, cleanupOldMCPServerLogs, getCLISettings, updateCLISettings, getCLITerminals, getCLITerminalById, deleteCLITerminal, getCLIExecutionLogs, cleanupOldCLIExecutionLogs } from '../utils/database.js';
 import { maskApiKey } from '../utils/crypto-helper.js';
 import { generateAIReply, validateAPIKey } from '../utils/ai-service.js';
 import { mcpClientManager } from '../utils/mcp-client-manager.js';
+import { detectCLITools, clearDetectionCache } from '../utils/cli-detector.js';
 
 /**
  * Web伺服器類別
@@ -294,6 +295,11 @@ export class WebServer {
     // 日誌頁面路由
     this.app.get('/logs', (req, res) => {
       res.sendFile('logs.html', { root: staticPath });
+    });
+
+    // CLI 終端機頁面路由
+    this.app.get('/terminals', (req, res) => {
+      res.sendFile('terminals.html', { root: staticPath });
     });
 
     // 設定頁面路由
@@ -1762,6 +1768,146 @@ export class WebServer {
         res.status(500).json({
           success: false,
           error: error instanceof Error ? error.message : '清理日誌失敗'
+        });
+      }
+    });
+
+    // ============ CLI Mode API ============
+
+    // 檢測已安裝的 CLI 工具
+    this.app.get('/api/cli/detect', async (req, res) => {
+      try {
+        const forceRefresh = req.query['refresh'] === 'true';
+        if (forceRefresh) {
+          clearDetectionCache();
+        }
+        const result = await detectCLITools(forceRefresh);
+        res.json({ success: true, tools: result.tools, timestamp: result.timestamp });
+      } catch (error) {
+        logger.error('CLI 工具檢測失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : 'CLI 工具檢測失敗'
+        });
+      }
+    });
+
+    // 獲取 CLI 設定
+    this.app.get('/api/cli/settings', (req, res) => {
+      try {
+        const settings = getCLISettings();
+        if (!settings) {
+          res.json({ success: false, error: 'CLI 設定不存在' });
+          return;
+        }
+        res.json({ success: true, settings });
+      } catch (error) {
+        logger.error('獲取 CLI 設定失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取 CLI 設定失敗'
+        });
+      }
+    });
+
+    // 更新 CLI 設定
+    this.app.put('/api/cli/settings', (req, res) => {
+      try {
+        const data: CLISettingsRequest = req.body;
+        const settings = updateCLISettings(data);
+        if (!settings) {
+          res.status(500).json({ success: false, error: '更新 CLI 設定失敗' });
+          return;
+        }
+        logger.info('更新 CLI 設定成功', { aiMode: settings.aiMode, cliTool: settings.cliTool });
+        res.json({ success: true, settings });
+      } catch (error) {
+        logger.error('更新 CLI 設定失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '更新 CLI 設定失敗'
+        });
+      }
+    });
+
+    // 獲取所有 CLI 終端機
+    this.app.get('/api/cli/terminals', (req, res) => {
+      try {
+        const terminals = getCLITerminals();
+        res.json({ success: true, terminals });
+      } catch (error) {
+        logger.error('獲取 CLI 終端機列表失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取終端機列表失敗'
+        });
+      }
+    });
+
+    // 獲取單一 CLI 終端機
+    this.app.get('/api/cli/terminals/:id', (req, res) => {
+      try {
+        const terminal = getCLITerminalById(req.params.id);
+        if (!terminal) {
+          res.status(404).json({ success: false, error: '終端機不存在' });
+          return;
+        }
+        res.json({ success: true, terminal });
+      } catch (error) {
+        logger.error('獲取 CLI 終端機失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取終端機失敗'
+        });
+      }
+    });
+
+    // 刪除 CLI 終端機
+    this.app.delete('/api/cli/terminals/:id', (req, res) => {
+      try {
+        const deleted = deleteCLITerminal(req.params.id);
+        if (!deleted) {
+          res.status(404).json({ success: false, error: '終端機不存在' });
+          return;
+        }
+        logger.info(`刪除 CLI 終端機: ${req.params.id}`);
+        res.json({ success: true });
+      } catch (error) {
+        logger.error('刪除 CLI 終端機失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '刪除終端機失敗'
+        });
+      }
+    });
+
+    // 獲取 CLI 終端機執行日誌
+    this.app.get('/api/cli/terminals/:id/logs', (req, res) => {
+      try {
+        const limit = req.query['limit'] ? parseInt(req.query['limit'] as string) : 50;
+        const logs = getCLIExecutionLogs(req.params.id, limit);
+        res.json({ success: true, logs });
+      } catch (error) {
+        logger.error('獲取 CLI 執行日誌失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取執行日誌失敗'
+        });
+      }
+    });
+
+    // 清理舊的 CLI 執行日誌
+    this.app.delete('/api/cli/logs/cleanup', (req, res) => {
+      try {
+        const daysToKeep = req.query['daysToKeep'] ? parseInt(req.query['daysToKeep'] as string) : 7;
+        const deletedCount = cleanupOldCLIExecutionLogs(daysToKeep);
+        logger.info(`清理 CLI 執行日誌: 刪除了 ${deletedCount} 筆記錄`);
+        res.json({ success: true, deletedCount });
+      } catch (error) {
+        logger.error('清理 CLI 執行日誌失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '清理執行日誌失敗'
         });
       }
     });

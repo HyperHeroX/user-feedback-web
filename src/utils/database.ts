@@ -324,6 +324,61 @@ function createTables(): void {
     db.exec(`
     CREATE INDEX IF NOT EXISTS idx_mcp_server_logs_created ON mcp_server_logs(created_at DESC)
   `);
+
+    // CLI 設定表
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS cli_settings (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      ai_mode TEXT DEFAULT 'api',
+      cli_tool TEXT DEFAULT 'gemini',
+      cli_timeout INTEGER DEFAULT 120000,
+      cli_fallback_to_api INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+    // CLI 終端機表
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS cli_terminals (
+      id TEXT PRIMARY KEY,
+      project_name TEXT NOT NULL,
+      project_path TEXT NOT NULL,
+      tool TEXT NOT NULL,
+      started_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      last_activity_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      status TEXT DEFAULT 'idle',
+      pid INTEGER
+    )
+  `);
+
+    // CLI 終端機索引
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_cli_terminals_status ON cli_terminals(status)
+  `);
+
+    // CLI 執行日誌表
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS cli_execution_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      terminal_id TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      response TEXT,
+      execution_time INTEGER,
+      success INTEGER DEFAULT 1,
+      error TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (terminal_id) REFERENCES cli_terminals(id) ON DELETE CASCADE
+    )
+  `);
+
+    // CLI 執行日誌索引
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_cli_execution_logs_terminal ON cli_execution_logs(terminal_id)
+  `);
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_cli_execution_logs_created ON cli_execution_logs(created_at DESC)
+  `);
 }
 
 /**
@@ -1596,6 +1651,316 @@ export function cleanupOldMCPServerLogs(daysToKeep: number = 7): number {
 
     const result = db.prepare(`
         DELETE FROM mcp_server_logs WHERE created_at < ?
+    `).run(cutoffDate.toISOString());
+
+    return result.changes;
+}
+
+// ==================== CLI 設定操作 ====================
+
+import type { CLISettings, CLISettingsRequest, CLITerminal, CLIExecutionLog, AIMode, CLIToolType, CLITerminalStatus } from '../types/index.js';
+
+/**
+ * 取得 CLI 設定
+ */
+export function getCLISettings(): CLISettings | null {
+    const db = tryGetDb();
+    if (!db) return null;
+
+    const row = db.prepare(`
+        SELECT 
+            id,
+            ai_mode as aiMode,
+            cli_tool as cliTool,
+            cli_timeout as cliTimeout,
+            cli_fallback_to_api as cliFallbackToApi,
+            created_at as createdAt,
+            updated_at as updatedAt
+        FROM cli_settings
+        WHERE id = 1
+    `).get() as { id: number; aiMode: string; cliTool: string; cliTimeout: number; cliFallbackToApi: number; createdAt: string; updatedAt: string } | undefined;
+
+    if (!row) {
+        // 初始化預設設定
+        db.prepare(`
+            INSERT OR IGNORE INTO cli_settings (id, ai_mode, cli_tool, cli_timeout, cli_fallback_to_api)
+            VALUES (1, 'api', 'gemini', 120000, 1)
+        `).run();
+
+        return {
+            id: 1,
+            aiMode: 'api' as AIMode,
+            cliTool: 'gemini' as CLIToolType,
+            cliTimeout: 120000,
+            cliFallbackToApi: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+    }
+
+    return {
+        ...row,
+        aiMode: row.aiMode as AIMode,
+        cliTool: row.cliTool as CLIToolType,
+        cliFallbackToApi: row.cliFallbackToApi === 1
+    };
+}
+
+/**
+ * 更新 CLI 設定
+ */
+export function updateCLISettings(settings: CLISettingsRequest): CLISettings | null {
+    const db = tryGetDb();
+    if (!db) return null;
+
+    const current = getCLISettings();
+    if (!current) return null;
+
+    const updates: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (settings.aiMode !== undefined) {
+        updates.push('ai_mode = ?');
+        params.push(settings.aiMode);
+    }
+    if (settings.cliTool !== undefined) {
+        updates.push('cli_tool = ?');
+        params.push(settings.cliTool);
+    }
+    if (settings.cliTimeout !== undefined) {
+        updates.push('cli_timeout = ?');
+        params.push(settings.cliTimeout);
+    }
+    if (settings.cliFallbackToApi !== undefined) {
+        updates.push('cli_fallback_to_api = ?');
+        params.push(settings.cliFallbackToApi ? 1 : 0);
+    }
+
+    if (updates.length === 0) return current;
+
+    updates.push('updated_at = ?');
+    params.push(new Date().toISOString());
+    params.push(1); // id
+
+    db.prepare(`
+        UPDATE cli_settings SET ${updates.join(', ')} WHERE id = ?
+    `).run(...params);
+
+    return getCLISettings();
+}
+
+// ==================== CLI 終端機操作 ====================
+
+/**
+ * 建立 CLI 終端機記錄
+ */
+export function createCLITerminal(terminal: Omit<CLITerminal, 'startedAt' | 'lastActivityAt'>): CLITerminal | null {
+    const db = tryGetDb();
+    if (!db) return null;
+
+    const now = new Date().toISOString();
+
+    db.prepare(`
+        INSERT INTO cli_terminals (id, project_name, project_path, tool, started_at, last_activity_at, status, pid)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+        terminal.id,
+        terminal.projectName,
+        terminal.projectPath,
+        terminal.tool,
+        now,
+        now,
+        terminal.status,
+        terminal.pid || null
+    );
+
+    return getCLITerminalById(terminal.id);
+}
+
+/**
+ * 取得單一 CLI 終端機
+ */
+export function getCLITerminalById(id: string): CLITerminal | null {
+    const db = tryGetDb();
+    if (!db) return null;
+
+    const row = db.prepare(`
+        SELECT 
+            id,
+            project_name as projectName,
+            project_path as projectPath,
+            tool,
+            started_at as startedAt,
+            last_activity_at as lastActivityAt,
+            status,
+            pid
+        FROM cli_terminals
+        WHERE id = ?
+    `).get(id) as { id: string; projectName: string; projectPath: string; tool: string; startedAt: string; lastActivityAt: string; status: string; pid: number | null } | undefined;
+
+    if (!row) return null;
+
+    return {
+        ...row,
+        tool: row.tool as CLIToolType,
+        status: row.status as CLITerminalStatus,
+        pid: row.pid ?? undefined
+    };
+}
+
+/**
+ * 取得所有 CLI 終端機
+ */
+export function getCLITerminals(): CLITerminal[] {
+    const db = tryGetDb();
+    if (!db) return [];
+
+    const rows = db.prepare(`
+        SELECT 
+            id,
+            project_name as projectName,
+            project_path as projectPath,
+            tool,
+            started_at as startedAt,
+            last_activity_at as lastActivityAt,
+            status,
+            pid
+        FROM cli_terminals
+        ORDER BY last_activity_at DESC
+    `).all() as Array<{ id: string; projectName: string; projectPath: string; tool: string; startedAt: string; lastActivityAt: string; status: string; pid: number | null }>;
+
+    return rows.map(row => ({
+        ...row,
+        tool: row.tool as CLIToolType,
+        status: row.status as CLITerminalStatus,
+        pid: row.pid ?? undefined
+    }));
+}
+
+/**
+ * 更新 CLI 終端機
+ */
+export function updateCLITerminal(id: string, data: Partial<Pick<CLITerminal, 'status' | 'lastActivityAt' | 'pid'>>): boolean {
+    const db = tryGetDb();
+    if (!db) return false;
+
+    const updates: string[] = [];
+    const params: (string | number | null)[] = [];
+
+    if (data.status !== undefined) {
+        updates.push('status = ?');
+        params.push(data.status);
+    }
+    if (data.lastActivityAt !== undefined) {
+        updates.push('last_activity_at = ?');
+        params.push(data.lastActivityAt);
+    }
+    if (data.pid !== undefined) {
+        updates.push('pid = ?');
+        params.push(data.pid ?? null);
+    }
+
+    if (updates.length === 0) return false;
+
+    params.push(id);
+
+    const result = db.prepare(`
+        UPDATE cli_terminals SET ${updates.join(', ')} WHERE id = ?
+    `).run(...params);
+
+    return result.changes > 0;
+}
+
+/**
+ * 刪除 CLI 終端機
+ */
+export function deleteCLITerminal(id: string): boolean {
+    const db = tryGetDb();
+    if (!db) return false;
+
+    const result = db.prepare(`
+        DELETE FROM cli_terminals WHERE id = ?
+    `).run(id);
+
+    return result.changes > 0;
+}
+
+/**
+ * 更新終端機最後活動時間
+ */
+export function updateCLITerminalActivity(id: string): boolean {
+    return updateCLITerminal(id, { lastActivityAt: new Date().toISOString() });
+}
+
+// ==================== CLI 執行日誌操作 ====================
+
+/**
+ * 新增 CLI 執行日誌
+ */
+export function insertCLIExecutionLog(log: Omit<CLIExecutionLog, 'id' | 'createdAt'>): number {
+    const db = tryGetDb();
+    if (!db) return -1;
+
+    const result = db.prepare(`
+        INSERT INTO cli_execution_logs (terminal_id, prompt, response, execution_time, success, error)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+        log.terminalId,
+        log.prompt,
+        log.response,
+        log.executionTime,
+        log.success ? 1 : 0,
+        log.error || null
+    );
+
+    // 同時更新終端機最後活動時間
+    updateCLITerminalActivity(log.terminalId);
+
+    return result.lastInsertRowid as number;
+}
+
+/**
+ * 取得 CLI 執行日誌
+ */
+export function getCLIExecutionLogs(terminalId: string, limit: number = 50): CLIExecutionLog[] {
+    const db = tryGetDb();
+    if (!db) return [];
+
+    const rows = db.prepare(`
+        SELECT 
+            id,
+            terminal_id as terminalId,
+            prompt,
+            response,
+            execution_time as executionTime,
+            success,
+            error,
+            created_at as createdAt
+        FROM cli_execution_logs
+        WHERE terminal_id = ?
+        ORDER BY created_at DESC
+        LIMIT ?
+    `).all(terminalId, limit) as Array<{ id: number; terminalId: string; prompt: string; response: string | null; executionTime: number; success: number; error: string | null; createdAt: string }>;
+
+    return rows.map(row => ({
+        ...row,
+        success: row.success === 1,
+        error: row.error ?? undefined
+    }));
+}
+
+/**
+ * 清理舊的 CLI 執行日誌
+ */
+export function cleanupOldCLIExecutionLogs(daysToKeep: number = 7): number {
+    const db = tryGetDb();
+    if (!db) return 0;
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+
+    const result = db.prepare(`
+        DELETE FROM cli_execution_logs WHERE created_at < ?
     `).run(cutoffDate.toISOString());
 
     return result.changes;
