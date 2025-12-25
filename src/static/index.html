@@ -17,8 +17,7 @@
 </head>
 <body>
     <!-- Unified Navigation Bar (injected by navbar.js) -->
-
-    <!-- 連接狀態指示器 + 版本號 + 自動回覆計時器 -->
+    <!-- 連接狀態指示器 + 版本號 + 自動回覆計時器 (!不准刪除)-->
     <div class="connection-status" id="connectionStatus">
         <span class="status-dot"></span>
         <span class="status-text">連接中...</span>
@@ -155,7 +154,6 @@
             </div>
         </div>
     </div>
-
     <!-- 自動回覆警告提示 -->
     <div id="autoReplyWarning" class="auto-reply-warning" style="display: none;">
         <div class="warning-content">
@@ -163,7 +161,7 @@
             <span id="warningText">系統將在 60 秒後自動生成回應</span>
             <button id="cancelAutoReply" class="btn btn-ghost btn-sm">取消</button>
         </div>
-    </div>
+    </div>    
 
     <!-- AI 設定彈窗 -->
     <div id="aiSettingsModal" class="modal">
@@ -551,6 +549,6 @@
 
     <!-- Scripts -->
     <script src="/components/navbar.js"></script>
-    <script src="app.js"></script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>

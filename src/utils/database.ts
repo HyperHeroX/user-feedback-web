@@ -201,7 +201,7 @@ function createTables(): void {
             `);
             logger.info('Successfully migrated ai_settings table - added mcp_tools_prompt column');
         }
-        
+
         // 遷移：添加 max_tool_rounds 欄位 (AI 交談次數上限)
         const hasMaxToolRoundsColumn = columnCheck.some(col => col.name === 'max_tool_rounds');
         if (!hasMaxToolRoundsColumn) {
@@ -211,7 +211,7 @@ function createTables(): void {
             `);
             logger.info('Successfully migrated ai_settings table - added max_tool_rounds column');
         }
-        
+
         // 遷移：添加 debug_mode 欄位 (Debug 模式)
         const hasDebugModeColumn = columnCheck.some(col => col.name === 'debug_mode');
         if (!hasDebugModeColumn) {

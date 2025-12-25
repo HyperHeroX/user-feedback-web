@@ -413,13 +413,13 @@ export class WebServer {
             createdAt: string;
             lastActivityAt: string;
           }> = [];
-          
+
           let activeSessions = 0;
-          
+
           projectSessions.forEach((sessionData, sessionId) => {
             const isActive = Date.now() - sessionData.startTime < sessionData.timeout;
             if (isActive) activeSessions++;
-            
+
             sessions.push({
               sessionId,
               status: isActive ? 'active' : 'timeout',
@@ -428,7 +428,7 @@ export class WebServer {
               lastActivityAt: new Date(sessionData.startTime).toISOString()
             });
           });
-          
+
           return {
             project,
             sessions,
@@ -436,9 +436,9 @@ export class WebServer {
             activeSessions
           };
         });
-        
+
         const totalActiveSessions = projectInfos.reduce((sum, p) => sum + p.activeSessions, 0);
-        
+
         res.json({
           projects: projectInfos,
           totalProjects: projects.length,
@@ -458,12 +458,12 @@ export class WebServer {
       try {
         const { projectId } = req.params;
         const project = projectManager.getProject(projectId);
-        
+
         if (!project) {
           res.status(404).json({ success: false, error: '專案不存在' });
           return;
         }
-        
+
         const projectSessions = this.sessionStorage.getSessionsByProject(projectId);
         const sessions: Array<{
           sessionId: string;
@@ -472,13 +472,13 @@ export class WebServer {
           createdAt: string;
           lastActivityAt: string;
         }> = [];
-        
+
         let activeSessions = 0;
-        
+
         projectSessions.forEach((sessionData, sessionId) => {
           const isActive = Date.now() - sessionData.startTime < sessionData.timeout;
           if (isActive) activeSessions++;
-          
+
           sessions.push({
             sessionId,
             status: isActive ? 'active' : 'timeout',
@@ -487,7 +487,7 @@ export class WebServer {
             lastActivityAt: new Date(sessionData.startTime).toISOString()
           });
         });
-        
+
         res.json({
           success: true,
           project,
@@ -509,12 +509,12 @@ export class WebServer {
       try {
         const { sessionId } = req.params;
         const session = this.sessionStorage.getSession(sessionId);
-        
+
         if (!session) {
           res.status(404).json({ success: false, error: 'Session 不存在' });
           return;
         }
-        
+
         res.json({
           success: true,
           session: {
@@ -1554,7 +1554,7 @@ export class WebServer {
     this.app.get('/api/mcp-presets/serena', (req, res) => {
       try {
         const projectPath = req.query['projectPath'] as string || '';
-        
+
         const preset = {
           name: 'Serena',
           transport: 'stdio' as const,
@@ -1810,7 +1810,7 @@ export class WebServer {
         if (latestSession) {
           // 有活躍會話，分配給用戶端
           logger.info(`為用戶端 ${socket.id} 分配會話: ${latestSession.sessionId}`);
-          
+
           // 獲取專案資訊
           let projectName: string | undefined;
           let projectPath: string | undefined;
@@ -1821,7 +1821,7 @@ export class WebServer {
               projectPath = project.path;
             }
           }
-          
+
           socket.emit('session_assigned', {
             session_id: latestSession.sessionId,
             work_summary: latestSession.session.workSummary,
@@ -2101,9 +2101,9 @@ export class WebServer {
    */
   async collectFeedback(workSummary: string, timeoutSeconds: number, projectName?: string, projectPath?: string): Promise<{ feedback: FeedbackData[]; sessionId: string; feedbackUrl: string; projectId: string; projectName: string }> {
     const sessionId = this.generateSessionId();
-    
+
     // 取得或建立專案
-    const project = projectName 
+    const project = projectName
       ? projectManager.getOrCreateProject(projectName, projectPath)
       : projectManager.getDefaultProject();
 
@@ -2119,9 +2119,9 @@ export class WebServer {
         timeout: timeoutSeconds * 1000,
         projectId: project.id,
         projectName: project.name,
-        resolve: (feedback: FeedbackData[] = []) => resolve({ 
-          feedback, 
-          sessionId, 
+        resolve: (feedback: FeedbackData[] = []) => resolve({
+          feedback,
+          sessionId,
           feedbackUrl,
           projectId: project.id,
           projectName: project.name
@@ -2228,7 +2228,7 @@ export class WebServer {
   private async autoStartMCPServers(): Promise<void> {
     try {
       const enabledServers = getEnabledMCPServers();
-      
+
       if (enabledServers.length === 0) {
         logger.info('沒有已啟用的 MCP Servers 需要自動啟動');
         return;
@@ -2248,7 +2248,7 @@ export class WebServer {
       results.forEach((result, index) => {
         const config = enabledServers[index];
         if (!config) return; // 安全檢查
-        
+
         if (result.status === 'fulfilled') {
           if (result.value.status === 'connected') {
             successCount++;
