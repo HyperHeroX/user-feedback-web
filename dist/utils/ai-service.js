@@ -19,11 +19,18 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 分鐘
  */
 export async function generateAIReply(request) {
     try {
+        logger.debug('[AI Service] 開始處理 AI 回覆請求', {
+            includeMCPTools: request.includeMCPTools,
+            hasToolResults: !!request.toolResults,
+            projectName: request.projectName,
+            projectPath: request.projectPath
+        });
         // 檢查快取（不包含工具結果時才使用）
         const cacheKey = `${request.aiMessage}:${request.userContext || ''}`;
         if (!request.toolResults) {
             const cached = cache.get(cacheKey);
             if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+                logger.debug('[AI Service] 使用快取回覆');
                 return {
                     success: true,
                     reply: cached.reply
@@ -31,8 +38,15 @@ export async function generateAIReply(request) {
             }
         }
         // 獲取 AI 設定
+        logger.debug('[AI Service] 獲取 AI 設定');
         const settings = getAISettings();
+        logger.debug('[AI Service] AI 設定獲取完成', {
+            hasApiKey: !!settings?.apiKey,
+            model: settings?.model,
+            hasMcpToolsPrompt: !!settings?.mcpToolsPrompt
+        });
         if (!settings || !settings.apiKey || settings.apiKey === 'YOUR_API_KEY_HERE') {
+            logger.warn('[AI Service] API Key 未設定或無效');
             return {
                 success: false,
                 error: '請先在設定中配置 AI API Key'
@@ -41,16 +55,22 @@ export async function generateAIReply(request) {
         // 獲取 MCP 工具描述（如果啟用）
         let mcpToolsPrompt = '';
         if (request.includeMCPTools) {
+            logger.debug('[AI Service] 開始獲取 MCP 工具');
             try {
                 const allTools = mcpClientManager.getAllTools();
+                logger.debug('[AI Service] MCP 工具獲取完成', {
+                    toolCount: allTools.length
+                });
                 // 優先使用資料庫中的自定義 MCP 工具提示詞
                 if (settings.mcpToolsPrompt) {
+                    logger.debug('[AI Service] 使用資料庫中的 MCP 工具提示詞');
                     // 替換佔位符
                     mcpToolsPrompt = settings.mcpToolsPrompt
                         .replace(/\{project_name\}/g, request.projectName || '未命名專案')
                         .replace(/\{project_path\}/g, request.projectPath || '');
                     // 附加工具列表
                     if (allTools.length > 0) {
+                        logger.debug('[AI Service] 附加工具列表到提示詞');
                         mcpToolsPrompt += '\n\n## 可用工具列表\n\n';
                         for (const tool of allTools) {
                             mcpToolsPrompt += `### ${tool.name}\n`;
@@ -67,16 +87,26 @@ export async function generateAIReply(request) {
                     }
                 }
                 else {
+                    logger.debug('[AI Service] 使用預設的 buildToolsPrompt');
                     // 使用預設的 buildToolsPrompt
                     mcpToolsPrompt = buildToolsPrompt(allTools, request.projectName, request.projectPath);
                 }
             }
-            catch {
-                logger.warn('Failed to get MCP tools for AI prompt');
+            catch (error) {
+                logger.warn('[AI Service] Failed to get MCP tools for AI prompt', error);
             }
         }
         // 生成回覆（帶重試機制）
+        logger.debug('[AI Service] 開始生成回覆', {
+            hasSystemPrompt: !!settings.systemPrompt,
+            hasMcpToolsPrompt: !!mcpToolsPrompt,
+            temperature: settings.temperature,
+            maxTokens: settings.maxTokens
+        });
         const reply = await generateWithRetry(settings.apiKey, settings.model, settings.systemPrompt, request.aiMessage, request.userContext, settings.temperature, settings.maxTokens, 0, mcpToolsPrompt, request.toolResults);
+        logger.debug('[AI Service] 回覆生成完成', {
+            replyLength: reply.length
+        });
         // 存入快取（不包含工具結果時）
         if (!request.toolResults) {
             cache.set(cacheKey, {
@@ -86,13 +116,14 @@ export async function generateAIReply(request) {
             // 清理過期快取
             cleanExpiredCache();
         }
+        logger.debug('[AI Service] AI 回覆請求處理完成');
         return {
             success: true,
             reply
         };
     }
     catch (error) {
-        logger.error('AI service error:', error);
+        logger.error('[AI Service] AI service error:', error);
         return {
             success: false,
             error: error instanceof Error ? error.message : '未知錯誤'
@@ -104,6 +135,15 @@ export async function generateAIReply(request) {
  */
 async function generateWithRetry(apiKey, model, systemPrompt, aiMessage, userContext, temperature, maxTokens, retryCount = 0, mcpToolsPrompt = '', toolResults) {
     try {
+        logger.debug('[AI Service] generateWithRetry 開始', {
+            model,
+            retryCount,
+            hasSystemPrompt: !!systemPrompt,
+            hasMcpToolsPrompt: !!mcpToolsPrompt,
+            hasToolResults: !!toolResults,
+            temperature,
+            maxTokens
+        });
         const genAI = new GoogleGenerativeAI(apiKey);
         const generativeModel = genAI.getGenerativeModel({
             model,
@@ -113,17 +153,30 @@ async function generateWithRetry(apiKey, model, systemPrompt, aiMessage, userCon
             }
         });
         // 構建提示詞
+        logger.debug('[AI Service] 構建提示詞');
         const prompt = buildPrompt(systemPrompt, aiMessage, userContext, mcpToolsPrompt, toolResults);
+        logger.debug('[AI Service] 提示詞構建完成', {
+            promptLength: prompt.length
+        });
         // 生成內容
+        logger.debug('[AI Service] 開始調用 Google Gemini API');
         const result = await generativeModel.generateContent(prompt);
+        logger.debug('[AI Service] API 調用完成');
         const response = await result.response;
         const text = response.text();
         if (!text) {
             throw new Error('AI 回覆為空');
         }
+        logger.debug('[AI Service] 回覆文字獲取成功', {
+            textLength: text.length
+        });
         return text;
     }
     catch (error) {
+        logger.debug('[AI Service] generateWithRetry 發生錯誤', {
+            error: error instanceof Error ? error.message : String(error),
+            retryCount
+        });
         // 處理錯誤
         if (error instanceof Error) {
             // 檢查是否為速率限制錯誤

@@ -291,6 +291,16 @@ export class WebServer {
       res.sendFile('mcp-settings.html', { root: staticPath });
     });
 
+    // 日誌頁面路由
+    this.app.get('/logs', (req, res) => {
+      res.sendFile('logs.html', { root: staticPath });
+    });
+
+    // 設定頁面路由
+    this.app.get('/settings', (req, res) => {
+      res.sendFile('settings.html', { root: staticPath });
+    });
+
     // 主页路由 - Session 頁面
     this.app.get('/', (req, res) => {
       res.sendFile('index.html', { root: staticPath });
@@ -2211,6 +2221,56 @@ export class WebServer {
   /**
    * 啟動Web伺服器
    */
+  /**
+   * 自動啟動已啟用的 MCP Servers
+   * 在服務啟動時自動連接所有已設定並啟用的 MCP Servers
+   */
+  private async autoStartMCPServers(): Promise<void> {
+    try {
+      const enabledServers = getEnabledMCPServers();
+      
+      if (enabledServers.length === 0) {
+        logger.info('沒有已啟用的 MCP Servers 需要自動啟動');
+        return;
+      }
+
+      logger.info(`開始自動啟動 ${enabledServers.length} 個已啟用的 MCP Servers...`);
+
+      // 使用 Promise.allSettled 並行啟動所有 MCP Servers（非阻塞）
+      const results = await Promise.allSettled(
+        enabledServers.map(config => mcpClientManager.connect(config))
+      );
+
+      // 統計結果
+      let successCount = 0;
+      let failureCount = 0;
+
+      results.forEach((result, index) => {
+        const config = enabledServers[index];
+        if (!config) return; // 安全檢查
+        
+        if (result.status === 'fulfilled') {
+          if (result.value.status === 'connected') {
+            successCount++;
+            logger.info(`✓ MCP Server 自動啟動成功: ${config.name} (ID: ${config.id})`);
+          } else if (result.value.status === 'error') {
+            failureCount++;
+            logger.error(`✗ MCP Server 自動啟動失敗: ${config.name} (ID: ${config.id}) - ${result.value.error || '未知錯誤'}`);
+          }
+        } else {
+          failureCount++;
+          const errorMsg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+          logger.error(`✗ MCP Server 自動啟動失敗: ${config.name} (ID: ${config.id}) - ${errorMsg}`);
+        }
+      });
+
+      logger.info(`MCP Server 自動啟動完成 - 成功: ${successCount}, 失敗: ${failureCount}`);
+    } catch (error) {
+      // 捕獲任何意外錯誤，但不影響服務啟動
+      logger.error('MCP Server 自動啟動過程中發生錯誤:', error);
+    }
+  }
+
   async start(): Promise<void> {
     if (this.isServerRunning) {
       logger.warn('Web伺服器已在執行中');
@@ -2280,6 +2340,9 @@ export class WebServer {
 
       // 发送MCP日志通知，包含端口和URL信息
       logger.mcpServerStarted(this.port, serverUrl);
+
+      // 自動啟動已啟用的 MCP Servers
+      await this.autoStartMCPServers();
 
     } catch (error) {
       logger.error('Web伺服器啟動失敗:', error);

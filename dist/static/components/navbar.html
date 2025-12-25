@@ -1,0 +1,45 @@
+<nav class="navbar" role="navigation" aria-label="主導覽">
+    <div class="navbar-container">
+        <div class="navbar-brand">
+            <span class="navbar-logo">🎯</span>
+            <span class="navbar-title">User Feedback</span>
+        </div>
+        
+        <button class="navbar-toggle" aria-label="展開選單" aria-expanded="false">
+            <span class="toggle-icon"></span>
+        </button>
+        
+        <div class="navbar-menu">
+            <div class="navbar-links">
+                <a href="/dashboard" class="navbar-link" data-page="dashboard">
+                    <span class="link-icon">📊</span>
+                    <span class="link-text">Dashboard</span>
+                </a>
+                <a href="/" class="navbar-link" data-page="feedback">
+                    <span class="link-icon">💬</span>
+                    <span class="link-text">回覆</span>
+                </a>
+                <a href="/mcp-settings" class="navbar-link" data-page="mcp-settings">
+                    <span class="link-icon">🔧</span>
+                    <span class="link-text">MCP</span>
+                </a>
+                <a href="/logs" class="navbar-link" data-page="logs">
+                    <span class="link-icon">📋</span>
+                    <span class="link-text">日誌</span>
+                </a>
+                <a href="/settings" class="navbar-link" data-page="settings">
+                    <span class="link-icon">⚙️</span>
+                    <span class="link-text">設定</span>
+                </a>
+            </div>
+            
+            <div class="navbar-status">
+                <div class="connection-status" id="navbar-connection-status">
+                    <span class="status-dot"></span>
+                    <span class="status-text">連接中...</span>
+                </div>
+                <span class="version-badge" id="navbar-version">v--</span>
+            </div>
+        </div>
+    </div>
+</nav>

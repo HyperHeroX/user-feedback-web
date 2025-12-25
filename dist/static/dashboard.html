@@ -6,12 +6,16 @@
     <title>📊 User Feedback Dashboard</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <script src="/socket.io/socket.io.js"></script>
+    <!-- Navbar Component -->
+    <link rel="stylesheet" href="/components/navbar.css">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="dashboard.css">
 </head>
 <body class="dashboard-body">
+    <!-- Unified Navigation Bar (injected by navbar.js) -->
+    
     <!-- Dashboard 標題區 -->
-    <header class="dashboard-header">
+    <header class="dashboard-header" style="margin-top: 20px;">
         <div class="header-left">
             <h1 class="dashboard-title">
                 <span class="icon">📊</span>
@@ -84,6 +88,8 @@
         <p>當 AI 開始發送工作匯報時，專案將自動顯示在此處</p>
     </div>
 
+    <!-- Scripts -->
+    <script src="/components/navbar.js"></script>
     <script src="dashboard.js"></script>
 </body>
 </html>

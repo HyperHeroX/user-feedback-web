@@ -11,14 +11,12 @@
     <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
     <!-- Socket.IO Client -->
     <script src="/socket.io/socket.io.js"></script>
+    <!-- Navbar Component -->
+    <link rel="stylesheet" href="/components/navbar.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Dashboard 導航連結 -->
-    <a href="/dashboard" class="dashboard-nav-link" title="返回 Dashboard">
-        <span class="icon">📊</span>
-        <span>Dashboard</span>
-    </a>
+    <!-- Unified Navigation Bar (injected by navbar.js) -->
 
     <!-- 連接狀態指示器 + 版本號 + 自動回覆計時器 -->
     <div class="connection-status" id="connectionStatus">
@@ -551,6 +549,8 @@
         </div>
     </div>
 
+    <!-- Scripts -->
+    <script src="/components/navbar.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

@@ -151,7 +151,7 @@
         elements.completedSessions.textContent = completed;
     }
 
-    // 渲染專案列表
+    // 渲染專案列表（智能DOM更新，無閃爍）
     function renderProjects() {
         if (!currentData || !currentData.projects) {
             showEmptyState();
@@ -179,28 +179,202 @@
         // 按活躍會話數排序
         projects.sort((a, b) => (b.activeSessions || 0) - (a.activeSessions || 0));
 
-        elements.projectsList.innerHTML = projects.map(p => renderProjectCard(p)).join('');
+        // 使用智能DOM更新
+        updateProjectsList(projects);
+    }
 
-        // 綁定點擊事件
-        elements.projectsList.querySelectorAll('.project-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const projectId = card.dataset.projectId;
-                navigateToSession(projectId);
-            });
+    // 智能DOM更新：只更新變化的卡片，避免閃爍
+    function updateProjectsList(newProjects) {
+        const container = elements.projectsList;
+        const existingCards = new Map();
+        
+        // 索引現有卡片
+        container.querySelectorAll('.project-card').forEach(card => {
+            const projectId = card.dataset.projectId;
+            existingCards.set(projectId, card);
         });
+        
+        // 建立一個臨時映射用於排序
+        const newProjectsMap = new Map();
+        newProjects.forEach((project, index) => {
+            const projectId = String(project.project?.id || '');
+            newProjectsMap.set(projectId, { project, index });
+        });
+        
+        // 更新或創建卡片
+        newProjects.forEach((projectData, targetIndex) => {
+            const projectId = String(projectData.project?.id || '');
+            const existingCard = existingCards.get(projectId);
+            
+            if (existingCard) {
+                // 更新現有卡片內容
+                updateProjectCard(existingCard, projectData);
+                existingCards.delete(projectId);
+                
+                // 確保順序正確（如果需要移動）
+                const currentIndex = Array.from(container.children).indexOf(existingCard);
+                if (currentIndex !== targetIndex) {
+                    const referenceNode = container.children[targetIndex];
+                    if (referenceNode && referenceNode !== existingCard) {
+                        container.insertBefore(existingCard, referenceNode);
+                    } else if (targetIndex >= container.children.length) {
+                        container.appendChild(existingCard);
+                    }
+                }
+            } else {
+                // 創建新卡片
+                const newCard = createProjectCard(projectData);
+                
+                // 插入到正確位置
+                if (targetIndex >= container.children.length) {
+                    container.appendChild(newCard);
+                } else {
+                    container.insertBefore(newCard, container.children[targetIndex]);
+                }
+                
+                // 添加淡入動畫
+                requestAnimationFrame(() => {
+                    newCard.classList.add('fade-in');
+                });
+            }
+        });
+        
+        // 移除不再存在的卡片
+        existingCards.forEach(card => {
+            card.classList.add('fade-out');
+            setTimeout(() => {
+                if (card.parentNode === container) {
+                    container.removeChild(card);
+                }
+            }, 300);
+        });
+    }
 
+    // 創建專案卡片 DOM 元素
+    function createProjectCard(projectData) {
+        const div = document.createElement('div');
+        const projectId = String(projectData.project?.id || '');
+        div.className = 'project-card';
+        div.dataset.projectId = projectId;
+        
+        if (projectData.activeSessions > 0) {
+            div.classList.add('has-active');
+        }
+        
+        // 設置內容
+        div.innerHTML = renderProjectCardHTML(projectData);
+        
+        // 綁定點擊事件
+        div.addEventListener('click', () => {
+            navigateToSession(projectId);
+        });
+        
         // 綁定會話項點擊事件
-        elements.projectsList.querySelectorAll('.session-item').forEach(item => {
+        div.querySelectorAll('.session-item').forEach(item => {
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const sessionId = item.dataset.sessionId;
                 navigateToSessionPage(sessionId);
             });
         });
+        
+        return div;
     }
 
-    // 渲染單個專案卡片
-    function renderProjectCard(projectData) {
+    // 更新現有專案卡片
+    function updateProjectCard(card, projectData) {
+        const projectId = String(projectData.project?.id || '');
+        const hasActive = projectData.activeSessions > 0;
+        
+        // 更新類別
+        card.classList.toggle('has-active', hasActive);
+        
+        // 更新專案名稱
+        const nameEl = card.querySelector('.project-name');
+        const newName = projectData.project?.name || 'Unknown';
+        if (nameEl) {
+            const iconSpan = nameEl.querySelector('.icon');
+            const currentName = nameEl.textContent.trim().substring(2); // 移除圖標字符
+            if (currentName !== newName) {
+                nameEl.innerHTML = '<span class="icon">📁</span>' + escapeHtml(newName);
+            }
+        }
+        
+        // 更新徽章
+        const badgeEl = card.querySelector('.project-badge');
+        if (badgeEl) {
+            const badgeClass = hasActive ? 'active' : 'idle';
+            const badgeText = hasActive ? `${projectData.activeSessions} 等待中` : '無等待';
+            
+            badgeEl.className = `project-badge ${badgeClass}`;
+            if (badgeEl.textContent !== badgeText) {
+                badgeEl.textContent = badgeText;
+            }
+        }
+        
+        // 更新活躍會話數
+        const activeStatEl = card.querySelector('.project-stat.active .value, .project-stat .value');
+        if (activeStatEl) {
+            const newValue = String(projectData.activeSessions);
+            if (activeStatEl.textContent !== newValue) {
+                activeStatEl.textContent = newValue;
+            }
+        }
+        
+        // 更新總會話數
+        const stats = card.querySelectorAll('.project-stat .value');
+        if (stats.length > 1) {
+            const newValue = String(projectData.totalSessions);
+            if (stats[1].textContent !== newValue) {
+                stats[1].textContent = newValue;
+            }
+        }
+        
+        // 更新會話列表（簡化版：完全替換）
+        const sessionsContainer = card.querySelector('.project-sessions');
+        const newSessions = projectData.sessions || [];
+        const displaySessions = newSessions.slice(0, 3);
+        
+        if (displaySessions.length > 0) {
+            const newSessionsHTML = `
+                <div class="project-sessions">
+                    <div class="session-list">
+                        ${displaySessions.map(s => renderSessionItem(s)).join('')}
+                    </div>
+                </div>
+            `;
+            
+            if (sessionsContainer) {
+                const parent = sessionsContainer.parentNode;
+                const temp = document.createElement('div');
+                temp.innerHTML = newSessionsHTML;
+                parent.replaceChild(temp.firstElementChild, sessionsContainer);
+            } else {
+                // 如果之前沒有會話，添加會話列表
+                const bodyEl = card.querySelector('.project-card-body');
+                if (bodyEl) {
+                    const temp = document.createElement('div');
+                    temp.innerHTML = newSessionsHTML;
+                    bodyEl.appendChild(temp.firstElementChild);
+                }
+            }
+            
+            // 重新綁定會話項點擊事件
+            card.querySelectorAll('.session-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const sessionId = item.dataset.sessionId;
+                    navigateToSessionPage(sessionId);
+                });
+            });
+        } else if (sessionsContainer) {
+            // 移除會話列表
+            sessionsContainer.remove();
+        }
+    }
+
+    // 渲染專案卡片 HTML（用於創建新卡片）
+    function renderProjectCardHTML(projectData) {
         const project = projectData.project || {};
         const sessions = projectData.sessions || [];
         const activeSessions = projectData.activeSessions || 0;

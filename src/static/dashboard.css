@@ -179,7 +179,41 @@
     border-radius: var(--radius-md);
     overflow: hidden;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* 淡入動畫 */
+.project-card.fade-in {
+    animation: projectFadeIn 0.3s ease forwards;
+}
+
+/* 淡出動畫 */
+.project-card.fade-out {
+    animation: projectFadeOut 0.3s ease forwards;
+}
+
+@keyframes projectFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes projectFadeOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
 }
 
 .project-card:hover {
@@ -198,6 +232,7 @@
     align-items: flex-start;
     padding: var(--spacing-md);
     background: var(--bg-tertiary);
+    transition: background 0.2s ease;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -256,11 +291,13 @@
     gap: var(--spacing-xs);
     font-size: 12px;
     color: var(--text-secondary);
+    transition: all 0.2s ease;
 }
 
 .project-stat .value {
     font-weight: 600;
     color: var(--text-primary);
+    transition: color 0.2s ease;
 }
 
 .project-stat.active .value {

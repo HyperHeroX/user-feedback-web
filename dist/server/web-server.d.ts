@@ -88,6 +88,11 @@ export declare class WebServer {
     /**
      * 啟動Web伺服器
      */
+    /**
+     * 自動啟動已啟用的 MCP Servers
+     * 在服務啟動時自動連接所有已設定並啟用的 MCP Servers
+     */
+    private autoStartMCPServers;
     start(): Promise<void>;
     /**
      * 優雅停止Web伺服器

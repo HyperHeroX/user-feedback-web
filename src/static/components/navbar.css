@@ -1,0 +1,347 @@
+/**
+ * Navbar Styles
+ * 統一導覽列樣式
+ */
+
+:root {
+    --navbar-height: 60px;
+    --navbar-bg: #ffffff;
+    --navbar-border: #e1e5e9;
+    --navbar-text: #1a1a2e;
+    --navbar-text-hover: #4a90d9;
+    --navbar-active: #4a90d9;
+    --navbar-active-bg: #e8f4fd;
+    --navbar-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    --navbar-z-index: 1000;
+}
+
+/* 為固定導覽列預留空間 */
+body {
+    padding-top: var(--navbar-height);
+}
+
+/* 導覽列容器 */
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--navbar-height);
+    background: var(--navbar-bg);
+    border-bottom: 1px solid var(--navbar-border);
+    box-shadow: var(--navbar-shadow);
+    z-index: var(--navbar-z-index);
+}
+
+.navbar-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+/* 品牌區域 */
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--navbar-text);
+    white-space: nowrap;
+}
+
+.navbar-logo {
+    font-size: 24px;
+}
+
+.navbar-title {
+    display: inline-block;
+}
+
+/* 選單區域 */
+.navbar-menu {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    flex: 1;
+    justify-content: space-between;
+    margin-left: 32px;
+}
+
+.navbar-links {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* 導覽連結 */
+.navbar-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--navbar-text);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.navbar-link:hover {
+    color: var(--navbar-text-hover);
+    background: var(--navbar-active-bg);
+}
+
+.navbar-link.active {
+    color: var(--navbar-active);
+    background: var(--navbar-active-bg);
+}
+
+.navbar-link .link-icon {
+    font-size: 16px;
+}
+
+/* 狀態區域 */
+.navbar-status {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: #f5f7fa;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.connection-status .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #94a3b8;
+    transition: background 0.3s ease;
+}
+
+.connection-status.connected .status-dot {
+    background: #22c55e;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+}
+
+.connection-status.disconnected .status-dot {
+    background: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+.connection-status .status-text {
+    color: #64748b;
+}
+
+.version-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: #e8f4fd;
+    color: #4a90d9;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* 移動端選單切換按鈕 */
+.navbar-toggle {
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+}
+
+.toggle-icon {
+    position: relative;
+    width: 24px;
+    height: 2px;
+    background: var(--navbar-text);
+    transition: all 0.3s ease;
+}
+
+.toggle-icon::before,
+.toggle-icon::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 24px;
+    height: 2px;
+    background: var(--navbar-text);
+    transition: all 0.3s ease;
+}
+
+.toggle-icon::before {
+    top: -8px;
+}
+
+.toggle-icon::after {
+    bottom: -8px;
+}
+
+.navbar-toggle.active .toggle-icon {
+    background: transparent;
+}
+
+.navbar-toggle.active .toggle-icon::before {
+    top: 0;
+    transform: rotate(45deg);
+}
+
+.navbar-toggle.active .toggle-icon::after {
+    bottom: 0;
+    transform: rotate(-45deg);
+}
+
+/* 響應式設計 - 平板 */
+@media (max-width: 1024px) {
+    .navbar-container {
+        padding: 0 16px;
+    }
+    
+    .navbar-menu {
+        gap: 24px;
+        margin-left: 24px;
+    }
+    
+    .navbar-links {
+        gap: 2px;
+    }
+    
+    .navbar-link {
+        padding: 6px 12px;
+        font-size: 13px;
+    }
+    
+    .link-text {
+        display: none;
+    }
+    
+    .navbar-link .link-icon {
+        font-size: 18px;
+    }
+}
+
+/* 響應式設計 - 手機 */
+@media (max-width: 768px) {
+    .navbar-toggle {
+        display: flex;
+    }
+    
+    .navbar-menu {
+        position: fixed;
+        top: var(--navbar-height);
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        margin: 0;
+        padding: 16px;
+        background: var(--navbar-bg);
+        border-bottom: 1px solid var(--navbar-border);
+        box-shadow: var(--navbar-shadow);
+        transform: translateY(-100%);
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+    }
+    
+    .navbar-menu.active {
+        transform: translateY(0);
+        opacity: 1;
+        visibility: visible;
+    }
+    
+    .navbar-links {
+        flex-direction: column;
+        gap: 4px;
+        width: 100%;
+    }
+    
+    .navbar-link {
+        width: 100%;
+        justify-content: flex-start;
+        padding: 12px 16px;
+        font-size: 15px;
+    }
+    
+    .link-text {
+        display: inline;
+    }
+    
+    .navbar-link .link-icon {
+        font-size: 18px;
+    }
+    
+    .navbar-status {
+        width: 100%;
+        justify-content: space-between;
+        padding-top: 16px;
+        margin-top: 16px;
+        border-top: 1px solid var(--navbar-border);
+    }
+    
+    .navbar-title {
+        display: none;
+    }
+}
+
+/* 高對比度模式支援 */
+@media (prefers-contrast: high) {
+    .navbar {
+        border-bottom-width: 2px;
+    }
+    
+    .navbar-link {
+        border: 1px solid transparent;
+    }
+    
+    .navbar-link.active {
+        border-color: var(--navbar-active);
+    }
+}
+
+/* 深色模式支援（可選） */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --navbar-bg: #1a1a2e;
+        --navbar-border: #2d2d44;
+        --navbar-text: #e1e5e9;
+        --navbar-text-hover: #60a5fa;
+        --navbar-active: #60a5fa;
+        --navbar-active-bg: #1e3a5f;
+    }
+    
+    .connection-status {
+        background: #2d2d44;
+    }
+    
+    .connection-status .status-text {
+        color: #94a3b8;
+    }
+    
+    .version-badge {
+        background: #1e3a5f;
+        color: #60a5fa;
+    }
+}

@@ -165,7 +165,7 @@ body {
     display: grid;
     grid-template-columns: 30% 40% 30%;
     gap: var(--spacing-md);
-    height: 100vh;
+    height: calc(100vh - 60px); /* 扣除導覽列高度 */
     padding: var(--spacing-md);
 }
 
@@ -176,7 +176,7 @@ body {
         grid-template-rows: auto auto auto;
         overflow-y: auto;
         height: auto;
-        min-height: 100vh;
+        min-height: calc(100vh - 60px); /* 扣除導覽列高度 */
     }
 }
 

@@ -931,7 +931,7 @@ export function queryLogs(options = {}) {
     const totalPages = Math.ceil(total / limit);
     // 查詢日誌
     const querySql = `
-        SELECT id, level, message, context, source, created_at as createdAt
+        SELECT id, level, message, context, source, created_at as timestamp
         FROM logs
         ${whereClause}
         ORDER BY created_at DESC

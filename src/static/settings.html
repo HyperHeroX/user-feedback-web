@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚙️ 系統設定 - User Feedback</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- Navbar Component -->
+    <link rel="stylesheet" href="/components/navbar.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+    <style>
+        .settings-container {
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .page-header {
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .page-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .settings-section {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+            font-family: 'Courier New', monospace;
+        }
+
+        .form-help {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            font-size: 14px;
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+
+        .masked-input {
+            position: relative;
+        }
+
+        .masked-input input {
+            padding-right: 40px;
+        }
+
+        .toggle-mask-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 4px;
+        }
+
+        .save-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            margin-left: auto;
+        }
+
+        .save-indicator.success {
+            background: rgba(34, 197, 94, 0.1);
+            color: #22c55e;
+        }
+
+        .save-indicator.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+        }
+    </style>
+</head>
+<body>
+    <!-- Unified Navigation Bar (injected by navbar.js) -->
+    
+    <div class="settings-container">
+        <header class="page-header">
+            <h1 class="page-title">
+                <span class="icon">⚙️</span>
+                系統設定
+            </h1>
+        </header>
+
+        <!-- AI 設定 -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <span class="icon">🤖</span>
+                AI 設定
+            </h2>
+            
+            <div class="form-group">
+                <label class="form-label" for="aiProvider">AI 提供商</label>
+                <select id="aiProvider" class="form-select">
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic (Claude)</option>
+                    <option value="google">Google (Gemini)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="apiKey">API 金鑰</label>
+                <div class="masked-input">
+                    <input type="password" id="apiKey" class="form-input" placeholder="輸入您的 API 金鑰">
+                    <button type="button" class="toggle-mask-btn" id="toggleApiKey">👁️</button>
+                </div>
+                <p class="form-help">API 金鑰將被加密儲存</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="aiModel">模型</label>
+                <input type="text" id="aiModel" class="form-input" placeholder="例如: gpt-4-turbo, claude-3-opus">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="systemPrompt">系統提示詞</label>
+                <textarea id="systemPrompt" class="form-textarea" placeholder="自定義系統提示詞..."></textarea>
+                <p class="form-help">留空將使用預設提示詞</p>
+            </div>
+
+            <div class="form-actions">
+                <button id="testAiBtn" class="btn btn-secondary">測試連接</button>
+                <button id="saveAiBtn" class="btn btn-primary">儲存 AI 設定</button>
+            </div>
+        </section>
+
+        <!-- 用戶偏好 -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <span class="icon">👤</span>
+                用戶偏好
+            </h2>
+
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="autoSubmitOnTimeout" />
+                    <label for="autoSubmitOnTimeout">會話超時時自動提交</label>
+                </div>
+                <p class="form-help">啟用後，當對話逾時時將自動提交空白回應</p>
+            </div>
+
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="confirmBeforeSubmit" />
+                    <label for="confirmBeforeSubmit">提交前確認</label>
+                </div>
+                <p class="form-help">啟用後，提交回應前會顯示確認對話框</p>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="defaultLanguage">預設語言</label>
+                <select id="defaultLanguage" class="form-select">
+                    <option value="zh-TW">繁體中文</option>
+                    <option value="zh-CN">简体中文</option>
+                    <option value="en">English</option>
+                    <option value="ja">日本語</option>
+                </select>
+            </div>
+
+            <div class="form-actions">
+                <button id="savePreferencesBtn" class="btn btn-primary">儲存偏好設定</button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="/components/navbar.js"></script>
+    <script src="settings.js"></script>
+</body>
+</html>
