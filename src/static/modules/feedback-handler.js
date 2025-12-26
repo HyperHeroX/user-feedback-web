@@ -104,18 +104,27 @@ export async function generateAIReply() {
   }
 
   const userContext = document.getElementById("feedbackText").value;
-  showLoadingOverlay("正在生成 AI 回覆...");
+
+  // 使用 streaming panel 顯示進度（對 CLI 模式特別有用）
+  showStreamingPanel();
+  updateStreamingStatus("thinking", "準備 AI 回覆...");
 
   try {
+    // 構建請求內容
+    const requestBody = {
+      aiMessage: workSummary,
+      userContext: userContext,
+      projectName: getCurrentProjectName() || undefined,
+      projectPath: getCurrentProjectPath() || undefined,
+    };
+
+    // 先顯示將要傳送的內容
+    addStreamingOutput("正在準備提示詞...", "ai-message");
+
     const response = await fetch("/api/ai-reply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        aiMessage: workSummary,
-        userContext: userContext,
-        projectName: getCurrentProjectName() || undefined,
-        projectPath: getCurrentProjectPath() || undefined,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const data = await response.json();
@@ -130,66 +139,113 @@ export async function generateAIReply() {
       document.getElementById("feedbackText").value = finalReply;
       updateCharCount();
 
-      // 如果是 CLI 模式，顯示包含 prompt 的詳細彈窗
-      if (data.mode === "cli" && data.promptSent) {
-        showCLIResultModal(data.cliTool, data.promptSent, finalReply);
+      // 顯示結果在 streaming panel
+      if (data.mode === "cli") {
+        // CLI 模式：顯示完整過程
+        updateStreamingStatus("success", `CLI 回覆完成 (${data.cliTool})`);
+        showCLIExecutionDetails(data.cliTool, data.promptSent, finalReply);
       } else {
-        showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
+        // API 模式
+        updateStreamingStatus("success", "AI 回覆完成");
+        addStreamingOutput(finalReply, "ai-message");
       }
     } else {
-      // 如果是 CLI 模式失敗，也顯示 prompt
-      if (data.mode === "cli" && data.promptSent) {
-        showCLIResultModal(data.cliTool, data.promptSent, null, data.error);
+      // 錯誤處理
+      if (data.mode === "cli") {
+        updateStreamingStatus("error", `CLI 回覆失敗 (${data.cliTool})`);
+        showCLIExecutionDetails(data.cliTool, data.promptSent, null, data.error);
       } else {
-        showToast("error", "AI 回覆失敗", data.error);
+        updateStreamingStatus("error", "AI 回覆失敗");
+        addStreamingOutput(data.error || "未知錯誤", "error");
       }
     }
+
+    // 將取消按鈕改為確定按鈕
+    transformToConfirmButton();
   } catch (error) {
     console.error("生成 AI 回覆失敗:", error);
-    showToast("error", "錯誤", "無法生成 AI 回覆");
-  } finally {
-    hideLoadingOverlay();
+    updateStreamingStatus("error", "AI 回覆失敗");
+    addStreamingOutput(error.message || "無法生成 AI 回覆", "error");
+    transformToConfirmButton();
   }
 }
 
 /**
- * 顯示 CLI 執行結果彈窗（包含傳送的 prompt）
+ * 將 streaming panel 的取消按鈕轉換為確定按鈕
+ */
+function transformToConfirmButton() {
+  const cancelBtn = document.getElementById("cancelStreaming");
+  if (cancelBtn) {
+    cancelBtn.textContent = "確定";
+    cancelBtn.classList.remove("btn-secondary");
+    cancelBtn.classList.add("btn-primary");
+    cancelBtn.onclick = () => {
+      hideStreamingPanel();
+      // 恢復按鈕狀態
+      cancelBtn.textContent = "取消";
+      cancelBtn.classList.remove("btn-primary");
+      cancelBtn.classList.add("btn-secondary");
+    };
+  }
+}
+
+/**
+ * 顯示 CLI 執行詳情（包含 prompt 和結果）
  * @param {string} cliTool - CLI 工具名稱
  * @param {string} promptSent - 傳送的 prompt
  * @param {string|null} reply - AI 回覆（成功時）
  * @param {string|null} error - 錯誤訊息（失敗時）
  */
-function showCLIResultModal(cliTool, promptSent, reply = null, error = null) {
-  const modal = document.getElementById("alertModal");
-  if (!modal) return;
+function showCLIExecutionDetails(cliTool, promptSent, reply = null, error = null) {
+  const container = document.getElementById("streamingOutput");
+  if (!container) return;
 
-  const titleEl = document.getElementById("alertModalTitle");
-  const bodyEl = document.getElementById("alertModalBody");
+  // 清空現有內容
+  container.innerHTML = "";
 
-  const isSuccess = reply !== null;
-  const title = isSuccess
-    ? `✅ CLI 回覆完成 (${cliTool})`
-    : `❌ CLI 回覆失敗 (${cliTool})`;
+  // 顯示傳送的 prompt（可折疊）
+  if (promptSent) {
+    const promptDetails = document.createElement("details");
+    promptDetails.className = "cli-prompt-details";
+    promptDetails.open = true; // 預設展開讓用戶看到
 
-  if (titleEl) titleEl.textContent = title;
-
-  if (bodyEl) {
-    bodyEl.innerHTML = `
-      <details class="cli-prompt-details" style="margin-bottom: 12px;">
-        <summary style="cursor: pointer; color: var(--text-secondary); font-size: 13px;">
-          📤 傳送給 CLI 的 Prompt（點擊展開）
-        </summary>
-        <pre style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px; margin-top: 8px; max-height: 200px; overflow-y: auto; font-size: 12px; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(promptSent)}</pre>
-      </details>
-      ${
-        isSuccess
-          ? '<p style="color: var(--text-primary);">AI 已經生成回覆，請檢查後提交。</p>'
-          : `<p style="color: var(--accent-red);">錯誤: ${escapeHtml(error || "未知錯誤")}</p>`
-      }
+    promptDetails.innerHTML = `
+      <summary style="cursor: pointer; padding: 8px; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 8px;">
+        📤 傳送給 ${cliTool} CLI 的 Prompt
+      </summary>
+      <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 300px; overflow-y: auto; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(promptSent)}</pre>
     `;
+    container.appendChild(promptDetails);
   }
 
-  modal.classList.add("show");
+  // 顯示結果或錯誤
+  if (reply) {
+    const resultDiv = document.createElement("div");
+    resultDiv.className = "cli-result success";
+    resultDiv.innerHTML = `
+      <details open>
+        <summary style="cursor: pointer; padding: 8px; background: var(--accent-green-bg, rgba(34, 197, 94, 0.1)); border-radius: 4px; margin-bottom: 8px; color: var(--accent-green, #22c55e);">
+          ✅ CLI 回覆結果
+        </summary>
+        <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 300px; overflow-y: auto; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(reply)}</pre>
+      </details>
+    `;
+    container.appendChild(resultDiv);
+  } else if (error) {
+    const errorDiv = document.createElement("div");
+    errorDiv.className = "cli-result error";
+    errorDiv.innerHTML = `
+      <details open>
+        <summary style="cursor: pointer; padding: 8px; background: var(--accent-red-bg, rgba(239, 68, 68, 0.1)); border-radius: 4px; margin-bottom: 8px; color: var(--accent-red, #ef4444);">
+          ❌ CLI 執行錯誤
+        </summary>
+        <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--accent-red, #ef4444);">${escapeHtml(error)}</pre>
+      </details>
+    `;
+    container.appendChild(errorDiv);
+  }
+
+  container.scrollTop = container.scrollHeight;
 }
 
 /**
