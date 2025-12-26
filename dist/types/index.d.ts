@@ -213,6 +213,9 @@ export interface AIReplyResponse {
     success: boolean;
     reply?: string;
     error?: string;
+    mode?: 'api' | 'cli';
+    cliTool?: string;
+    promptSent?: string;
 }
 export interface UserPreferences {
     id: number;

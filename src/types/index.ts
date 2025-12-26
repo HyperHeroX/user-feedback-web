@@ -270,6 +270,9 @@ export interface AIReplyResponse {
   success: boolean;
   reply?: string;
   error?: string;
+  mode?: 'api' | 'cli';       // 回覆模式
+  cliTool?: string;           // 使用的 CLI 工具（僅 CLI 模式）
+  promptSent?: string;        // 傳送給 CLI 的完整 prompt
 }
 
 // 使用者偏好設定類型

@@ -126,7 +126,10 @@ async function generateCLIReply(request: AIReplyRequest, cliSettings: CLISetting
         if (result.success) {
             return {
                 success: true,
-                reply: result.output
+                reply: result.output,
+                mode: 'cli',
+                cliTool: tool,
+                promptSent: prompt
             };
         }
 
@@ -138,7 +141,10 @@ async function generateCLIReply(request: AIReplyRequest, cliSettings: CLISetting
 
         return {
             success: false,
-            error: result.error || 'CLI 執行失敗'
+            error: result.error || 'CLI 執行失敗',
+            mode: 'cli',
+            cliTool: tool,
+            promptSent: prompt
         };
     } catch (error) {
         // 記錄錯誤

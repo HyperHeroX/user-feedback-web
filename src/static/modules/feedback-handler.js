@@ -129,9 +129,20 @@ export async function generateAIReply() {
 
       document.getElementById("feedbackText").value = finalReply;
       updateCharCount();
-      showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
+
+      // 如果是 CLI 模式，顯示包含 prompt 的詳細彈窗
+      if (data.mode === "cli" && data.promptSent) {
+        showCLIResultModal(data.cliTool, data.promptSent, finalReply);
+      } else {
+        showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
+      }
     } else {
-      showToast("error", "AI 回覆失敗", data.error);
+      // 如果是 CLI 模式失敗，也顯示 prompt
+      if (data.mode === "cli" && data.promptSent) {
+        showCLIResultModal(data.cliTool, data.promptSent, null, data.error);
+      } else {
+        showToast("error", "AI 回覆失敗", data.error);
+      }
     }
   } catch (error) {
     console.error("生成 AI 回覆失敗:", error);
@@ -139,6 +150,46 @@ export async function generateAIReply() {
   } finally {
     hideLoadingOverlay();
   }
+}
+
+/**
+ * 顯示 CLI 執行結果彈窗（包含傳送的 prompt）
+ * @param {string} cliTool - CLI 工具名稱
+ * @param {string} promptSent - 傳送的 prompt
+ * @param {string|null} reply - AI 回覆（成功時）
+ * @param {string|null} error - 錯誤訊息（失敗時）
+ */
+function showCLIResultModal(cliTool, promptSent, reply = null, error = null) {
+  const modal = document.getElementById("alertModal");
+  if (!modal) return;
+
+  const titleEl = document.getElementById("alertModalTitle");
+  const bodyEl = document.getElementById("alertModalBody");
+
+  const isSuccess = reply !== null;
+  const title = isSuccess
+    ? `✅ CLI 回覆完成 (${cliTool})`
+    : `❌ CLI 回覆失敗 (${cliTool})`;
+
+  if (titleEl) titleEl.textContent = title;
+
+  if (bodyEl) {
+    bodyEl.innerHTML = `
+      <details class="cli-prompt-details" style="margin-bottom: 12px;">
+        <summary style="cursor: pointer; color: var(--text-secondary); font-size: 13px;">
+          📤 傳送給 CLI 的 Prompt（點擊展開）
+        </summary>
+        <pre style="background: var(--bg-tertiary); padding: 12px; border-radius: 6px; margin-top: 8px; max-height: 200px; overflow-y: auto; font-size: 12px; white-space: pre-wrap; word-wrap: break-word;">${escapeHtml(promptSent)}</pre>
+      </details>
+      ${
+        isSuccess
+          ? '<p style="color: var(--text-primary);">AI 已經生成回覆，請檢查後提交。</p>'
+          : `<p style="color: var(--accent-red);">錯誤: ${escapeHtml(error || "未知錯誤")}</p>`
+      }
+    `;
+  }
+
+  modal.classList.add("show");
 }
 
 /**

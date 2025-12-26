@@ -103,7 +103,10 @@ async function generateCLIReply(request, cliSettings) {
         if (result.success) {
             return {
                 success: true,
-                reply: result.output
+                reply: result.output,
+                mode: 'cli',
+                cliTool: tool,
+                promptSent: prompt
             };
         }
         // CLI 執行失敗，檢查是否需要 fallback
@@ -113,7 +116,10 @@ async function generateCLIReply(request, cliSettings) {
         }
         return {
             success: false,
-            error: result.error || 'CLI 執行失敗'
+            error: result.error || 'CLI 執行失敗',
+            mode: 'cli',
+            cliTool: tool,
+            promptSent: prompt
         };
     }
     catch (error) {
