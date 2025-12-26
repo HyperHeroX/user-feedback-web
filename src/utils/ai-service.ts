@@ -185,7 +185,7 @@ function buildCLIPrompt(request: AIReplyRequest): string {
         let mcpPrompt = settings.mcpToolsPrompt
             .replace(/\{project_name\}/g, request.projectName || '未命名專案')
             .replace(/\{project_path\}/g, request.projectPath || '');
-        
+
         // 附加工具列表
         try {
             const allTools = mcpClientManager.getAllTools();
@@ -207,7 +207,7 @@ function buildCLIPrompt(request: AIReplyRequest): string {
         } catch {
             // 忽略獲取工具失敗
         }
-        
+
         prompt += `## MCP 工具指令\n${mcpPrompt}\n\n`;
     }
 
@@ -591,7 +591,7 @@ export function estimateTokenCount(text: string): number {
 export async function getPromptPreview(request: AIReplyRequest): Promise<{ success: boolean; prompt: string; mode: 'api' | 'cli'; cliTool?: string; error?: string }> {
     try {
         const cliSettings = getCLISettings();
-        
+
         if (cliSettings?.aiMode === 'cli') {
             // CLI 模式
             const prompt = buildCLIPrompt(request);
@@ -602,7 +602,7 @@ export async function getPromptPreview(request: AIReplyRequest): Promise<{ succe
                 cliTool: cliSettings.cliTool
             };
         }
-        
+
         // API 模式
         const settings = getAISettings();
         if (!settings || !settings.apiKey || settings.apiKey === 'YOUR_API_KEY_HERE') {
@@ -613,13 +613,13 @@ export async function getPromptPreview(request: AIReplyRequest): Promise<{ succe
                 error: '請先在設定中配置 AI API Key'
             };
         }
-        
+
         // 構建 MCP 工具提示詞
         let mcpToolsPrompt = '';
         if (request.includeMCPTools) {
             try {
                 const allTools = mcpClientManager.getAllTools();
-                
+
                 if (settings.mcpToolsPrompt) {
                     mcpToolsPrompt = settings.mcpToolsPrompt
                         .replace(/\{project_name\}/g, request.projectName || '未命名專案')
@@ -647,7 +647,7 @@ export async function getPromptPreview(request: AIReplyRequest): Promise<{ succe
                 // 忽略
             }
         }
-        
+
         const prompt = buildPrompt(
             settings.systemPrompt,
             request.aiMessage,
@@ -655,7 +655,7 @@ export async function getPromptPreview(request: AIReplyRequest): Promise<{ succe
             mcpToolsPrompt,
             request.toolResults
         );
-        
+
         return {
             success: true,
             prompt,
