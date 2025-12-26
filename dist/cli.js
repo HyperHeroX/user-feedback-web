@@ -62,7 +62,12 @@ async function startMCPServer(options) {
         }
         // 建立並啟動MCP伺服器
         const server = new MCPServer(config);
-        if (options.web) {
+        // 決定啟動模式：
+        // 1. 明確指定 --web 時使用 Web 模式
+        // 2. TTY 模式（直接在終端運行）時自動使用 Web 模式
+        // 3. 其他情況（被 MCP 客戶端調用）使用完整 MCP 模式
+        const useWebOnly = options.web || (!isMCPMode && process.stdin.isTTY);
+        if (useWebOnly) {
             // 僅Web模式
             logger.info('啟動Web模式...');
             await server.startWebOnly();

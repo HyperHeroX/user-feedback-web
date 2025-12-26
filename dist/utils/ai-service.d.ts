@@ -29,4 +29,14 @@ export declare function validateAPIKey(apiKey: string, model: string): Promise<{
  * @returns 預估的 token 數量
  */
 export declare function estimateTokenCount(text: string): number;
+/**
+ * 獲取提示詞預覽（供前端顯示）
+ */
+export declare function getPromptPreview(request: AIReplyRequest): Promise<{
+    success: boolean;
+    prompt: string;
+    mode: 'api' | 'cli';
+    cliTool?: string;
+    error?: string;
+}>;
 //# sourceMappingURL=ai-service.d.ts.map

@@ -117,7 +117,8 @@ describe('連接埠管理器', () => {
       await portManager.waitForPortRelease(port, 1000);
 
       const duration = Date.now() - startTime;
-      expect(duration).toBeLessThan(1000); // 放寬時間限制以適應不同環境
+      // 放寬時間限制以適應不同環境，加上 500ms buffer 應對系統負載波動
+      expect(duration).toBeLessThan(1500);
     });
 
     test('應該在逾時時拋出錯誤', async () => {

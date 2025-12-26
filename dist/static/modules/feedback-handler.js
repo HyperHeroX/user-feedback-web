@@ -105,9 +105,14 @@ export async function generateAIReply() {
 
   const userContext = document.getElementById("feedbackText").value;
 
-  // 使用 streaming panel 顯示進度（對 CLI 模式特別有用）
+  // 使用 streaming panel 顯示進度
   showStreamingPanel();
-  updateStreamingStatus("thinking", "準備 AI 回覆...");
+  
+  // 清空輸出區域
+  const container = document.getElementById("streamingOutput");
+  if (container) {
+    container.innerHTML = "";
+  }
 
   try {
     // 構建請求內容
@@ -118,9 +123,15 @@ export async function generateAIReply() {
       projectPath: getCurrentProjectPath() || undefined,
     };
 
-    // 先顯示將要傳送的內容
-    addStreamingOutput("正在準備提示詞...", "ai-message");
+    // Step 1: 顯示提示詞預覽（簡化版）
+    updateStreamingStatus("preparing", "準備提示詞...");
+    const localPreview = buildLocalPromptPreview(workSummary, userContext, null);
+    showPromptPreview(localPreview, 1, "pending", null);
 
+    // Step 2: 顯示 AI 思考中
+    updateStreamingStatus("thinking", "AI 思考中...");
+
+    // Step 3: 發送請求並等待回覆
     const response = await fetch("/api/ai-reply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -130,6 +141,11 @@ export async function generateAIReply() {
     const data = await response.json();
 
     if (data.success) {
+      // 更新提示詞預覽為完整版本
+      if (data.promptSent) {
+        updatePromptPreview(data.promptSent, 1, data.mode, data.cliTool);
+      }
+
       const pinnedPromptsContent = await getPinnedPromptsContent();
       let finalReply = data.reply;
       if (pinnedPromptsContent) {
@@ -139,25 +155,16 @@ export async function generateAIReply() {
       document.getElementById("feedbackText").value = finalReply;
       updateCharCount();
 
-      // 顯示結果在 streaming panel
-      if (data.mode === "cli") {
-        // CLI 模式：顯示完整過程
-        updateStreamingStatus("success", `CLI 回覆完成 (${data.cliTool})`);
-        showCLIExecutionDetails(data.cliTool, data.promptSent, finalReply);
-      } else {
-        // API 模式
-        updateStreamingStatus("success", "AI 回覆完成");
-        addStreamingOutput(finalReply, "ai-message");
-      }
+      // Step 3: 顯示 AI 回覆
+      showAIReplyResult(finalReply, 1, data.mode, data.cliTool);
+      
+      const modeLabel = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
+      updateStreamingStatus("success", `AI 回覆完成 (${modeLabel})`);
     } else {
       // 錯誤處理
-      if (data.mode === "cli") {
-        updateStreamingStatus("error", `CLI 回覆失敗 (${data.cliTool})`);
-        showCLIExecutionDetails(data.cliTool, data.promptSent, null, data.error);
-      } else {
-        updateStreamingStatus("error", "AI 回覆失敗");
-        addStreamingOutput(data.error || "未知錯誤", "error");
-      }
+      const modeLabel = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
+      updateStreamingStatus("error", `AI 回覆失敗 (${modeLabel})`);
+      addStreamingOutput(data.error || "未知錯誤", "error");
     }
 
     // 將取消按鈕改為確定按鈕
@@ -196,7 +203,12 @@ function transformToConfirmButton() {
  * @param {string|null} reply - AI 回覆（成功時）
  * @param {string|null} error - 錯誤訊息（失敗時）
  */
-function showCLIExecutionDetails(cliTool, promptSent, reply = null, error = null) {
+function showCLIExecutionDetails(
+  cliTool,
+  promptSent,
+  reply = null,
+  error = null
+) {
   const container = document.getElementById("streamingOutput");
   if (!container) return;
 
@@ -213,7 +225,9 @@ function showCLIExecutionDetails(cliTool, promptSent, reply = null, error = null
       <summary style="cursor: pointer; padding: 8px; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 8px;">
         📤 傳送給 ${cliTool} CLI 的 Prompt
       </summary>
-      <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 300px; overflow-y: auto; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(promptSent)}</pre>
+      <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 300px; overflow-y: auto; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(
+        promptSent
+      )}</pre>
     `;
     container.appendChild(promptDetails);
   }
@@ -227,7 +241,9 @@ function showCLIExecutionDetails(cliTool, promptSent, reply = null, error = null
         <summary style="cursor: pointer; padding: 8px; background: var(--accent-green-bg, rgba(34, 197, 94, 0.1)); border-radius: 4px; margin-bottom: 8px; color: var(--accent-green, #22c55e);">
           ✅ CLI 回覆結果
         </summary>
-        <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 300px; overflow-y: auto; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(reply)}</pre>
+        <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 300px; overflow-y: auto; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(
+          reply
+        )}</pre>
       </details>
     `;
     container.appendChild(resultDiv);
@@ -239,11 +255,58 @@ function showCLIExecutionDetails(cliTool, promptSent, reply = null, error = null
         <summary style="cursor: pointer; padding: 8px; background: var(--accent-red-bg, rgba(239, 68, 68, 0.1)); border-radius: 4px; margin-bottom: 8px; color: var(--accent-red, #ef4444);">
           ❌ CLI 執行錯誤
         </summary>
-        <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--accent-red, #ef4444);">${escapeHtml(error)}</pre>
+        <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--accent-red, #ef4444);">${escapeHtml(
+          error
+        )}</pre>
       </details>
     `;
     container.appendChild(errorDiv);
   }
+
+  container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * 顯示 API 模式執行詳情
+ */
+function showAPIExecutionDetails(promptSent, reply) {
+  const container = document.getElementById("streamingOutput");
+  if (!container) return;
+
+  // 清空現有內容
+  container.innerHTML = "";
+
+  // 顯示發送的提示詞
+  if (promptSent) {
+    const promptDiv = document.createElement("div");
+    promptDiv.className = "cli-prompt-sent";
+    promptDiv.innerHTML = `
+      <details>
+        <summary style="cursor: pointer; padding: 8px; background: var(--accent-blue-bg, rgba(59, 130, 246, 0.1)); border-radius: 4px; margin-bottom: 8px; color: var(--accent-blue, #3b82f6);">
+          📤 發送的提示詞 (API 模式)
+        </summary>
+        <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 300px; overflow-y: auto; font-size: 11px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(
+          promptSent
+        )}</pre>
+      </details>
+    `;
+    container.appendChild(promptDiv);
+  }
+
+  // 顯示 API 回覆結果
+  const resultDiv = document.createElement("div");
+  resultDiv.className = "api-result success";
+  resultDiv.innerHTML = `
+    <details open>
+      <summary style="cursor: pointer; padding: 8px; background: var(--accent-green-bg, rgba(34, 197, 94, 0.1)); border-radius: 4px; margin-bottom: 8px; color: var(--accent-green, #22c55e);">
+        ✅ AI 回覆結果 (API 模式)
+      </summary>
+      <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 400px; overflow-y: auto; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(
+        reply
+      )}</pre>
+    </details>
+  `;
+  container.appendChild(resultDiv);
 
   container.scrollTop = container.scrollHeight;
 }
@@ -520,6 +583,149 @@ function updateToolProgressUI(round, status, message, toolCalls = []) {
 }
 
 /**
+ * 顯示提示詞預覽
+ */
+function showPromptPreview(prompt, round, mode, cliTool) {
+  const container = document.getElementById("streamingOutput");
+  if (!container) return;
+
+  const modeLabel = mode === "pending" ? "準備中..." : (mode === "cli" ? `CLI (${cliTool})` : "API");
+  const promptDiv = document.createElement("div");
+  promptDiv.className = "prompt-preview";
+  promptDiv.id = `prompt-preview-${round}`;
+  promptDiv.innerHTML = `
+    <details open>
+      <summary style="cursor: pointer; padding: 8px; background: var(--accent-blue-bg, rgba(59, 130, 246, 0.1)); border-radius: 4px; margin-bottom: 8px; color: var(--accent-blue, #3b82f6);">
+        📤 Round ${round}: 發送的提示詞 (${modeLabel})
+      </summary>
+      <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 300px; overflow-y: auto; font-size: 11px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(
+        prompt
+      )}</pre>
+    </details>
+  `;
+  container.appendChild(promptDiv);
+  container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * 更新提示詞預覽為完整版本
+ */
+function updatePromptPreview(prompt, round, mode, cliTool) {
+  const promptDiv = document.getElementById(`prompt-preview-${round}`);
+  if (!promptDiv) return;
+
+  const modeLabel = mode === "cli" ? `CLI (${cliTool})` : "API";
+  promptDiv.innerHTML = `
+    <details>
+      <summary style="cursor: pointer; padding: 8px; background: var(--accent-blue-bg, rgba(59, 130, 246, 0.1)); border-radius: 4px; margin-bottom: 8px; color: var(--accent-blue, #3b82f6);">
+        📤 Round ${round}: 完整提示詞 (${modeLabel})
+      </summary>
+      <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 300px; overflow-y: auto; font-size: 11px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(
+        prompt
+      )}</pre>
+    </details>
+  `;
+}
+
+/**
+ * 顯示 AI 回覆結果
+ */
+function showAIReplyResult(reply, round, mode, cliTool) {
+  const container = document.getElementById("streamingOutput");
+  if (!container) return;
+
+  const modeLabel = mode === "cli" ? `CLI (${cliTool})` : "API";
+  const resultDiv = document.createElement("div");
+  resultDiv.className = "ai-reply-result";
+  resultDiv.innerHTML = `
+    <details open>
+      <summary style="cursor: pointer; padding: 8px; background: var(--accent-green-bg, rgba(34, 197, 94, 0.1)); border-radius: 4px; margin-bottom: 8px; color: var(--accent-green, #22c55e);">
+        ✅ Round ${round}: AI 回覆 (${modeLabel})
+      </summary>
+      <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 400px; overflow-y: auto; font-size: 12px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(
+        reply
+      )}</pre>
+    </details>
+  `;
+  container.appendChild(resultDiv);
+  container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * 顯示工具呼叫
+ */
+function showToolCalls(toolCalls, round) {
+  const container = document.getElementById("streamingOutput");
+  if (!container) return;
+
+  const toolCallsDisplay = toolCalls
+    .map((t) => `${t.name}(${JSON.stringify(t.arguments, null, 2)})`)
+    .join("\n\n");
+
+  const toolDiv = document.createElement("div");
+  toolDiv.className = "tool-calls";
+  toolDiv.innerHTML = `
+    <details open>
+      <summary style="cursor: pointer; padding: 8px; background: var(--accent-orange-bg, rgba(249, 115, 22, 0.1)); border-radius: 4px; margin-bottom: 8px; color: var(--accent-orange, #f97316);">
+        🔧 Round ${round}: 工具呼叫
+      </summary>
+      <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 200px; overflow-y: auto; font-size: 11px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(
+        toolCallsDisplay
+      )}</pre>
+    </details>
+  `;
+  container.appendChild(toolDiv);
+  container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * 顯示工具執行結果
+ */
+function showToolResults(results, round) {
+  const container = document.getElementById("streamingOutput");
+  if (!container) return;
+
+  const resultDiv = document.createElement("div");
+  resultDiv.className = "tool-results";
+  resultDiv.innerHTML = `
+    <details>
+      <summary style="cursor: pointer; padding: 8px; background: var(--accent-purple-bg, rgba(168, 85, 247, 0.1)); border-radius: 4px; margin-bottom: 8px; color: var(--accent-purple, #a855f7);">
+        📋 Round ${round}: 工具執行結果
+      </summary>
+      <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 200px; overflow-y: auto; font-size: 11px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(
+        results
+      )}</pre>
+    </details>
+  `;
+  container.appendChild(resultDiv);
+  container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * 構建前端提示詞預覽（簡化版）
+ */
+function buildLocalPromptPreview(workSummary, userContext, toolResults) {
+  let preview = "";
+  
+  preview += "## AI 工作匯報\n";
+  preview += workSummary + "\n\n";
+  
+  if (userContext) {
+    preview += "## 使用者上下文\n";
+    preview += userContext + "\n\n";
+  }
+  
+  if (toolResults) {
+    preview += "## 工具執行結果\n";
+    preview += toolResults + "\n\n";
+  }
+  
+  preview += "(完整提示詞包含系統指令和 MCP 工具列表，將在 AI 回覆後顯示)";
+  
+  return preview;
+}
+
+/**
  * 帶 MCP 工具呼叫支援的 AI 回覆生成
  */
 export async function generateAIReplyWithTools() {
@@ -531,7 +737,6 @@ export async function generateAIReplyWithTools() {
 
   const userContext = document.getElementById("feedbackText").value;
   const maxToolRounds = getMaxToolRounds();
-  const debugMode = getDebugMode();
 
   let hasMCPTools = false;
   try {
@@ -551,6 +756,12 @@ export async function generateAIReplyWithTools() {
   const controller = new AbortController();
   setStreamingAbortController(controller);
 
+  // 清空輸出區域
+  const container = document.getElementById("streamingOutput");
+  if (container) {
+    container.innerHTML = "";
+  }
+
   let round = 0;
   let toolResults = "";
 
@@ -561,20 +772,39 @@ export async function generateAIReplyWithTools() {
       }
 
       round++;
-      updateToolProgressUI(round, "thinking", "AI 思考中...");
+      
+      // Step 1: 顯示提示詞預覽（前端構建的簡化版）
+      updateToolProgressUI(round, "preparing", "準備提示詞...");
+      const localPreview = buildLocalPromptPreview(workSummary, userContext, toolResults);
+      showPromptPreview(localPreview, round, "pending", null);
 
-      const response = await fetch("/api/ai-reply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          aiMessage: workSummary,
-          userContext: userContext,
-          includeMCPTools: true,
-          toolResults: toolResults || undefined,
-          projectName: getCurrentProjectName() || undefined,
-          projectPath: getCurrentProjectPath() || undefined,
-        }),
-      });
+      // Step 2: 顯示 AI 思考中
+      updateToolProgressUI(round, "thinking", "AI 思考中... (可能需要 30-60 秒)");
+
+      // Step 3: 發送請求並等待回覆
+      const requestBody = {
+        aiMessage: workSummary,
+        userContext: userContext,
+        includeMCPTools: true,
+        toolResults: toolResults || undefined,
+        projectName: getCurrentProjectName() || undefined,
+        projectPath: getCurrentProjectPath() || undefined,
+      };
+
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(() => timeoutController.abort(), 180000);
+
+      let response;
+      try {
+        response = await fetch("/api/ai-reply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+          signal: timeoutController.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       const data = await response.json();
 
@@ -582,10 +812,17 @@ export async function generateAIReplyWithTools() {
         addStreamingOutput(data.error || "AI 回覆失敗", "error");
         updateStreamingStatus("error", "AI 回覆失敗");
         showToast("error", "AI 回覆失敗", data.error);
+        transformToConfirmButton();
         return;
       }
 
-      addStreamingOutput(data.reply, "ai-message");
+      // 更新提示詞預覽為完整版本（如果有）
+      if (data.promptSent) {
+        updatePromptPreview(data.promptSent, round, data.mode, data.cliTool);
+      }
+
+      // Step 3: 顯示 AI 回覆
+      showAIReplyResult(data.reply, round, data.mode, data.cliTool);
       const parsed = parseToolCalls(data.reply);
 
       if (!parsed.hasToolCalls) {
@@ -600,23 +837,17 @@ export async function generateAIReplyWithTools() {
         document.getElementById("feedbackText").value = finalReply;
         updateCharCount();
 
-        await new Promise((r) => setTimeout(r, 1000));
-        hideStreamingPanel();
-        showAlertModal("AI 已完成回覆", "AI 已經生成回覆，請檢查後提交。");
+        const modeLabel = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
+        updateStreamingStatus("success", `AI 回覆完成 (${modeLabel})`);
+
+        // 將取消按鈕改為確定按鈕，讓用戶自己關閉
+        transformToConfirmButton();
         return;
       }
 
-      updateToolProgressUI(
-        round,
-        "executing",
-        "執行工具中...",
-        parsed.toolCalls
-      );
-
-      const toolCallsDisplay = parsed.toolCalls
-        .map((t) => `${t.name}(${JSON.stringify(t.arguments, null, 2)})`)
-        .join("\n\n");
-      addStreamingOutput(toolCallsDisplay, "tool-call");
+      // Step 4: 多輪對話 - 顯示工具呼叫
+      updateToolProgressUI(round, "executing", "執行工具中...", parsed.toolCalls);
+      showToolCalls(parsed.toolCalls, round);
 
       if (parsed.message) {
         console.log(`[Round ${round}] AI: ${parsed.message}`);
@@ -624,7 +855,7 @@ export async function generateAIReplyWithTools() {
 
       const results = await executeMCPTools(parsed.toolCalls);
       toolResults = formatToolResults(results);
-      addStreamingOutput(toolResults, "tool-result");
+      showToolResults(toolResults, round);
 
       if (round === maxToolRounds) {
         updateToolProgressUI(round, "done", "已達最大輪次");
@@ -640,7 +871,8 @@ export async function generateAIReplyWithTools() {
           }
           document.getElementById("feedbackText").value = finalReply;
           updateCharCount();
-          if (!debugMode) hideStreamingPanel();
+          updateStreamingStatus("warning", "已達最大輪次，用戶選擇停止");
+          transformToConfirmButton();
           return;
         }
         round = 0;
@@ -650,10 +882,12 @@ export async function generateAIReplyWithTools() {
     console.error("MCP AI 回覆失敗:", error);
     if (error.message !== "使用者取消操作") {
       addStreamingOutput(error.message || "無法生成 AI 回覆", "error");
+      updateStreamingStatus("error", "AI 回覆失敗");
       showToast("error", "錯誤", "無法生成 AI 回覆");
+    } else {
+      updateStreamingStatus("warning", "使用者取消操作");
     }
-  } finally {
-    if (!debugMode) hideStreamingPanel();
+    transformToConfirmButton();
   }
 }
 
@@ -745,20 +979,30 @@ export async function triggerAutoAIReply() {
       }
 
       round++;
-      updateToolProgressUI(round, "thinking", "AI 思考中...");
+      updateToolProgressUI(round, "thinking", "AI 思考中... (可能需要 30-60 秒)");
 
-      const response = await fetch("/api/ai-reply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          aiMessage: workSummary,
-          userContext: userContext,
-          includeMCPTools: true,
-          toolResults: toolResults || undefined,
-          projectName: getCurrentProjectName() || undefined,
-          projectPath: getCurrentProjectPath() || undefined,
-        }),
-      });
+      // 設置 3 分鐘超時
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(() => timeoutController.abort(), 180000);
+
+      let response;
+      try {
+        response = await fetch("/api/ai-reply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            aiMessage: workSummary,
+            userContext: userContext,
+            includeMCPTools: true,
+            toolResults: toolResults || undefined,
+            projectName: getCurrentProjectName() || undefined,
+            projectPath: getCurrentProjectPath() || undefined,
+          }),
+          signal: timeoutController.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       const data = await response.json();
 

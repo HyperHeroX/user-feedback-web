@@ -934,6 +934,31 @@ export class WebServer {
       }
     });
 
+    // 獲取提示詞預覽（不執行 AI）
+    this.app.post('/api/prompt-preview', async (req, res) => {
+      try {
+        const data: AIReplyRequest = req.body;
+
+        if (!data.aiMessage) {
+          res.status(400).json({
+            success: false,
+            error: 'AI 訊息為必填欄位'
+          });
+          return;
+        }
+
+        const { getPromptPreview } = await import('../utils/ai-service.js');
+        const result = await getPromptPreview(data);
+        res.json(result);
+      } catch (error) {
+        logger.error('獲取提示詞預覽失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取提示詞預覽失敗'
+        });
+      }
+    });
+
     // ============ 使用者偏好設定 API ============
 
     // 獲取使用者偏好設定

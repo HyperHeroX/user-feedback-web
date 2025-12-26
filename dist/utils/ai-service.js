@@ -141,20 +141,54 @@ async function generateCLIReply(request, cliSettings) {
     }
 }
 /**
- * 建構 CLI 提示詞
+ * 建構 CLI 提示詞（包含系統提示詞和 MCP 工具）
  */
 function buildCLIPrompt(request) {
+    const settings = getAISettings();
     let prompt = '';
+    // 加入系統提示詞
+    if (settings?.systemPrompt) {
+        prompt += `## 系統指令\n${settings.systemPrompt}\n\n`;
+    }
+    // 加入 MCP 工具提示詞（如果有且請求要求）
+    if (request.includeMCPTools && settings?.mcpToolsPrompt) {
+        let mcpPrompt = settings.mcpToolsPrompt
+            .replace(/\{project_name\}/g, request.projectName || '未命名專案')
+            .replace(/\{project_path\}/g, request.projectPath || '');
+        // 附加工具列表
+        try {
+            const allTools = mcpClientManager.getAllTools();
+            if (allTools.length > 0) {
+                mcpPrompt += '\n\n## 可用工具列表\n\n';
+                for (const tool of allTools) {
+                    mcpPrompt += `### ${tool.name}\n`;
+                    if (tool.description) {
+                        mcpPrompt += `${tool.description}\n`;
+                    }
+                    if (tool.inputSchema) {
+                        mcpPrompt += '\n參數格式:\n```json\n';
+                        mcpPrompt += JSON.stringify(tool.inputSchema, null, 2);
+                        mcpPrompt += '\n```\n';
+                    }
+                    mcpPrompt += '\n';
+                }
+            }
+        }
+        catch {
+            // 忽略獲取工具失敗
+        }
+        prompt += `## MCP 工具指令\n${mcpPrompt}\n\n`;
+    }
     // 加入使用者上下文
     if (request.userContext) {
-        prompt += `使用者提供的上下文資訊:\n${request.userContext}\n\n`;
+        prompt += `## 使用者上下文\n${request.userContext}\n\n`;
     }
     // 加入工具結果（如果有）
     if (request.toolResults) {
-        prompt += `工具執行結果:\n${request.toolResults}\n\n`;
+        prompt += `## 工具執行結果\n${request.toolResults}\n\n`;
     }
     // 加入主要訊息
-    prompt += `AI 工作匯報:\n${request.aiMessage}\n\n`;
+    prompt += `## AI 工作匯報\n${request.aiMessage}\n\n`;
     prompt += '請根據以上內容提供簡潔的回覆或建議。';
     return prompt;
 }
@@ -241,6 +275,8 @@ async function generateAPIReply(request) {
             temperature: settings.temperature,
             maxTokens: settings.maxTokens
         });
+        // 構建提示詞（用於返回給前端顯示）
+        const promptSent = buildPrompt(settings.systemPrompt, request.aiMessage, request.userContext, mcpToolsPrompt, request.toolResults);
         const reply = await generateWithRetry(settings.apiKey, settings.model, settings.systemPrompt, request.aiMessage, request.userContext, settings.temperature, settings.maxTokens, 0, mcpToolsPrompt, request.toolResults);
         logger.debug('[AI Service] 回覆生成完成', {
             replyLength: reply.length
@@ -257,14 +293,17 @@ async function generateAPIReply(request) {
         logger.debug('[AI Service] AI 回覆請求處理完成');
         return {
             success: true,
-            reply
+            reply,
+            promptSent,
+            mode: 'api'
         };
     }
     catch (error) {
         logger.error('[AI Service] AI service error:', error);
         return {
             success: false,
-            error: error instanceof Error ? error.message : '未知錯誤'
+            error: error instanceof Error ? error.message : '未知錯誤',
+            mode: 'api'
         };
     }
 }
@@ -419,5 +458,80 @@ export function estimateTokenCount(text) {
     const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
     const otherChars = text.length - englishChars - chineseChars;
     return Math.ceil(englishChars / 4 + chineseChars / 2 + otherChars / 3);
+}
+/**
+ * 獲取提示詞預覽（供前端顯示）
+ */
+export async function getPromptPreview(request) {
+    try {
+        const cliSettings = getCLISettings();
+        if (cliSettings?.aiMode === 'cli') {
+            // CLI 模式
+            const prompt = buildCLIPrompt(request);
+            return {
+                success: true,
+                prompt,
+                mode: 'cli',
+                cliTool: cliSettings.cliTool
+            };
+        }
+        // API 模式
+        const settings = getAISettings();
+        if (!settings || !settings.apiKey || settings.apiKey === 'YOUR_API_KEY_HERE') {
+            return {
+                success: false,
+                prompt: '',
+                mode: 'api',
+                error: '請先在設定中配置 AI API Key'
+            };
+        }
+        // 構建 MCP 工具提示詞
+        let mcpToolsPrompt = '';
+        if (request.includeMCPTools) {
+            try {
+                const allTools = mcpClientManager.getAllTools();
+                if (settings.mcpToolsPrompt) {
+                    mcpToolsPrompt = settings.mcpToolsPrompt
+                        .replace(/\{project_name\}/g, request.projectName || '未命名專案')
+                        .replace(/\{project_path\}/g, request.projectPath || '');
+                    if (allTools.length > 0) {
+                        mcpToolsPrompt += '\n\n## 可用工具列表\n\n';
+                        for (const tool of allTools) {
+                            mcpToolsPrompt += `### ${tool.name}\n`;
+                            if (tool.description) {
+                                mcpToolsPrompt += `${tool.description}\n`;
+                            }
+                            if (tool.inputSchema) {
+                                mcpToolsPrompt += '\n參數格式:\n```json\n';
+                                mcpToolsPrompt += JSON.stringify(tool.inputSchema, null, 2);
+                                mcpToolsPrompt += '\n```\n';
+                            }
+                            mcpToolsPrompt += '\n';
+                        }
+                    }
+                }
+                else {
+                    mcpToolsPrompt = buildToolsPrompt(allTools, request.projectName, request.projectPath);
+                }
+            }
+            catch {
+                // 忽略
+            }
+        }
+        const prompt = buildPrompt(settings.systemPrompt, request.aiMessage, request.userContext, mcpToolsPrompt, request.toolResults);
+        return {
+            success: true,
+            prompt,
+            mode: 'api'
+        };
+    }
+    catch (error) {
+        return {
+            success: false,
+            prompt: '',
+            mode: 'api',
+            error: error instanceof Error ? error.message : '獲取提示詞失敗'
+        };
+    }
 }
 //# sourceMappingURL=ai-service.js.map

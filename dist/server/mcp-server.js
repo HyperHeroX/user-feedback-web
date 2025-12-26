@@ -320,6 +320,8 @@ export class MCPServer {
             await this.webServer.start();
             this.isRunning = true;
             logger.info('MCP伺服器啟動成功');
+            // 保持進程運行（即使 stdin 關閉）
+            process.stdin.resume();
         }
         catch (error) {
             logger.error('MCP伺服器啟動失敗:', error);
