@@ -11,6 +11,11 @@ declare class MCPClientManager {
     connect(config: MCPServerConfig): Promise<MCPServerState>;
     disconnect(serverId: number): Promise<void>;
     disconnectAll(): Promise<void>;
+    /**
+     * 設置 transport 事件監聽器
+     * 處理 MCP Server 運行時崩潰，將錯誤隔離不影響主程式
+     */
+    private setupTransportHandlers;
     private createTransport;
     private fetchTools;
     private fetchResources;

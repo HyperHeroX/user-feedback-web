@@ -72,6 +72,9 @@ class MCPClientManager {
 
             const instance: MCPClientInstance = { client, transport, state };
 
+            // 設置 transport 事件監聽器，處理運行時崩潰（隔離錯誤）
+            this.setupTransportHandlers(config.id, config.name, transport, instance);
+
             instance.state.status = 'connected';
             instance.state.connectedAt = new Date().toISOString();
 
@@ -154,6 +157,56 @@ class MCPClientManager {
     async disconnectAll(): Promise<void> {
         const serverIds = Array.from(this.clients.keys());
         await Promise.all(serverIds.map((id) => this.disconnect(id)));
+    }
+
+    /**
+     * 設置 transport 事件監聽器
+     * 處理 MCP Server 運行時崩潰，將錯誤隔離不影響主程式
+     */
+    private setupTransportHandlers(
+        serverId: number,
+        serverName: string,
+        transport: Transport,
+        instance: MCPClientInstance
+    ): void {
+        // 處理 transport 錯誤
+        transport.onerror = (error: Error) => {
+            logger.error(`MCP Server ${serverName} (ID: ${serverId}) transport 錯誤:`, error);
+            instance.state.status = 'error';
+            instance.state.error = error.message;
+
+            insertMCPServerLog({
+                serverId,
+                serverName,
+                type: 'error',
+                message: `Transport 錯誤: ${error.message}`,
+                details: JSON.stringify({
+                    error: error.message,
+                    stack: error.stack
+                })
+            });
+        };
+
+        // 處理 transport 關閉（意外崩潰或正常斷開）
+        transport.onclose = () => {
+            const wasConnected = instance.state.status === 'connected';
+            logger.info(`MCP Server ${serverName} (ID: ${serverId}) transport 已關閉`);
+
+            if (wasConnected) {
+                instance.state.status = 'disconnected';
+                instance.state.error = '連線意外斷開';
+
+                insertMCPServerLog({
+                    serverId,
+                    serverName,
+                    type: 'disconnect',
+                    message: '連線意外斷開（Transport 關閉）'
+                });
+            }
+
+            // 從 clients map 中移除
+            this.clients.delete(serverId);
+        };
     }
 
     private async createTransport(config: MCPServerConfig): Promise<Transport> {
