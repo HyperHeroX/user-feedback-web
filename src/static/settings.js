@@ -291,15 +291,15 @@
 
     try {
       const response = await fetch(`${API_BASE}/api/ai-settings`, {
-        method: "POST",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),
       });
 
-      if (response.ok) {
+      const data = await response.json();
+      if (response.ok && data.success) {
         showToast("AI 設定已儲存", "success");
       } else {
-        const data = await response.json();
         showToast(`儲存失敗: ${data.error || "未知錯誤"}`, "error");
       }
     } catch (error) {
@@ -323,15 +323,15 @@
 
     try {
       const response = await fetch(`${API_BASE}/api/preferences`, {
-        method: "POST",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(preferences),
       });
 
-      if (response.ok) {
+      const data = await response.json();
+      if (response.ok && data.success) {
         showToast("偏好設定已儲存", "success");
       } else {
-        const data = await response.json();
         showToast(`儲存失敗: ${data.error || "未知錯誤"}`, "error");
       }
     } catch (error) {
