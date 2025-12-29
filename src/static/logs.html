@@ -232,7 +232,7 @@
                 📋 系統日誌
             </button>
             <button class="tab-btn" data-tab="api-errors" style="padding: 12px 24px; font-size: 14px; font-weight: 500; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); cursor: pointer;">
-                ⚠️ API 錯誤日誌
+                📊 API 請求日誌
             </button>
         </div>
 
@@ -300,7 +300,7 @@
         </div>
         </div>
 
-        <!-- API 錯誤日誌區塊 -->
+        <!-- API 日誌區塊 -->
         <div id="apiErrorsPanel" class="tab-panel" style="display: none;">
             <!-- 過濾控制 -->
             <div class="logs-controls">
@@ -311,17 +311,29 @@
                         <option value="/api/ai-settings/validate">AI 驗證</option>
                     </select>
                 </div>
+                <div class="filter-group">
+                    <span class="filter-label">類型:</span>
+                    <select id="apiTypeFilter" class="btn btn-secondary">
+                        <option value="all">全部</option>
+                        <option value="success">成功</option>
+                        <option value="errors">錯誤</option>
+                    </select>
+                </div>
                 <button id="apiRefreshBtn" class="btn btn-primary">
                     <span class="icon">🔄</span>
                     重新載入
                 </button>
-                <button id="apiCleanupBtn" class="btn btn-danger">
-                    <span class="icon">🗑️</span>
+                <button id="apiCleanupBtn" class="btn btn-secondary">
+                    <span class="icon">🧹</span>
                     清除舊日誌
+                </button>
+                <button id="apiClearAllBtn" class="btn btn-danger">
+                    <span class="icon">🗑️</span>
+                    清除全部
                 </button>
             </div>
 
-            <!-- API 錯誤日誌表格 -->
+            <!-- API 日誌表格 -->
             <div class="logs-table-container">
                 <div class="logs-table-wrapper">
                     <table class="logs-table">
@@ -330,12 +342,13 @@
                                 <th>時間</th>
                                 <th>端點</th>
                                 <th>方法</th>
-                                <th>錯誤訊息</th>
+                                <th>狀態</th>
+                                <th>訊息</th>
                             </tr>
                         </thead>
                         <tbody id="apiErrorsTableBody">
                         <tr>
-                            <td colspan="4">
+                            <td colspan="5">
                                 <div class="empty-logs">
                                     <div class="icon">⏳</div>
                                     <p>載入日誌中...</p>

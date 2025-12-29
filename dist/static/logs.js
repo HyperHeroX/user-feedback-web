@@ -209,17 +209,20 @@
         `;
   }
 
-  // ==================== API 錯誤日誌功能 ====================
+  // ==================== API 日誌功能 ====================
 
   let apiCurrentPage = 1;
   let apiTotalLogs = 0;
-  let apiCurrentFilter = "";
+  let apiCurrentEndpointFilter = "";
+  let apiCurrentTypeFilter = "all"; // 'all', 'success', 'errors'
 
   const apiElements = {
     tableBody: document.getElementById("apiErrorsTableBody"),
     endpointFilter: document.getElementById("apiEndpointFilter"),
+    typeFilter: document.getElementById("apiTypeFilter"),
     refreshBtn: document.getElementById("apiRefreshBtn"),
     cleanupBtn: document.getElementById("apiCleanupBtn"),
+    clearAllBtn: document.getElementById("apiClearAllBtn"),
     prevPageBtn: document.getElementById("apiPrevPageBtn"),
     nextPageBtn: document.getElementById("apiNextPageBtn"),
     pageInfo: document.getElementById("apiPageInfo"),
@@ -243,24 +246,32 @@
         document.getElementById("apiErrorsPanel").style.display = tab === "api-errors" ? "block" : "none";
 
         if (tab === "api-errors") {
-          loadApiErrorLogs();
+          loadApiLogs();
         }
       });
     });
   }
 
-  function setupApiErrorEventListeners() {
+  function setupApiEventListeners() {
     if (apiElements.endpointFilter) {
       apiElements.endpointFilter.addEventListener("change", () => {
-        apiCurrentFilter = apiElements.endpointFilter.value;
+        apiCurrentEndpointFilter = apiElements.endpointFilter.value;
         apiCurrentPage = 1;
-        loadApiErrorLogs();
+        loadApiLogs();
+      });
+    }
+
+    if (apiElements.typeFilter) {
+      apiElements.typeFilter.addEventListener("change", () => {
+        apiCurrentTypeFilter = apiElements.typeFilter.value;
+        apiCurrentPage = 1;
+        loadApiLogs();
       });
     }
 
     if (apiElements.refreshBtn) {
       apiElements.refreshBtn.addEventListener("click", () => {
-        loadApiErrorLogs();
+        loadApiLogs();
       });
     }
 
@@ -268,13 +279,34 @@
       apiElements.cleanupBtn.addEventListener("click", async () => {
         if (confirm("確定要清除超過7天的舊日誌嗎？")) {
           try {
-            const response = await fetch(`${API_BASE}/api/error-logs/cleanup?days=7`, {
+            const response = await fetch(`${API_BASE}/api/api-logs/cleanup?days=7`, {
               method: "DELETE",
             });
             const data = await response.json();
             if (data.success) {
               alert(`已清除 ${data.deleted} 筆舊日誌`);
-              loadApiErrorLogs();
+              loadApiLogs();
+            } else {
+              alert("清除失敗: " + (data.error || "未知錯誤"));
+            }
+          } catch (error) {
+            alert("清除失敗: " + error.message);
+          }
+        }
+      });
+    }
+
+    if (apiElements.clearAllBtn) {
+      apiElements.clearAllBtn.addEventListener("click", async () => {
+        if (confirm("確定要清除所有 API 日誌嗎？此操作無法復原。")) {
+          try {
+            const response = await fetch(`${API_BASE}/api/api-logs/clear`, {
+              method: "DELETE",
+            });
+            const data = await response.json();
+            if (data.success) {
+              alert(`已清除 ${data.deleted} 筆日誌`);
+              loadApiLogs();
             } else {
               alert("清除失敗: " + (data.error || "未知錯誤"));
             }
@@ -289,7 +321,7 @@
       apiElements.prevPageBtn.addEventListener("click", () => {
         if (apiCurrentPage > 1) {
           apiCurrentPage--;
-          loadApiErrorLogs();
+          loadApiLogs();
         }
       });
     }
@@ -299,25 +331,26 @@
         const totalPages = Math.ceil(apiTotalLogs / PAGE_SIZE);
         if (apiCurrentPage < totalPages) {
           apiCurrentPage++;
-          loadApiErrorLogs();
+          loadApiLogs();
         }
       });
     }
   }
 
-  async function loadApiErrorLogs() {
+  async function loadApiLogs() {
     if (!apiElements.tableBody) return;
 
     try {
       const params = new URLSearchParams({
         limit: PAGE_SIZE,
         offset: (apiCurrentPage - 1) * PAGE_SIZE,
+        filter: apiCurrentTypeFilter,
       });
-      if (apiCurrentFilter) {
-        params.append("endpoint", apiCurrentFilter);
+      if (apiCurrentEndpointFilter) {
+        params.append("endpoint", apiCurrentEndpointFilter);
       }
 
-      const response = await fetch(`${API_BASE}/api/error-logs?${params}`);
+      const response = await fetch(`${API_BASE}/api/api-logs?${params}`);
       const data = await response.json();
 
       if (!data.success) {
@@ -326,18 +359,18 @@
       }
 
       apiTotalLogs = data.total;
-      renderApiErrorLogs(data.logs);
+      renderApiLogs(data.logs);
       updateApiPagination();
     } catch (error) {
       showApiError("載入日誌失敗: " + error.message);
     }
   }
 
-  function renderApiErrorLogs(logs) {
+  function renderApiLogs(logs) {
     if (!logs || logs.length === 0) {
       apiElements.tableBody.innerHTML = `
         <tr>
-          <td colspan="4">
+          <td colspan="5">
             <div class="empty-logs">
               <div class="icon">📭</div>
               <p>沒有日誌記錄</p>
@@ -354,8 +387,9 @@
         <tr>
           <td class="log-time">${formatTimestamp(log.createdAt)}</td>
           <td><code>${escapeHtml(log.endpoint)}</code></td>
-          <td><span class="log-level error">${escapeHtml(log.method)}</span></td>
-          <td class="log-message" title="${escapeHtml(log.errorDetails || "")}">${escapeHtml(log.errorMessage)}</td>
+          <td><span class="log-level ${log.method.toLowerCase()}">${escapeHtml(log.method)}</span></td>
+          <td><span class="log-level ${log.success ? 'info' : 'error'}">${log.success ? '✓ 成功' : '✗ 失敗'}</span></td>
+          <td class="log-message" title="${escapeHtml(log.errorDetails || log.message || '')}">${escapeHtml(log.message || '-')}</td>
         </tr>
       `
       )
@@ -379,7 +413,7 @@
     if (!apiElements.tableBody) return;
     apiElements.tableBody.innerHTML = `
       <tr>
-        <td colspan="4">
+        <td colspan="5">
           <div class="empty-logs">
             <div class="icon">❌</div>
             <p>${escapeHtml(message)}</p>
@@ -389,19 +423,19 @@
     `;
   }
 
-  // 初始化時也設定標籤切換和 API 錯誤日誌事件
-  function initApiErrors() {
+  // 初始化時也設定標籤切換和 API 日誌事件
+  function initApiLogs() {
     setupTabSwitching();
-    setupApiErrorEventListeners();
+    setupApiEventListeners();
   }
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
       init();
-      initApiErrors();
+      initApiLogs();
     });
   } else {
     init();
-    initApiErrors();
+    initApiLogs();
   }
 })();

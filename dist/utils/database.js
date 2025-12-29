@@ -320,25 +320,45 @@ function createTables() {
     db.exec(`
     CREATE INDEX IF NOT EXISTS idx_cli_execution_logs_created ON cli_execution_logs(created_at DESC)
   `);
-    // API 錯誤日誌表
+    // API 日誌表（記錄所有 API 請求）
     db.exec(`
-    CREATE TABLE IF NOT EXISTS api_error_logs (
+    CREATE TABLE IF NOT EXISTS api_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       endpoint TEXT NOT NULL,
       method TEXT NOT NULL,
-      error_message TEXT NOT NULL,
+      status_code INTEGER NOT NULL,
+      success INTEGER NOT NULL DEFAULT 1,
+      message TEXT,
       error_details TEXT,
       request_data TEXT,
+      response_time_ms INTEGER,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
-    // API 錯誤日誌索引
+    // API 日誌索引
     db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_api_error_logs_endpoint ON api_error_logs(endpoint)
+    CREATE INDEX IF NOT EXISTS idx_api_logs_endpoint ON api_logs(endpoint)
   `);
     db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_api_error_logs_created ON api_error_logs(created_at DESC)
+    CREATE INDEX IF NOT EXISTS idx_api_logs_success ON api_logs(success)
   `);
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_api_logs_created ON api_logs(created_at DESC)
+  `);
+    // 兼容舊的 api_error_logs 表（如果存在則遷移數據）
+    try {
+        const hasOldTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='api_error_logs'").get();
+        if (hasOldTable) {
+            db.exec(`
+                INSERT OR IGNORE INTO api_logs (endpoint, method, status_code, success, message, error_details, request_data, created_at)
+                SELECT endpoint, method, 500, 0, error_message, error_details, request_data, created_at FROM api_error_logs
+            `);
+            db.exec(`DROP TABLE IF EXISTS api_error_logs`);
+        }
+    }
+    catch {
+        // 忽略遷移錯誤
+    }
 }
 /**
  * 初始化預設設定
@@ -1430,63 +1450,129 @@ export function cleanupOldMCPServerLogs(daysToKeep = 7) {
     return result.changes;
 }
 /**
- * 記錄 API 錯誤
+ * 記錄 API 請求
  */
-export function logAPIError(data) {
+export function logAPIRequest(data) {
     const db = tryGetDb();
     if (!db)
         return;
     db.prepare(`
-        INSERT INTO api_error_logs (endpoint, method, error_message, error_details, request_data)
-        VALUES (?, ?, ?, ?, ?)
-    `).run(data.endpoint, data.method, data.errorMessage, data.errorDetails || null, data.requestData ? JSON.stringify(data.requestData) : null);
+        INSERT INTO api_logs (endpoint, method, status_code, success, message, error_details, request_data, response_time_ms)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(data.endpoint, data.method, data.statusCode, data.success ? 1 : 0, data.message || null, data.errorDetails || null, data.requestData ? JSON.stringify(data.requestData) : null, data.responseTimeMs || null);
 }
 /**
- * 查詢 API 錯誤日誌
+ * 記錄 API 錯誤（簡化版，用於向後兼容）
  */
-export function queryAPIErrorLogs(options) {
+export function logAPIError(data) {
+    const requestData = {
+        endpoint: data.endpoint,
+        method: data.method,
+        statusCode: 500,
+        success: false,
+        message: data.errorMessage,
+    };
+    if (data.errorDetails) {
+        requestData.errorDetails = data.errorDetails;
+    }
+    if (data.requestData !== undefined) {
+        requestData.requestData = data.requestData;
+    }
+    logAPIRequest(requestData);
+}
+/**
+ * 查詢 API 日誌
+ */
+export function queryAPILogs(options) {
     const db = tryGetDb();
     if (!db)
         return { logs: [], total: 0 };
-    const { endpoint, limit = 100, offset = 0 } = options;
-    let whereClause = '';
+    const { endpoint, successOnly, errorsOnly, limit = 100, offset = 0 } = options;
+    const conditions = [];
     const params = [];
     if (endpoint) {
-        whereClause = 'WHERE endpoint = ?';
+        conditions.push('endpoint = ?');
         params.push(endpoint);
     }
+    if (successOnly) {
+        conditions.push('success = 1');
+    }
+    else if (errorsOnly) {
+        conditions.push('success = 0');
+    }
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const countResult = db.prepare(`
-        SELECT COUNT(*) as count FROM api_error_logs ${whereClause}
+        SELECT COUNT(*) as count FROM api_logs ${whereClause}
     `).get(...params);
     const logs = db.prepare(`
         SELECT 
             id,
             endpoint,
             method,
-            error_message as errorMessage,
+            status_code as statusCode,
+            success,
+            message,
             error_details as errorDetails,
             request_data as requestData,
+            response_time_ms as responseTimeMs,
             created_at as createdAt
-        FROM api_error_logs
+        FROM api_logs
         ${whereClause}
         ORDER BY created_at DESC
         LIMIT ? OFFSET ?
     `).all(...params, limit, offset);
-    return { logs, total: countResult.count };
+    return {
+        logs: logs.map(log => ({ ...log, success: log.success === 1 })),
+        total: countResult.count
+    };
 }
 /**
- * 清理舊的 API 錯誤日誌
+ * 查詢 API 錯誤日誌（向後兼容）
  */
-export function cleanupOldAPIErrorLogs(daysToKeep = 7) {
+export function queryAPIErrorLogs(options) {
+    const result = queryAPILogs({ ...options, errorsOnly: true });
+    return {
+        logs: result.logs.map(log => ({
+            id: log.id,
+            endpoint: log.endpoint,
+            method: log.method,
+            errorMessage: log.message || 'Unknown error',
+            errorDetails: log.errorDetails,
+            requestData: log.requestData,
+            createdAt: log.createdAt,
+        })),
+        total: result.total
+    };
+}
+/**
+ * 清理舊的 API 日誌
+ */
+export function cleanupOldAPILogs(daysToKeep = 7) {
     const db = tryGetDb();
     if (!db)
         return 0;
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
     const result = db.prepare(`
-        DELETE FROM api_error_logs WHERE created_at < ?
+        DELETE FROM api_logs WHERE created_at < ?
     `).run(cutoffDate.toISOString());
     return result.changes;
+}
+/**
+ * 清除所有 API 日誌
+ */
+export function clearAllAPILogs() {
+    const db = tryGetDb();
+    if (!db)
+        return 0;
+    const result = db.prepare(`DELETE FROM api_logs`).run();
+    return result.changes;
+}
+/**
+ * 清理舊的 API 錯誤日誌（向後兼容）
+ */
+export function cleanupOldAPIErrorLogs(daysToKeep = 7) {
+    return cleanupOldAPILogs(daysToKeep);
 }
 /**
  * 取得 CLI 設定

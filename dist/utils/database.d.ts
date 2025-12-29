@@ -168,17 +168,33 @@ export declare function getRecentMCPServerErrors(serverId?: number, limit?: numb
  * 清理舊的 MCP Server 日誌（保留最近 N 天）
  */
 export declare function cleanupOldMCPServerLogs(daysToKeep?: number): number;
-export interface APIErrorLog {
+export interface APILog {
     id: number;
     endpoint: string;
     method: string;
-    errorMessage: string;
+    statusCode: number;
+    success: boolean;
+    message: string | null;
     errorDetails: string | null;
     requestData: string | null;
+    responseTimeMs: number | null;
     createdAt: string;
 }
 /**
- * 記錄 API 錯誤
+ * 記錄 API 請求
+ */
+export declare function logAPIRequest(data: {
+    endpoint: string;
+    method: string;
+    statusCode: number;
+    success: boolean;
+    message?: string;
+    errorDetails?: string;
+    requestData?: unknown;
+    responseTimeMs?: number;
+}): void;
+/**
+ * 記錄 API 錯誤（簡化版，用於向後兼容）
  */
 export declare function logAPIError(data: {
     endpoint: string;
@@ -188,18 +204,47 @@ export declare function logAPIError(data: {
     requestData?: unknown;
 }): void;
 /**
- * 查詢 API 錯誤日誌
+ * 查詢 API 日誌
+ */
+export declare function queryAPILogs(options: {
+    endpoint?: string;
+    successOnly?: boolean;
+    errorsOnly?: boolean;
+    limit?: number;
+    offset?: number;
+}): {
+    logs: APILog[];
+    total: number;
+};
+/**
+ * 查詢 API 錯誤日誌（向後兼容）
  */
 export declare function queryAPIErrorLogs(options: {
     endpoint?: string;
     limit?: number;
     offset?: number;
 }): {
-    logs: APIErrorLog[];
+    logs: {
+        id: number;
+        endpoint: string;
+        method: string;
+        errorMessage: string;
+        errorDetails: string | null;
+        requestData: string | null;
+        createdAt: string;
+    }[];
     total: number;
 };
 /**
- * 清理舊的 API 錯誤日誌
+ * 清理舊的 API 日誌
+ */
+export declare function cleanupOldAPILogs(daysToKeep?: number): number;
+/**
+ * 清除所有 API 日誌
+ */
+export declare function clearAllAPILogs(): number;
+/**
+ * 清理舊的 API 錯誤日誌（向後兼容）
  */
 export declare function cleanupOldAPIErrorLogs(daysToKeep?: number): number;
 import type { CLISettings, CLISettingsRequest, CLITerminal, CLIExecutionLog } from '../types/index.js';
