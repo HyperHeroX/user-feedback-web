@@ -209,9 +209,199 @@
         `;
   }
 
+  // ==================== API 錯誤日誌功能 ====================
+
+  let apiCurrentPage = 1;
+  let apiTotalLogs = 0;
+  let apiCurrentFilter = "";
+
+  const apiElements = {
+    tableBody: document.getElementById("apiErrorsTableBody"),
+    endpointFilter: document.getElementById("apiEndpointFilter"),
+    refreshBtn: document.getElementById("apiRefreshBtn"),
+    cleanupBtn: document.getElementById("apiCleanupBtn"),
+    prevPageBtn: document.getElementById("apiPrevPageBtn"),
+    nextPageBtn: document.getElementById("apiNextPageBtn"),
+    pageInfo: document.getElementById("apiPageInfo"),
+  };
+
+  function setupTabSwitching() {
+    const tabBtns = document.querySelectorAll(".tab-btn");
+    tabBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        tabBtns.forEach(b => {
+          b.classList.remove("active");
+          b.style.borderBottomColor = "transparent";
+          b.style.color = "var(--text-secondary)";
+        });
+        btn.classList.add("active");
+        btn.style.borderBottomColor = "var(--accent-color)";
+        btn.style.color = "var(--accent-color)";
+
+        const tab = btn.dataset.tab;
+        document.getElementById("systemLogsPanel").style.display = tab === "system" ? "block" : "none";
+        document.getElementById("apiErrorsPanel").style.display = tab === "api-errors" ? "block" : "none";
+
+        if (tab === "api-errors") {
+          loadApiErrorLogs();
+        }
+      });
+    });
+  }
+
+  function setupApiErrorEventListeners() {
+    if (apiElements.endpointFilter) {
+      apiElements.endpointFilter.addEventListener("change", () => {
+        apiCurrentFilter = apiElements.endpointFilter.value;
+        apiCurrentPage = 1;
+        loadApiErrorLogs();
+      });
+    }
+
+    if (apiElements.refreshBtn) {
+      apiElements.refreshBtn.addEventListener("click", () => {
+        loadApiErrorLogs();
+      });
+    }
+
+    if (apiElements.cleanupBtn) {
+      apiElements.cleanupBtn.addEventListener("click", async () => {
+        if (confirm("確定要清除超過7天的舊日誌嗎？")) {
+          try {
+            const response = await fetch(`${API_BASE}/api/error-logs/cleanup?days=7`, {
+              method: "DELETE",
+            });
+            const data = await response.json();
+            if (data.success) {
+              alert(`已清除 ${data.deleted} 筆舊日誌`);
+              loadApiErrorLogs();
+            } else {
+              alert("清除失敗: " + (data.error || "未知錯誤"));
+            }
+          } catch (error) {
+            alert("清除失敗: " + error.message);
+          }
+        }
+      });
+    }
+
+    if (apiElements.prevPageBtn) {
+      apiElements.prevPageBtn.addEventListener("click", () => {
+        if (apiCurrentPage > 1) {
+          apiCurrentPage--;
+          loadApiErrorLogs();
+        }
+      });
+    }
+
+    if (apiElements.nextPageBtn) {
+      apiElements.nextPageBtn.addEventListener("click", () => {
+        const totalPages = Math.ceil(apiTotalLogs / PAGE_SIZE);
+        if (apiCurrentPage < totalPages) {
+          apiCurrentPage++;
+          loadApiErrorLogs();
+        }
+      });
+    }
+  }
+
+  async function loadApiErrorLogs() {
+    if (!apiElements.tableBody) return;
+
+    try {
+      const params = new URLSearchParams({
+        limit: PAGE_SIZE,
+        offset: (apiCurrentPage - 1) * PAGE_SIZE,
+      });
+      if (apiCurrentFilter) {
+        params.append("endpoint", apiCurrentFilter);
+      }
+
+      const response = await fetch(`${API_BASE}/api/error-logs?${params}`);
+      const data = await response.json();
+
+      if (!data.success) {
+        showApiError(data.error || "載入失敗");
+        return;
+      }
+
+      apiTotalLogs = data.total;
+      renderApiErrorLogs(data.logs);
+      updateApiPagination();
+    } catch (error) {
+      showApiError("載入日誌失敗: " + error.message);
+    }
+  }
+
+  function renderApiErrorLogs(logs) {
+    if (!logs || logs.length === 0) {
+      apiElements.tableBody.innerHTML = `
+        <tr>
+          <td colspan="4">
+            <div class="empty-logs">
+              <div class="icon">📭</div>
+              <p>沒有日誌記錄</p>
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    apiElements.tableBody.innerHTML = logs
+      .map(
+        (log) => `
+        <tr>
+          <td class="log-time">${formatTimestamp(log.createdAt)}</td>
+          <td><code>${escapeHtml(log.endpoint)}</code></td>
+          <td><span class="log-level error">${escapeHtml(log.method)}</span></td>
+          <td class="log-message" title="${escapeHtml(log.errorDetails || "")}">${escapeHtml(log.errorMessage)}</td>
+        </tr>
+      `
+      )
+      .join("");
+  }
+
+  function updateApiPagination() {
+    const totalPages = Math.ceil(apiTotalLogs / PAGE_SIZE) || 1;
+    if (apiElements.pageInfo) {
+      apiElements.pageInfo.textContent = `第 ${apiCurrentPage} / ${totalPages} 頁 (共 ${apiTotalLogs} 筆)`;
+    }
+    if (apiElements.prevPageBtn) {
+      apiElements.prevPageBtn.disabled = apiCurrentPage <= 1;
+    }
+    if (apiElements.nextPageBtn) {
+      apiElements.nextPageBtn.disabled = apiCurrentPage >= totalPages;
+    }
+  }
+
+  function showApiError(message) {
+    if (!apiElements.tableBody) return;
+    apiElements.tableBody.innerHTML = `
+      <tr>
+        <td colspan="4">
+          <div class="empty-logs">
+            <div class="icon">❌</div>
+            <p>${escapeHtml(message)}</p>
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  // 初始化時也設定標籤切換和 API 錯誤日誌事件
+  function initApiErrors() {
+    setupTabSwitching();
+    setupApiErrorEventListeners();
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => {
+      init();
+      initApiErrors();
+    });
   } else {
     init();
+    initApiErrors();
   }
 })();

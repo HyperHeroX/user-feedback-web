@@ -226,7 +226,19 @@
             </h1>
         </header>
 
-        <!-- 過濾控制 -->
+        <!-- 標籤切換 -->
+        <div class="tabs" style="margin-bottom: 16px; border-bottom: 1px solid var(--border-color);">
+            <button class="tab-btn active" data-tab="system" style="padding: 12px 24px; font-size: 14px; font-weight: 500; background: none; border: none; border-bottom: 2px solid var(--accent-color); color: var(--accent-color); cursor: pointer; margin-right: 8px;">
+                📋 系統日誌
+            </button>
+            <button class="tab-btn" data-tab="api-errors" style="padding: 12px 24px; font-size: 14px; font-weight: 500; background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); cursor: pointer;">
+                ⚠️ API 錯誤日誌
+            </button>
+        </div>
+
+        <!-- 系統日誌區塊 -->
+        <div id="systemLogsPanel" class="tab-panel">
+            <!-- 過濾控制 -->
         <div class="logs-controls">
             <div class="filter-group">
                 <span class="filter-label">級別:</span>
@@ -284,6 +296,62 @@
                 <button id="prevPageBtn" disabled>上一頁</button>
                 <span class="page-info" id="pageInfo">第 1 頁</span>
                 <button id="nextPageBtn">下一頁</button>
+            </div>
+        </div>
+        </div>
+
+        <!-- API 錯誤日誌區塊 -->
+        <div id="apiErrorsPanel" class="tab-panel" style="display: none;">
+            <!-- 過濾控制 -->
+            <div class="logs-controls">
+                <div class="filter-group">
+                    <span class="filter-label">端點:</span>
+                    <select id="apiEndpointFilter" class="btn btn-secondary">
+                        <option value="">全部</option>
+                        <option value="/api/ai-settings/validate">AI 驗證</option>
+                    </select>
+                </div>
+                <button id="apiRefreshBtn" class="btn btn-primary">
+                    <span class="icon">🔄</span>
+                    重新載入
+                </button>
+                <button id="apiCleanupBtn" class="btn btn-danger">
+                    <span class="icon">🗑️</span>
+                    清除舊日誌
+                </button>
+            </div>
+
+            <!-- API 錯誤日誌表格 -->
+            <div class="logs-table-container">
+                <div class="logs-table-wrapper">
+                    <table class="logs-table">
+                        <thead>
+                            <tr>
+                                <th>時間</th>
+                                <th>端點</th>
+                                <th>方法</th>
+                                <th>錯誤訊息</th>
+                            </tr>
+                        </thead>
+                        <tbody id="apiErrorsTableBody">
+                        <tr>
+                            <td colspan="4">
+                                <div class="empty-logs">
+                                    <div class="icon">⏳</div>
+                                    <p>載入日誌中...</p>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- 分頁 -->
+                <div class="pagination">
+                    <button id="apiPrevPageBtn" disabled>上一頁</button>
+                    <span class="page-info" id="apiPageInfo">第 1 頁</span>
+                    <button id="apiNextPageBtn">下一頁</button>
+                </div>
             </div>
         </div>
     </div>
