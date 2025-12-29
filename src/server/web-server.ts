@@ -1126,6 +1126,73 @@ export class WebServer {
       }
     });
 
+    // 查詢所有 MCP Server 日誌 (必須在 :id 路由之前)
+    this.app.get('/api/mcp-servers/logs', (req, res) => {
+      try {
+        const serverIdParam = req.query['serverId'] as string | undefined;
+        const type = req.query['type'] as string | undefined;
+        const limit = req.query['limit'] ? parseInt(req.query['limit'] as string) : 100;
+        const offset = req.query['offset'] ? parseInt(req.query['offset'] as string) : 0;
+
+        const options: {
+          serverId?: number;
+          type?: 'connect' | 'disconnect' | 'error' | 'tool_call' | 'info';
+          limit?: number;
+          offset?: number;
+        } = { limit, offset };
+
+        if (serverIdParam) {
+          options.serverId = parseInt(serverIdParam);
+        }
+        if (type) {
+          options.type = type as 'connect' | 'disconnect' | 'error' | 'tool_call' | 'info';
+        }
+
+        const result = queryMCPServerLogs(options);
+        res.json({ success: true, ...result });
+      } catch (error) {
+        logger.error('查詢 MCP Server 日誌失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '查詢日誌失敗'
+        });
+      }
+    });
+
+    // 獲取最近的錯誤日誌 (必須在 :id 路由之前)
+    this.app.get('/api/mcp-servers/errors', (req, res) => {
+      try {
+        const serverId = req.query['serverId'] ? parseInt(req.query['serverId'] as string) : undefined;
+        const limit = req.query['limit'] ? parseInt(req.query['limit'] as string) : 50;
+
+        const errors = getRecentMCPServerErrors(serverId, limit);
+        res.json({ success: true, errors });
+      } catch (error) {
+        logger.error('獲取 MCP Server 錯誤日誌失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取錯誤日誌失敗'
+        });
+      }
+    });
+
+    // 清理舊的 MCP Server 日誌 (必須在 :id 路由之前)
+    this.app.delete('/api/mcp-servers/logs/cleanup', (req, res) => {
+      try {
+        const daysToKeep = req.query['daysToKeep'] ? parseInt(req.query['daysToKeep'] as string) : 7;
+        const deletedCount = cleanupOldMCPServerLogs(daysToKeep);
+
+        logger.info(`清理 MCP Server 日誌: 刪除了 ${deletedCount} 筆記錄`);
+        res.json({ success: true, deletedCount });
+      } catch (error) {
+        logger.error('清理 MCP Server 日誌失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '清理日誌失敗'
+        });
+      }
+    });
+
     // 獲取單一 MCP Server
     this.app.get('/api/mcp-servers/:id', (req, res) => {
       try {
@@ -1792,42 +1859,6 @@ export class WebServer {
       }
     });
 
-    // ============ MCP Server 日誌 API ============
-
-    // 查詢 MCP Server 日誌
-    this.app.get('/api/mcp-servers/logs', (req, res) => {
-      try {
-        const serverIdParam = req.query['serverId'] as string | undefined;
-        const type = req.query['type'] as string | undefined;
-        const limit = req.query['limit'] ? parseInt(req.query['limit'] as string) : 100;
-        const offset = req.query['offset'] ? parseInt(req.query['offset'] as string) : 0;
-
-        const options: {
-          serverId?: number;
-          type?: 'connect' | 'disconnect' | 'error' | 'tool_call' | 'info';
-          limit?: number;
-          offset?: number;
-        } = { limit, offset };
-
-        if (serverIdParam) {
-          options.serverId = parseInt(serverIdParam);
-        }
-        if (type) {
-          options.type = type as 'connect' | 'disconnect' | 'error' | 'tool_call' | 'info';
-        }
-
-        const result = queryMCPServerLogs(options);
-
-        res.json({ success: true, ...result });
-      } catch (error) {
-        logger.error('查詢 MCP Server 日誌失敗:', error);
-        res.status(500).json({
-          success: false,
-          error: error instanceof Error ? error.message : '查詢日誌失敗'
-        });
-      }
-    });
-
     // 獲取特定 Server 的日誌
     this.app.get('/api/mcp-servers/:id/logs', (req, res) => {
       try {
@@ -1849,40 +1880,6 @@ export class WebServer {
         res.status(500).json({
           success: false,
           error: error instanceof Error ? error.message : '獲取日誌失敗'
-        });
-      }
-    });
-
-    // 獲取最近的錯誤日誌
-    this.app.get('/api/mcp-servers/errors', (req, res) => {
-      try {
-        const serverId = req.query['serverId'] ? parseInt(req.query['serverId'] as string) : undefined;
-        const limit = req.query['limit'] ? parseInt(req.query['limit'] as string) : 50;
-
-        const errors = getRecentMCPServerErrors(serverId, limit);
-        res.json({ success: true, errors });
-      } catch (error) {
-        logger.error('獲取 MCP Server 錯誤日誌失敗:', error);
-        res.status(500).json({
-          success: false,
-          error: error instanceof Error ? error.message : '獲取錯誤日誌失敗'
-        });
-      }
-    });
-
-    // 清理舊的 MCP Server 日誌
-    this.app.delete('/api/mcp-servers/logs/cleanup', (req, res) => {
-      try {
-        const daysToKeep = req.query['daysToKeep'] ? parseInt(req.query['daysToKeep'] as string) : 7;
-        const deletedCount = cleanupOldMCPServerLogs(daysToKeep);
-
-        logger.info(`清理 MCP Server 日誌: 刪除了 ${deletedCount} 筆記錄`);
-        res.json({ success: true, deletedCount });
-      } catch (error) {
-        logger.error('清理 MCP Server 日誌失敗:', error);
-        res.status(500).json({
-          success: false,
-          error: error instanceof Error ? error.message : '清理日誌失敗'
         });
       }
     });
