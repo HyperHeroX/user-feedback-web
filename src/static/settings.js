@@ -264,11 +264,19 @@
   }
 
   async function testAIConnection() {
-    const provider = elements.aiProvider.value;
     const apiKey = elements.apiKey.value;
+    const model = elements.aiModel.value;
 
-    if (!apiKey) {
+    // 如果 API key 是遮罩值，表示用戶沒有修改，將使用資料庫中的 key
+    const apiKeyChanged = apiKey !== originalApiKeyMasked;
+
+    if (!apiKeyChanged && !originalApiKeyMasked) {
       showToast("請先輸入 API 金鑰", "error");
+      return;
+    }
+
+    if (!model) {
+      showToast("請先選擇模型", "error");
       return;
     }
 
@@ -276,15 +284,21 @@
     elements.testAiBtn.textContent = "測試中...";
 
     try {
-      const response = await fetch(`${API_BASE}/api/ai/test`, {
+      // 如果用戶修改了 API key 就傳送新的 key，否則不傳送（後端會使用資料庫中的）
+      const payload = { model };
+      if (apiKeyChanged) {
+        payload.apiKey = apiKey;
+      }
+
+      const response = await fetch(`${API_BASE}/api/ai-settings/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, apiKey }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
+      if (response.ok && data.success && data.valid) {
         showToast("AI 連接測試成功！", "success");
       } else {
         showToast(`連接測試失敗: ${data.error || "未知錯誤"}`, "error");

@@ -168,6 +168,40 @@ export declare function getRecentMCPServerErrors(serverId?: number, limit?: numb
  * 清理舊的 MCP Server 日誌（保留最近 N 天）
  */
 export declare function cleanupOldMCPServerLogs(daysToKeep?: number): number;
+export interface APIErrorLog {
+    id: number;
+    endpoint: string;
+    method: string;
+    errorMessage: string;
+    errorDetails: string | null;
+    requestData: string | null;
+    createdAt: string;
+}
+/**
+ * 記錄 API 錯誤
+ */
+export declare function logAPIError(data: {
+    endpoint: string;
+    method: string;
+    errorMessage: string;
+    errorDetails?: string;
+    requestData?: unknown;
+}): void;
+/**
+ * 查詢 API 錯誤日誌
+ */
+export declare function queryAPIErrorLogs(options: {
+    endpoint?: string;
+    limit?: number;
+    offset?: number;
+}): {
+    logs: APIErrorLog[];
+    total: number;
+};
+/**
+ * 清理舊的 API 錯誤日誌
+ */
+export declare function cleanupOldAPIErrorLogs(daysToKeep?: number): number;
 import type { CLISettings, CLISettingsRequest, CLITerminal, CLIExecutionLog } from '../types/index.js';
 /**
  * 取得 CLI 設定

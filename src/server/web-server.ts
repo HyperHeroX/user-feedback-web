@@ -22,7 +22,7 @@ import { projectManager } from '../utils/project-manager.js';
 import { getPackageVersion } from '../utils/version.js';
 
 const VERSION = getPackageVersion();
-import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled, getToolEnableConfigs, setToolEnabled, batchSetToolEnabled, queryMCPServerLogs, getRecentMCPServerErrors, cleanupOldMCPServerLogs, getCLISettings, updateCLISettings, getCLITerminals, getCLITerminalById, deleteCLITerminal, getCLIExecutionLogs, cleanupOldCLIExecutionLogs } from '../utils/database.js';
+import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled, getToolEnableConfigs, setToolEnabled, batchSetToolEnabled, queryMCPServerLogs, getRecentMCPServerErrors, cleanupOldMCPServerLogs, getCLISettings, updateCLISettings, getCLITerminals, getCLITerminalById, deleteCLITerminal, getCLIExecutionLogs, cleanupOldCLIExecutionLogs, logAPIError, queryAPIErrorLogs, cleanupOldAPIErrorLogs } from '../utils/database.js';
 import { maskApiKey } from '../utils/crypto-helper.js';
 import { generateAIReply, validateAPIKey } from '../utils/ai-service.js';
 import { mcpClientManager } from '../utils/mcp-client-manager.js';
@@ -880,9 +880,16 @@ export class WebServer {
         const { model } = req.body;
 
         if (!model) {
+          const errorMsg = '模型為必填欄位';
+          logAPIError({
+            endpoint: '/api/ai-settings/validate',
+            method: 'POST',
+            errorMessage: errorMsg,
+            requestData: { model: req.body.model }
+          });
           res.status(400).json({
             success: false,
-            error: '模型為必填欄位'
+            error: errorMsg
           });
           return;
         }
@@ -893,10 +900,17 @@ export class WebServer {
         if (!apiKey) {
           const settings = getAISettings();
           if (!settings || !settings.apiKey || settings.apiKey === 'YOUR_API_KEY_HERE') {
+            const errorMsg = '請先設定 API Key';
+            logAPIError({
+              endpoint: '/api/ai-settings/validate',
+              method: 'POST',
+              errorMessage: errorMsg,
+              requestData: { model }
+            });
             res.status(400).json({
               success: false,
               valid: false,
-              error: '請先設定 API Key'
+              error: errorMsg
             });
             return;
           }
@@ -916,14 +930,31 @@ export class WebServer {
           logger.info(`API Key 驗證成功 (${usingDatabaseKey ? '資料庫' : '新輸入'})`);
           res.json({ success: true, valid: true });
         } else {
+          const errorMsg = result.error || 'API Key 驗證失敗';
+          logAPIError({
+            endpoint: '/api/ai-settings/validate',
+            method: 'POST',
+            errorMessage: errorMsg,
+            errorDetails: JSON.stringify(result),
+            requestData: { model, usingDatabaseKey }
+          });
           logger.warn(`API Key 驗證失敗 (${usingDatabaseKey ? '資料庫' : '新輸入'}):`, result.error);
-          res.json({ success: false, valid: false, error: result.error });
+          res.json({ success: false, valid: false, error: errorMsg });
         }
       } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : '驗證失敗';
+        const errorDetails = error instanceof Error ? (error.stack || errorMsg) : String(error);
+        logAPIError({
+          endpoint: '/api/ai-settings/validate',
+          method: 'POST',
+          errorMessage: errorMsg,
+          errorDetails,
+          requestData: { model: req.body.model }
+        });
         logger.error('驗證 API Key 失敗:', error);
         res.status(500).json({
           success: false,
-          error: error instanceof Error ? error.message : '驗證失敗'
+          error: errorMsg
         });
       }
     });
@@ -1880,6 +1911,45 @@ export class WebServer {
         res.status(500).json({
           success: false,
           error: error instanceof Error ? error.message : '獲取日誌失敗'
+        });
+      }
+    });
+
+    // ============ API 錯誤日誌 API ============
+
+    // 獲取 API 錯誤日誌
+    this.app.get('/api/error-logs', (req, res) => {
+      try {
+        const endpoint = req.query['endpoint'] as string | undefined;
+        const limit = req.query['limit'] ? parseInt(req.query['limit'] as string) : 100;
+        const offset = req.query['offset'] ? parseInt(req.query['offset'] as string) : 0;
+
+        const options: { endpoint?: string; limit?: number; offset?: number } = { limit, offset };
+        if (endpoint) {
+          options.endpoint = endpoint;
+        }
+        const result = queryAPIErrorLogs(options);
+        res.json({ success: true, ...result });
+      } catch (error) {
+        logger.error('獲取 API 錯誤日誌失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取錯誤日誌失敗'
+        });
+      }
+    });
+
+    // 清理舊的 API 錯誤日誌
+    this.app.delete('/api/error-logs/cleanup', (req, res) => {
+      try {
+        const daysToKeep = req.query['days'] ? parseInt(req.query['days'] as string) : 7;
+        const deleted = cleanupOldAPIErrorLogs(daysToKeep);
+        res.json({ success: true, deleted });
+      } catch (error) {
+        logger.error('清理 API 錯誤日誌失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '清理錯誤日誌失敗'
         });
       }
     });

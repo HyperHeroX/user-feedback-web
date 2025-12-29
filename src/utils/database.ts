@@ -379,6 +379,27 @@ function createTables(): void {
     db.exec(`
     CREATE INDEX IF NOT EXISTS idx_cli_execution_logs_created ON cli_execution_logs(created_at DESC)
   `);
+
+    // API 錯誤日誌表
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS api_error_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      endpoint TEXT NOT NULL,
+      method TEXT NOT NULL,
+      error_message TEXT NOT NULL,
+      error_details TEXT,
+      request_data TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+    // API 錯誤日誌索引
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_api_error_logs_endpoint ON api_error_logs(endpoint)
+  `);
+    db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_api_error_logs_created ON api_error_logs(created_at DESC)
+  `);
 }
 
 /**
@@ -1651,6 +1672,103 @@ export function cleanupOldMCPServerLogs(daysToKeep: number = 7): number {
 
     const result = db.prepare(`
         DELETE FROM mcp_server_logs WHERE created_at < ?
+    `).run(cutoffDate.toISOString());
+
+    return result.changes;
+}
+
+// ==================== API 錯誤日誌操作 ====================
+
+export interface APIErrorLog {
+    id: number;
+    endpoint: string;
+    method: string;
+    errorMessage: string;
+    errorDetails: string | null;
+    requestData: string | null;
+    createdAt: string;
+}
+
+/**
+ * 記錄 API 錯誤
+ */
+export function logAPIError(data: {
+    endpoint: string;
+    method: string;
+    errorMessage: string;
+    errorDetails?: string;
+    requestData?: unknown;
+}): void {
+    const db = tryGetDb();
+    if (!db) return;
+
+    db.prepare(`
+        INSERT INTO api_error_logs (endpoint, method, error_message, error_details, request_data)
+        VALUES (?, ?, ?, ?, ?)
+    `).run(
+        data.endpoint,
+        data.method,
+        data.errorMessage,
+        data.errorDetails || null,
+        data.requestData ? JSON.stringify(data.requestData) : null
+    );
+}
+
+/**
+ * 查詢 API 錯誤日誌
+ */
+export function queryAPIErrorLogs(options: {
+    endpoint?: string;
+    limit?: number;
+    offset?: number;
+}): { logs: APIErrorLog[]; total: number } {
+    const db = tryGetDb();
+    if (!db) return { logs: [], total: 0 };
+
+    const { endpoint, limit = 100, offset = 0 } = options;
+
+    let whereClause = '';
+    const params: unknown[] = [];
+
+    if (endpoint) {
+        whereClause = 'WHERE endpoint = ?';
+        params.push(endpoint);
+    }
+
+    const countResult = db.prepare(`
+        SELECT COUNT(*) as count FROM api_error_logs ${whereClause}
+    `).get(...params) as { count: number };
+
+    const logs = db.prepare(`
+        SELECT 
+            id,
+            endpoint,
+            method,
+            error_message as errorMessage,
+            error_details as errorDetails,
+            request_data as requestData,
+            created_at as createdAt
+        FROM api_error_logs
+        ${whereClause}
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+    `).all(...params, limit, offset) as APIErrorLog[];
+
+    return { logs, total: countResult.count };
+}
+
+/**
+ * 清理舊的 API 錯誤日誌
+ */
+export function cleanupOldAPIErrorLogs(daysToKeep: number = 7): number {
+    const db = tryGetDb();
+    if (!db) return 0;
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+
+    const result = db.prepare(`
+        DELETE FROM api_error_logs WHERE created_at < ?
     `).run(cutoffDate.toISOString());
 
     return result.changes;

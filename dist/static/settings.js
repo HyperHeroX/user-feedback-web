@@ -7,6 +7,30 @@
 
   const API_BASE = "";
 
+  // Provider 與 API URL 的對應表 (key 需與 HTML select option value 一致)
+  const PROVIDER_API_MAP = {
+    openai: "https://api.openai.com/v1",
+    google: "https://generativelanguage.googleapis.com/v1beta",
+    anthropic: "https://api.anthropic.com/v1",
+    local: "http://localhost:11434/v1"
+  };
+
+  // 反向查詢：從 API URL 取得 Provider
+  function getProviderFromApiUrl(apiUrl) {
+    if (!apiUrl) return "openai";
+    const normalizedUrl = apiUrl.toLowerCase();
+    if (normalizedUrl.includes("generativelanguage.googleapis.com")) return "google";
+    if (normalizedUrl.includes("api.anthropic.com")) return "anthropic";
+    if (normalizedUrl.includes("localhost") || normalizedUrl.includes("127.0.0.1")) return "local";
+    if (normalizedUrl.includes("api.openai.com")) return "openai";
+    return "openai"; // 預設
+  }
+
+  // 從 Provider 取得 API URL
+  function getApiUrlFromProvider(provider) {
+    return PROVIDER_API_MAP[provider] || PROVIDER_API_MAP.openai;
+  }
+
   const elements = {
     // AI Settings
     aiProvider: document.getElementById("aiProvider"),
@@ -44,6 +68,8 @@
 
   // CLI 工具檢測結果緩存
   let cliDetectionResult = null;
+  // 追蹤原始的 apiKeyMasked，用於判斷用戶是否修改了 API key
+  let originalApiKeyMasked = "";
 
   function init() {
     setupEventListeners();
@@ -91,8 +117,13 @@
       const data = await response.json();
 
       if (data.settings) {
-        elements.aiProvider.value = data.settings.provider || "openai";
-        elements.apiKey.value = data.settings.apiKey || "";
+        // 從 apiUrl 反向推斷 provider
+        const provider = getProviderFromApiUrl(data.settings.apiUrl);
+        elements.aiProvider.value = provider;
+        // API 返回的是 apiKeyMasked（遮罩後的 key），顯示給用戶看
+        originalApiKeyMasked = data.settings.apiKeyMasked || "";
+        elements.apiKey.value = originalApiKeyMasked;
+        elements.apiKey.placeholder = originalApiKeyMasked ? "輸入新的 API Key 以更換" : "請輸入 API Key";
         elements.aiModel.value = data.settings.model || "";
         elements.systemPrompt.value = data.settings.systemPrompt || "";
         elements.mcpToolsPrompt.value = data.settings.mcpToolsPrompt || "";
@@ -233,11 +264,19 @@
   }
 
   async function testAIConnection() {
-    const provider = elements.aiProvider.value;
     const apiKey = elements.apiKey.value;
+    const model = elements.aiModel.value;
 
-    if (!apiKey) {
+    // 如果 API key 是遮罩值，表示用戶沒有修改，將使用資料庫中的 key
+    const apiKeyChanged = apiKey !== originalApiKeyMasked;
+
+    if (!apiKeyChanged && !originalApiKeyMasked) {
       showToast("請先輸入 API 金鑰", "error");
+      return;
+    }
+
+    if (!model) {
+      showToast("請先選擇模型", "error");
       return;
     }
 
@@ -245,15 +284,21 @@
     elements.testAiBtn.textContent = "測試中...";
 
     try {
-      const response = await fetch(`${API_BASE}/api/ai/test`, {
+      // 如果用戶修改了 API key 就傳送新的 key，否則不傳送（後端會使用資料庫中的）
+      const payload = { model };
+      if (apiKeyChanged) {
+        payload.apiKey = apiKey;
+      }
+
+      const response = await fetch(`${API_BASE}/api/ai-settings/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, apiKey }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
 
-      if (response.ok && data.success) {
+      if (response.ok && data.success && data.valid) {
         showToast("AI 連接測試成功！", "success");
       } else {
         showToast(`連接測試失敗: ${data.error || "未知錯誤"}`, "error");
@@ -268,9 +313,14 @@
   }
 
   async function saveAISettings() {
+    const provider = elements.aiProvider.value;
+    const currentApiKey = elements.apiKey.value;
+    
+    // 只有當用戶真的修改了 API key 才傳送（不是遮罩值）
+    const apiKeyChanged = currentApiKey !== originalApiKeyMasked;
+    
     const settings = {
-      provider: elements.aiProvider.value,
-      apiKey: elements.apiKey.value,
+      apiUrl: getApiUrlFromProvider(provider),
       model: elements.aiModel.value,
       systemPrompt: elements.systemPrompt.value,
       mcpToolsPrompt: elements.mcpToolsPrompt.value,
@@ -281,9 +331,13 @@
       debugMode: elements.debugMode.checked,
     };
 
-    if (!settings.apiKey) {
-      showToast("請輸入 API 金鑰", "error");
-      return;
+    // 只有修改了 API key 才加入
+    if (apiKeyChanged) {
+      if (!currentApiKey) {
+        showToast("請輸入 API 金鑰", "error");
+        return;
+      }
+      settings.apiKey = currentApiKey;
     }
 
     elements.saveAiBtn.disabled = true;
