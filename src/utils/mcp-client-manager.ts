@@ -7,6 +7,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { EventEmitter } from 'events';
 import {
     MCPServerConfig,
     MCPServerState,
@@ -16,12 +17,14 @@ import {
     MCPToolCallResult,
 } from '../types/index.js';
 import { logger } from './logger.js';
-import { getToolEnableConfigs, isToolEnabled, insertMCPServerLog } from './database.js';
+import { getToolEnableConfigs, isToolEnabled, insertMCPServerLog, getMCPServerById } from './database.js';
 
 interface MCPClientInstance {
     client: Client;
     transport: Transport;
     state: MCPServerState;
+    config?: MCPServerConfig | undefined;
+    reconnectTimer?: ReturnType<typeof setTimeout> | undefined;
 }
 
 interface MCPContent {
@@ -31,11 +34,36 @@ interface MCPContent {
     mimeType?: string;
 }
 
-class MCPClientManager {
+// 重連配置
+interface ReconnectConfig {
+    maxAttempts: number;
+    baseDelay: number;
+    maxDelay: number;
+    enabled: boolean;
+}
+
+// 事件類型
+export interface MCPClientEvents {
+    'server:connected': { serverId: number; serverName: string; state: MCPServerState };
+    'server:disconnected': { serverId: number; serverName: string; reason: string };
+    'server:error': { serverId: number; serverName: string; error: string; details?: string };
+    'server:reconnecting': { serverId: number; serverName: string; attempt: number; maxAttempts: number; nextRetryIn: number };
+    'server:state-changed': { serverId: number; state: MCPServerState };
+}
+
+class MCPClientManager extends EventEmitter {
     private static instance: MCPClientManager;
     private clients: Map<number, MCPClientInstance> = new Map();
+    private reconnectConfig: ReconnectConfig = {
+        maxAttempts: 3,
+        baseDelay: 2000,
+        maxDelay: 30000,
+        enabled: true
+    };
 
-    private constructor() { }
+    private constructor() {
+        super();
+    }
 
     static getInstance(): MCPClientManager {
         if (!MCPClientManager.instance) {
@@ -44,13 +72,24 @@ class MCPClientManager {
         return MCPClientManager.instance;
     }
 
-    async connect(config: MCPServerConfig): Promise<MCPServerState> {
+    setReconnectConfig(config: Partial<ReconnectConfig>): void {
+        this.reconnectConfig = { ...this.reconnectConfig, ...config };
+    }
+
+    getReconnectConfig(): ReconnectConfig {
+        return { ...this.reconnectConfig };
+    }
+
+    async connect(config: MCPServerConfig, isReconnect = false): Promise<MCPServerState> {
         if (this.clients.has(config.id)) {
             const existing = this.clients.get(config.id)!;
             if (existing.state.status === 'connected') {
                 return existing.state;
             }
-            await this.disconnect(config.id);
+            if (existing.reconnectTimer) {
+                clearTimeout(existing.reconnectTimer);
+            }
+            await this.disconnect(config.id, true);
         }
 
         const state: MCPServerState = {
@@ -59,6 +98,8 @@ class MCPClientManager {
             tools: [],
             resources: [],
             prompts: [],
+            reconnectAttempts: isReconnect ? (this.clients.get(config.id)?.state.reconnectAttempts ?? 0) + 1 : 0,
+            maxReconnectAttempts: this.reconnectConfig.maxAttempts
         };
 
         try {
@@ -70,13 +111,15 @@ class MCPClientManager {
 
             await client.connect(transport);
 
-            const instance: MCPClientInstance = { client, transport, state };
+            const instance: MCPClientInstance = { client, transport, state, config };
 
-            // 設置 transport 事件監聽器，處理運行時崩潰（隔離錯誤）
             this.setupTransportHandlers(config.id, config.name, transport, instance);
 
             instance.state.status = 'connected';
             instance.state.connectedAt = new Date().toISOString();
+            instance.state.error = undefined;
+            instance.state.lastError = undefined;
+            instance.state.reconnectAttempts = 0;
 
             instance.state.tools = await this.fetchTools(client);
             instance.state.resources = await this.fetchResources(client);
@@ -89,19 +132,28 @@ class MCPClientManager {
                 serverId: config.id,
                 serverName: config.name,
                 type: 'connect',
-                message: `連線成功，工具數量: ${instance.state.tools.length}`,
+                message: isReconnect ? `重連成功，工具數量: ${instance.state.tools.length}` : `連線成功，工具數量: ${instance.state.tools.length}`,
                 details: JSON.stringify({
                     toolCount: instance.state.tools.length,
                     resourceCount: instance.state.resources.length,
-                    promptCount: instance.state.prompts.length
+                    promptCount: instance.state.prompts.length,
+                    isReconnect
                 })
             });
+
+            this.emit('server:connected', { serverId: config.id, serverName: config.name, state: instance.state });
+            this.emit('server:state-changed', { serverId: config.id, state: instance.state });
 
             return instance.state;
         } catch (error) {
             state.status = 'error';
             const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorStack = error instanceof Error ? error.stack : undefined;
             state.error = errorMessage;
+            state.errorDetails = errorStack;
+            state.lastError = errorMessage;
+            state.lastErrorAt = new Date().toISOString();
+            
             logger.error(`Failed to connect MCP Server ${config.name}:`, error);
 
             insertMCPServerLog({
@@ -114,22 +166,50 @@ class MCPClientManager {
                     args: config.args,
                     transport: config.transport,
                     error: errorMessage,
-                    stack: error instanceof Error ? error.stack : undefined
+                    stack: errorStack,
+                    attempt: state.reconnectAttempts
                 })
             });
+
+            this.emit('server:error', { 
+                serverId: config.id, 
+                serverName: config.name, 
+                error: errorMessage, 
+                details: errorStack 
+            });
+
+            const tempInstance: MCPClientInstance = { 
+                client: null as unknown as Client, 
+                transport: null as unknown as Transport, 
+                state, 
+                config 
+            };
+            this.clients.set(config.id, tempInstance);
+
+            if (this.reconnectConfig.enabled && (state.reconnectAttempts ?? 0) < this.reconnectConfig.maxAttempts) {
+                this.scheduleReconnect(config, state.reconnectAttempts ?? 0);
+            }
+
+            this.emit('server:state-changed', { serverId: config.id, state });
 
             return state;
         }
     }
 
-    async disconnect(serverId: number): Promise<void> {
+    async disconnect(serverId: number, skipEvent = false): Promise<void> {
         const instance = this.clients.get(serverId);
         if (!instance) return;
 
-        const serverName = instance.state.id ? `Server ${instance.state.id}` : 'Unknown';
+        if (instance.reconnectTimer) {
+            clearTimeout(instance.reconnectTimer);
+        }
+
+        const serverName = instance.config?.name ?? `Server ${instance.state.id}`;
 
         try {
-            await instance.client.close();
+            if (instance.client) {
+                await instance.client.close();
+            }
             logger.info(`MCP Server disconnected: ID ${serverId}`);
 
             insertMCPServerLog({
@@ -138,6 +218,10 @@ class MCPClientManager {
                 type: 'disconnect',
                 message: '連線已斷開'
             });
+
+            if (!skipEvent) {
+                this.emit('server:disconnected', { serverId, serverName, reason: 'manual' });
+            }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
             logger.error(`Error disconnecting MCP Server ${serverId}:`, error);
@@ -159,8 +243,74 @@ class MCPClientManager {
         await Promise.all(serverIds.map((id) => this.disconnect(id)));
     }
 
+    private scheduleReconnect(config: MCPServerConfig, currentAttempt: number): void {
+        const delay = Math.min(
+            this.reconnectConfig.baseDelay * Math.pow(2, currentAttempt),
+            this.reconnectConfig.maxDelay
+        );
+        const nextRetryAt = new Date(Date.now() + delay).toISOString();
+        
+        const instance = this.clients.get(config.id);
+        if (instance) {
+            instance.state.status = 'reconnecting';
+            instance.state.nextReconnectAt = nextRetryAt;
+            instance.state.reconnectAttempts = currentAttempt + 1;
+        }
+
+        logger.info(`MCP Server ${config.name} 將在 ${delay}ms 後重連 (嘗試 ${currentAttempt + 1}/${this.reconnectConfig.maxAttempts})`);
+
+        this.emit('server:reconnecting', {
+            serverId: config.id,
+            serverName: config.name,
+            attempt: currentAttempt + 1,
+            maxAttempts: this.reconnectConfig.maxAttempts,
+            nextRetryIn: delay
+        });
+
+        const timer = setTimeout(async () => {
+            logger.info(`正在重連 MCP Server: ${config.name}...`);
+            await this.connect(config, true);
+        }, delay);
+
+        if (instance) {
+            instance.reconnectTimer = timer;
+        }
+    }
+
+    cancelReconnect(serverId: number): void {
+        const instance = this.clients.get(serverId);
+        if (instance?.reconnectTimer) {
+            clearTimeout(instance.reconnectTimer);
+            instance.reconnectTimer = undefined;
+            instance.state.status = 'error';
+            instance.state.nextReconnectAt = undefined;
+            logger.info(`取消 MCP Server ${serverId} 的重連`);
+            this.emit('server:state-changed', { serverId, state: instance.state });
+        }
+    }
+
+    async retryConnect(serverId: number): Promise<MCPServerState | null> {
+        const instance = this.clients.get(serverId);
+        const config = instance?.config ?? getMCPServerById(serverId);
+        
+        if (!config) {
+            logger.error(`無法找到 MCP Server 配置: ${serverId}`);
+            return null;
+        }
+
+        if (instance?.reconnectTimer) {
+            clearTimeout(instance.reconnectTimer);
+        }
+
+        if (instance) {
+            instance.state.reconnectAttempts = 0;
+        }
+
+        return this.connect(config, false);
+    }
+
     /**
-     * 設置 transport 事件監聽器
+     * 設置 transport 事件監聯器
      * 處理 MCP Server 運行時崩潰，將錯誤隔離不影響主程式
      */
     private setupTransportHandlers(
@@ -169,11 +319,12 @@ class MCPClientManager {
         transport: Transport,
         instance: MCPClientInstance
     ): void {
-        // 處理 transport 錯誤
         transport.onerror = (error: Error) => {
             logger.error(`MCP Server ${serverName} (ID: ${serverId}) transport 錯誤:`, error);
             instance.state.status = 'error';
             instance.state.error = error.message;
+            instance.state.lastError = error.message;
+            instance.state.lastErrorAt = new Date().toISOString();
 
             insertMCPServerLog({
                 serverId,
@@ -185,16 +336,25 @@ class MCPClientManager {
                     stack: error.stack
                 })
             });
+
+            this.emit('server:error', { 
+                serverId, 
+                serverName, 
+                error: error.message, 
+                details: error.stack 
+            });
+            this.emit('server:state-changed', { serverId, state: instance.state });
         };
 
-        // 處理 transport 關閉（意外崩潰或正常斷開）
         transport.onclose = () => {
             const wasConnected = instance.state.status === 'connected';
             logger.info(`MCP Server ${serverName} (ID: ${serverId}) transport 已關閉`);
 
             if (wasConnected) {
-                instance.state.status = 'disconnected';
+                instance.state.status = 'error';
                 instance.state.error = '連線意外斷開';
+                instance.state.lastError = '連線意外斷開';
+                instance.state.lastErrorAt = new Date().toISOString();
 
                 insertMCPServerLog({
                     serverId,
@@ -202,10 +362,19 @@ class MCPClientManager {
                     type: 'disconnect',
                     message: '連線意外斷開（Transport 關閉）'
                 });
-            }
 
-            // 從 clients map 中移除
-            this.clients.delete(serverId);
+                this.emit('server:disconnected', { serverId, serverName, reason: 'unexpected' });
+                this.emit('server:state-changed', { serverId, state: instance.state });
+
+                if (this.reconnectConfig.enabled && instance.config) {
+                    const currentAttempts = instance.state.reconnectAttempts ?? 0;
+                    if (currentAttempts < this.reconnectConfig.maxAttempts) {
+                        this.scheduleReconnect(instance.config, currentAttempts);
+                    } else {
+                        logger.warn(`MCP Server ${serverName} 已達最大重連次數 (${this.reconnectConfig.maxAttempts})`);
+                    }
+                }
+            }
         };
     }
 

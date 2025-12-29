@@ -74,6 +74,28 @@ export class WebServer {
         this.setupRoutes();
         this.setupSocketHandlers();
         this.setupGracefulShutdown();
+        this.setupMCPClientEvents();
+    }
+    /**
+     * 設置 MCP 客戶端事件監聽，將狀態變更推送到前端
+     */
+    setupMCPClientEvents() {
+        mcpClientManager.on('server:connected', (data) => {
+            this.io.emit('mcp:server_connected', data);
+        });
+        mcpClientManager.on('server:disconnected', (data) => {
+            this.io.emit('mcp:server_disconnected', data);
+        });
+        mcpClientManager.on('server:error', (data) => {
+            this.io.emit('mcp:server_error', data);
+        });
+        mcpClientManager.on('server:reconnecting', (data) => {
+            this.io.emit('mcp:server_reconnecting', data);
+        });
+        mcpClientManager.on('server:state-changed', (data) => {
+            this.io.emit('mcp:server_state_changed', data);
+        });
+        logger.debug('MCP 客戶端事件監聽已設置');
     }
     /**
      * 解析靜態資源目錄，優先使用建置產物，其次回退到原始碼目錄
@@ -1191,6 +1213,64 @@ export class WebServer {
                     success: false,
                     error: error instanceof Error ? error.message : '斷開 MCP Server 失敗'
                 });
+            }
+        });
+        // 重試連接 MCP Server（手動重連）
+        this.app.post('/api/mcp-servers/:id/retry', async (req, res) => {
+            try {
+                const id = parseInt(req.params.id);
+                if (isNaN(id)) {
+                    res.status(400).json({ success: false, error: '無效的 Server ID' });
+                    return;
+                }
+                const state = await mcpClientManager.retryConnect(id);
+                if (!state) {
+                    res.status(404).json({ success: false, error: 'MCP Server 不存在' });
+                    return;
+                }
+                logger.info(`重試連接 MCP Server: ID ${id} -> ${state.status}`);
+                res.json({ success: state.status === 'connected', state });
+            }
+            catch (error) {
+                logger.error('重試連接 MCP Server 失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '重試連接失敗'
+                });
+            }
+        });
+        // 取消自動重連
+        this.app.post('/api/mcp-servers/:id/cancel-reconnect', (req, res) => {
+            try {
+                const id = parseInt(req.params.id);
+                if (isNaN(id)) {
+                    res.status(400).json({ success: false, error: '無效的 Server ID' });
+                    return;
+                }
+                mcpClientManager.cancelReconnect(id);
+                logger.info(`取消 MCP Server 重連: ID ${id}`);
+                res.json({ success: true });
+            }
+            catch (error) {
+                logger.error('取消重連失敗:', error);
+                res.status(500).json({
+                    success: false,
+                    error: error instanceof Error ? error.message : '取消重連失敗'
+                });
+            }
+        });
+        // 獲取/設置重連配置
+        this.app.get('/api/mcp-reconnect-config', (req, res) => {
+            res.json({ success: true, config: mcpClientManager.getReconnectConfig() });
+        });
+        this.app.put('/api/mcp-reconnect-config', (req, res) => {
+            try {
+                const { maxAttempts, baseDelay, maxDelay, enabled } = req.body;
+                mcpClientManager.setReconnectConfig({ maxAttempts, baseDelay, maxDelay, enabled });
+                res.json({ success: true, config: mcpClientManager.getReconnectConfig() });
+            }
+            catch (error) {
+                res.status(500).json({ success: false, error: '更新重連配置失敗' });
             }
         });
         // 獲取 MCP Server 工具列表

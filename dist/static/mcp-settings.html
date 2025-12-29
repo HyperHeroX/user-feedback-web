@@ -162,9 +162,20 @@
             color: #92400e;
         }
 
+        .server-status.reconnecting {
+            background: #dbeafe;
+            color: #1e40af;
+            animation: pulse 2s infinite;
+        }
+
         .server-status.error {
             background: #fee2e2;
             color: #991b1b;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
         }
 
         .status-dot {
@@ -174,9 +185,26 @@
             background: currentColor;
         }
 
+        .btn-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #d97706;
+        }
+
+        .error-section {
+            background: #fef2f2;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 8px;
+        }
+
         .server-actions {
             display: flex;
             gap: 8px;
+            flex-wrap: wrap;
         }
 
         .server-body {

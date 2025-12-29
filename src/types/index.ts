@@ -370,17 +370,23 @@ export interface MCPServerConfig {
 }
 
 // MCP Server 連接狀態
-export type MCPConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type MCPConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting';
 
 // MCP Server 運行時狀態
 export interface MCPServerState {
   id: number;
   status: MCPConnectionStatus;
   error?: string | undefined;
+  errorDetails?: string | undefined;
   tools: MCPToolInfo[];
   resources: MCPResourceInfo[];
   prompts: MCPPromptInfo[];
   connectedAt?: string | undefined;
+  lastError?: string | undefined;
+  lastErrorAt?: string | undefined;
+  reconnectAttempts?: number | undefined;
+  maxReconnectAttempts?: number | undefined;
+  nextReconnectAt?: string | undefined;
 }
 
 // MCP Tool 資訊

@@ -284,15 +284,21 @@ export interface MCPServerConfig {
     createdAt: string;
     updatedAt: string;
 }
-export type MCPConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type MCPConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting';
 export interface MCPServerState {
     id: number;
     status: MCPConnectionStatus;
     error?: string | undefined;
+    errorDetails?: string | undefined;
     tools: MCPToolInfo[];
     resources: MCPResourceInfo[];
     prompts: MCPPromptInfo[];
     connectedAt?: string | undefined;
+    lastError?: string | undefined;
+    lastErrorAt?: string | undefined;
+    reconnectAttempts?: number | undefined;
+    maxReconnectAttempts?: number | undefined;
+    nextReconnectAt?: string | undefined;
 }
 export interface MCPToolInfo {
     name: string;

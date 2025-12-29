@@ -38,11 +38,58 @@
 
     // 狀態
     let servers = [];
+    let socket = null;
 
     // 初始化
     function init() {
         loadServers();
         initEventListeners();
+        initSocketEvents();
+    }
+
+    // 初始化 Socket.IO 事件
+    function initSocketEvents() {
+        if (typeof io === 'undefined') {
+            console.warn('Socket.IO not available');
+            return;
+        }
+
+        socket = io();
+
+        socket.on('connect', () => {
+            console.log('Socket.IO connected');
+        });
+
+        socket.on('mcp:server_connected', (data) => {
+            console.log('MCP Server connected:', data);
+            showToast(`${data.serverName} 已連接`, 'success');
+            loadServers();
+        });
+
+        socket.on('mcp:server_disconnected', (data) => {
+            console.log('MCP Server disconnected:', data);
+            if (data.reason === 'unexpected') {
+                showToast(`⚠️ ${data.serverName} 意外斷開`, 'warning');
+            }
+            loadServers();
+        });
+
+        socket.on('mcp:server_error', (data) => {
+            console.error('MCP Server error:', data);
+            showToast(`❌ ${data.serverName} 錯誤: ${data.error}`, 'error');
+            loadServers();
+        });
+
+        socket.on('mcp:server_reconnecting', (data) => {
+            console.log('MCP Server reconnecting:', data);
+            showToast(`🔄 ${data.serverName} 正在重連 (${data.attempt}/${data.maxAttempts})`, 'info');
+            loadServers();
+        });
+
+        socket.on('mcp:server_state_changed', (data) => {
+            console.log('MCP Server state changed:', data);
+            loadServers();
+        });
     }
 
     // 載入 Server 列表
@@ -84,6 +131,8 @@
         const statusClass = state.status;
         const statusText = getStatusText(state.status);
         const tools = state.tools || [];
+        const isReconnecting = state.status === 'reconnecting';
+        const hasError = state.status === 'error' || state.lastError;
 
         return `
             <div class="server-card ${statusClass}" data-server-id="${server.id}">
@@ -98,8 +147,11 @@
                     <div class="server-actions">
                         ${state.status === 'connected' 
                             ? `<button class="btn btn-secondary btn-disconnect" data-id="${server.id}">斷開</button>`
-                            : `<button class="btn btn-success btn-connect" data-id="${server.id}">連接</button>`
+                            : isReconnecting
+                                ? `<button class="btn btn-warning btn-cancel-reconnect" data-id="${server.id}">取消重連</button>`
+                                : `<button class="btn btn-success btn-connect" data-id="${server.id}">連接</button>`
                         }
+                        ${hasError && !isReconnecting ? `<button class="btn btn-primary btn-retry" data-id="${server.id}">🔄 重試</button>` : ''}
                         <button class="btn btn-secondary btn-edit" data-id="${server.id}">編輯</button>
                         <button class="btn btn-danger btn-delete" data-id="${server.id}">刪除</button>
                     </div>
@@ -127,10 +179,27 @@
                                 <span class="detail-value">${escapeHtml(server.url || '-')}</span>
                             </div>
                         `}
-                        ${state.error ? `
-                            <div class="detail-item" style="grid-column: 1 / -1;">
-                                <span class="detail-label" style="color: #ef4444;">錯誤</span>
-                                <span class="detail-value" style="color: #ef4444;">${escapeHtml(state.error)}</span>
+                        ${hasError ? `
+                            <div class="error-section" style="grid-column: 1 / -1;">
+                                <div class="detail-item">
+                                    <span class="detail-label" style="color: #ef4444;">⚠️ 錯誤</span>
+                                    <span class="detail-value" style="color: #ef4444;">${escapeHtml(state.error || state.lastError)}</span>
+                                </div>
+                                ${state.lastErrorAt ? `
+                                    <div class="detail-item">
+                                        <span class="detail-label" style="color: #f97316;">發生時間</span>
+                                        <span class="detail-value" style="color: #f97316;">${formatTime(state.lastErrorAt)}</span>
+                                    </div>
+                                ` : ''}
+                                ${isReconnecting ? `
+                                    <div class="detail-item">
+                                        <span class="detail-label" style="color: #3b82f6;">重連狀態</span>
+                                        <span class="detail-value" style="color: #3b82f6;">
+                                            嘗試 ${state.reconnectAttempts || 0}/${state.maxReconnectAttempts || 3}
+                                            ${state.nextReconnectAt ? ` - 下次重連: ${formatTime(state.nextReconnectAt)}` : ''}
+                                        </span>
+                                    </div>
+                                ` : ''}
                             </div>
                         ` : ''}
                     </div>
@@ -149,6 +218,17 @@
                 </div>
             </div>
         `;
+    }
+
+    // 格式化時間
+    function formatTime(isoString) {
+        if (!isoString) return '-';
+        const date = new Date(isoString);
+        return date.toLocaleString('zh-TW', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit'
+        });
     }
 
     // 渲染工具項目
@@ -176,6 +256,7 @@
             'connected': '已連接',
             'disconnected': '已斷開',
             'connecting': '連接中...',
+            'reconnecting': '重連中...',
             'error': '錯誤'
         };
         return statusMap[status] || status;
@@ -235,6 +316,16 @@
         // 刪除按鈕
         document.querySelectorAll('.btn-delete').forEach(btn => {
             btn.addEventListener('click', () => deleteServer(parseInt(btn.dataset.id)));
+        });
+
+        // 重試按鈕
+        document.querySelectorAll('.btn-retry').forEach(btn => {
+            btn.addEventListener('click', () => retryServer(parseInt(btn.dataset.id)));
+        });
+
+        // 取消重連按鈕
+        document.querySelectorAll('.btn-cancel-reconnect').forEach(btn => {
+            btn.addEventListener('click', () => cancelReconnect(parseInt(btn.dataset.id)));
         });
 
         // 工具啟用切換
@@ -398,6 +489,49 @@
             showToast('斷開失敗', 'error');
         } finally {
             showLoading(false);
+        }
+    }
+
+    // 重試連接 Server
+    async function retryServer(id) {
+        showLoading(true);
+        try {
+            const response = await fetch(`${API_BASE}/api/mcp-servers/${id}/retry`, {
+                method: 'POST'
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                showToast('重試連接成功', 'success');
+            } else {
+                showToast(result.error || '重試連接失敗', 'error');
+            }
+            loadServers();
+        } catch (error) {
+            console.error('Retry failed:', error);
+            showToast('重試連接失敗', 'error');
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    // 取消自動重連
+    async function cancelReconnect(id) {
+        try {
+            const response = await fetch(`${API_BASE}/api/mcp-servers/${id}/cancel-reconnect`, {
+                method: 'POST'
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                showToast('已取消自動重連', 'info');
+            } else {
+                showToast(result.error || '取消失敗', 'error');
+            }
+            loadServers();
+        } catch (error) {
+            console.error('Cancel reconnect failed:', error);
+            showToast('取消失敗', 'error');
         }
     }
 

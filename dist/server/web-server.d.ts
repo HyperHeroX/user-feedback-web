@@ -20,6 +20,10 @@ export declare class WebServer {
     private autoReplyWarningTimers;
     constructor(config: Config);
     /**
+     * 設置 MCP 客戶端事件監聽，將狀態變更推送到前端
+     */
+    private setupMCPClientEvents;
+    /**
      * 解析靜態資源目錄，優先使用建置產物，其次回退到原始碼目錄
      * 使用模組的實際位置而不是 process.cwd()，以支援從任何目錄啟動的 MCP 模式
      */
