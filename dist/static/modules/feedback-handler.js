@@ -107,7 +107,7 @@ export async function generateAIReply() {
 
   // 使用 streaming panel 顯示進度
   showStreamingPanel();
-  
+
   // 清空輸出區域
   const container = document.getElementById("streamingOutput");
   if (container) {
@@ -125,7 +125,11 @@ export async function generateAIReply() {
 
     // Step 1: 顯示提示詞預覽（簡化版）
     updateStreamingStatus("preparing", "準備提示詞...");
-    const localPreview = buildLocalPromptPreview(workSummary, userContext, null);
+    const localPreview = buildLocalPromptPreview(
+      workSummary,
+      userContext,
+      null
+    );
     showPromptPreview(localPreview, 1, "pending", null);
 
     // Step 2: 顯示 AI 思考中
@@ -157,7 +161,7 @@ export async function generateAIReply() {
 
       // Step 3: 顯示 AI 回覆
       showAIReplyResult(finalReply, 1, data.mode, data.cliTool);
-      
+
       const modeLabel = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
       updateStreamingStatus("success", `AI 回覆完成 (${modeLabel})`);
     } else {
@@ -589,7 +593,12 @@ function showPromptPreview(prompt, round, mode, cliTool) {
   const container = document.getElementById("streamingOutput");
   if (!container) return;
 
-  const modeLabel = mode === "pending" ? "準備中..." : (mode === "cli" ? `CLI (${cliTool})` : "API");
+  const modeLabel =
+    mode === "pending"
+      ? "準備中..."
+      : mode === "cli"
+      ? `CLI (${cliTool})`
+      : "API";
   const promptDiv = document.createElement("div");
   promptDiv.className = "prompt-preview";
   promptDiv.id = `prompt-preview-${round}`;
@@ -611,20 +620,34 @@ function showPromptPreview(prompt, round, mode, cliTool) {
  * 更新提示詞預覽為完整版本
  */
 function updatePromptPreview(prompt, round, mode, cliTool) {
+  console.log("[feedback-handler] updatePromptPreview called:", {
+    round,
+    mode,
+    cliTool,
+    promptLength: prompt?.length,
+  });
+
   const promptDiv = document.getElementById(`prompt-preview-${round}`);
-  if (!promptDiv) return;
+  if (!promptDiv) {
+    console.warn(
+      "[feedback-handler] prompt-preview element not found for round:",
+      round
+    );
+    return;
+  }
 
   const modeLabel = mode === "cli" ? `CLI (${cliTool})` : "API";
   promptDiv.innerHTML = `
-    <details>
+    <details open>
       <summary style="cursor: pointer; padding: 8px; background: var(--accent-blue-bg, rgba(59, 130, 246, 0.1)); border-radius: 4px; margin-bottom: 8px; color: var(--accent-blue, #3b82f6);">
-        📤 Round ${round}: 完整提示詞 (${modeLabel})
+        📤 Round ${round}: 完整提示詞 (${modeLabel}) - 已更新
       </summary>
       <pre style="background: var(--bg-secondary); padding: 12px; border-radius: 6px; margin: 8px 0; max-height: 300px; overflow-y: auto; font-size: 11px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--border-color);">${escapeHtml(
         prompt
       )}</pre>
     </details>
   `;
+  console.log("[feedback-handler] prompt-preview updated successfully");
 }
 
 /**
@@ -706,22 +729,22 @@ function showToolResults(results, round) {
  */
 function buildLocalPromptPreview(workSummary, userContext, toolResults) {
   let preview = "";
-  
+
   preview += "## AI 工作匯報\n";
   preview += workSummary + "\n\n";
-  
+
   if (userContext) {
     preview += "## 使用者上下文\n";
     preview += userContext + "\n\n";
   }
-  
+
   if (toolResults) {
     preview += "## 工具執行結果\n";
     preview += toolResults + "\n\n";
   }
-  
+
   preview += "(完整提示詞包含系統指令和 MCP 工具列表，將在 AI 回覆後顯示)";
-  
+
   return preview;
 }
 
@@ -772,14 +795,22 @@ export async function generateAIReplyWithTools() {
       }
 
       round++;
-      
+
       // Step 1: 顯示提示詞預覽（前端構建的簡化版）
       updateToolProgressUI(round, "preparing", "準備提示詞...");
-      const localPreview = buildLocalPromptPreview(workSummary, userContext, toolResults);
+      const localPreview = buildLocalPromptPreview(
+        workSummary,
+        userContext,
+        toolResults
+      );
       showPromptPreview(localPreview, round, "pending", null);
 
       // Step 2: 顯示 AI 思考中
-      updateToolProgressUI(round, "thinking", "AI 思考中... (可能需要 30-60 秒)");
+      updateToolProgressUI(
+        round,
+        "thinking",
+        "AI 思考中... (可能需要 30-60 秒)"
+      );
 
       // Step 3: 發送請求並等待回覆
       const requestBody = {
@@ -807,6 +838,13 @@ export async function generateAIReplyWithTools() {
       }
 
       const data = await response.json();
+      console.log("[feedback-handler] API response received:", {
+        success: data.success,
+        hasPromptSent: !!data.promptSent,
+        promptSentLength: data.promptSent?.length,
+        mode: data.mode,
+        cliTool: data.cliTool,
+      });
 
       if (!data.success) {
         addStreamingOutput(data.error || "AI 回覆失敗", "error");
@@ -818,7 +856,12 @@ export async function generateAIReplyWithTools() {
 
       // 更新提示詞預覽為完整版本（如果有）
       if (data.promptSent) {
+        console.log(
+          "[feedback-handler] Calling updatePromptPreview with promptSent"
+        );
         updatePromptPreview(data.promptSent, round, data.mode, data.cliTool);
+      } else {
+        console.warn("[feedback-handler] data.promptSent is missing!");
       }
 
       // Step 3: 顯示 AI 回覆
@@ -846,7 +889,12 @@ export async function generateAIReplyWithTools() {
       }
 
       // Step 4: 多輪對話 - 顯示工具呼叫
-      updateToolProgressUI(round, "executing", "執行工具中...", parsed.toolCalls);
+      updateToolProgressUI(
+        round,
+        "executing",
+        "執行工具中...",
+        parsed.toolCalls
+      );
       showToolCalls(parsed.toolCalls, round);
 
       if (parsed.message) {
@@ -979,7 +1027,11 @@ export async function triggerAutoAIReply() {
       }
 
       round++;
-      updateToolProgressUI(round, "thinking", "AI 思考中... (可能需要 30-60 秒)");
+      updateToolProgressUI(
+        round,
+        "thinking",
+        "AI 思考中... (可能需要 30-60 秒)"
+      );
 
       // 設置 3 分鐘超時
       const timeoutController = new AbortController();
