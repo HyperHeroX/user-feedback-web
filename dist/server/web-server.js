@@ -19,6 +19,7 @@ import { performanceMonitor } from '../utils/performance-monitor.js';
 import { SessionStorage } from '../utils/session-storage.js';
 import { projectManager } from '../utils/project-manager.js';
 import { getPackageVersion } from '../utils/version.js';
+import { InstanceLock } from '../utils/instance-lock.js';
 const VERSION = getPackageVersion();
 import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled, setToolEnabled, batchSetToolEnabled, queryMCPServerLogs, getRecentMCPServerErrors, cleanupOldMCPServerLogs, getCLISettings, updateCLISettings, getCLITerminals, getCLITerminalById, deleteCLITerminal, getCLIExecutionLogs, cleanupOldCLIExecutionLogs, logAPIRequest, queryAPILogs, queryAPIErrorLogs, cleanupOldAPILogs, clearAllAPILogs } from '../utils/database.js';
 import { maskApiKey } from '../utils/crypto-helper.js';
@@ -191,6 +192,8 @@ export class WebServer {
                     }
                 }
                 await this.gracefulStop();
+                // 釋放實例鎖定
+                await InstanceLock.release();
                 logger.info('優雅關閉完成');
                 process.exit(0);
             }
@@ -359,7 +362,7 @@ export class WebServer {
                 timestamp: new Date().toISOString()
             });
         });
-        // 健康檢查路由
+        // 健康檢查路由 (舊版本保留)
         this.app.get('/health', (req, res) => {
             res.json({
                 status: 'healthy',
@@ -368,6 +371,18 @@ export class WebServer {
                 uptime: process.uptime(),
                 memory: process.memoryUsage(),
                 active_sessions: this.sessionStorage.getSessionCount()
+            });
+        });
+        // 健康檢查路由 (新 API 路徑，用於 Single Instance 檢測)
+        this.app.get('/api/health', (req, res) => {
+            res.json({
+                status: 'ok',
+                pid: process.pid,
+                port: this.port,
+                uptime: process.uptime(),
+                version: VERSION,
+                activeSessions: this.sessionStorage.getSessionCount(),
+                timestamp: new Date().toISOString()
             });
         });
         // ============ Dashboard API ============

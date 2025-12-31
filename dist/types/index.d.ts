@@ -19,6 +19,9 @@ export interface Config {
     cleanupPortOnStart?: boolean | undefined;
     enableImageToText?: boolean | undefined;
     imageToTextPrompt?: string | undefined;
+    lockFilePath?: string | undefined;
+    healthCheckTimeout?: number | undefined;
+    forceNewInstance?: boolean | undefined;
 }
 export interface FeedbackData {
     text?: string;

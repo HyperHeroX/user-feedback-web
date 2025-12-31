@@ -24,6 +24,10 @@ export interface Config {
   // 新增：圖片轉文字功能設定
   enableImageToText?: boolean | undefined;   // 啟用圖片轉文字功能
   imageToTextPrompt?: string | undefined;    // 圖片轉文字提示詞
+  // 新增：單一實例模式設定
+  lockFilePath?: string | undefined;         // 鎖定檔案路徑
+  healthCheckTimeout?: number | undefined;   // 健康檢查逾時（毫秒）
+  forceNewInstance?: boolean | undefined;    // 強制啟動新實例
 }
 
 // 回饋資料類型

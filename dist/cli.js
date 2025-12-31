@@ -8,6 +8,7 @@ import { logger } from './utils/logger.js';
 import { MCPServer } from './server/mcp-server.js';
 import { MCPError } from './types/index.js';
 import { getPackageVersion } from './utils/version.js';
+import { InstanceLock } from './utils/instance-lock.js';
 const VERSION = getPackageVersion();
 // 在最开始检测MCP模式并设置日志级别
 // 改进的MCP模式检测：检查多个条件
@@ -60,6 +61,37 @@ async function startMCPServer(options) {
             displayConfig(config);
             console.log('');
         }
+        // 設定鎖定檔案路徑（如果有配置）
+        if (config.lockFilePath) {
+            InstanceLock.setLockFilePath(config.lockFilePath);
+        }
+        // 檢查是否需要強制啟動新實例
+        const forceNewInstance = options.forceNew || config.forceNewInstance;
+        // 單一實例檢測（除非強制啟動新實例）
+        if (!forceNewInstance) {
+            const instanceCheck = await InstanceLock.check(config.healthCheckTimeout);
+            if (instanceCheck.running && instanceCheck.port) {
+                logger.info(`檢測到已運行的實例: PID=${instanceCheck.pid}, Port=${instanceCheck.port}`);
+                if (isMCPMode) {
+                    // MCP 模式下，輸出現有實例資訊後繼續運行
+                    // 讓 MCP 客戶端連接到現有實例
+                    logger.debug(`MCP模式: 連接到現有實例 http://localhost:${instanceCheck.port}`);
+                }
+                else {
+                    // 交互模式下，顯示提示並退出
+                    console.log(`\n✓ 已有 User Feedback 實例運行中`);
+                    console.log(`  端口: ${instanceCheck.port}`);
+                    console.log(`  PID: ${instanceCheck.pid}`);
+                    console.log(`  訪問: http://localhost:${instanceCheck.port}`);
+                    console.log(`\n使用 --force-new 強制啟動新實例`);
+                }
+                return;
+            }
+        }
+        else {
+            logger.info('強制啟動新實例模式');
+            await InstanceLock.forceCleanup();
+        }
         // 建立並啟動MCP伺服器
         const server = new MCPServer(config);
         // 決定啟動模式：
@@ -76,6 +108,14 @@ async function startMCPServer(options) {
             // 完整MCP模式
             logger.info('啟動MCP伺服器...');
             await server.start();
+        }
+        // 獲取鎖定（伺服器啟動成功後）
+        const status = server.getStatus();
+        if (status.webPort) {
+            const lockAcquired = await InstanceLock.acquire(status.webPort);
+            if (!lockAcquired) {
+                logger.warn('無法獲取實例鎖定，可能存在競爭條件');
+            }
         }
         // 注意：優雅關閉處理已在WebServer中實作，這裡不需要重複處理
     }
@@ -136,6 +176,7 @@ program
     .option('-c, --config <path>', '指定設定檔路徑')
     .option('-d, --debug', '啟用除錯模式（顯示詳細的MCP通訊日誌）')
     .option('--mcp-mode', '強制啟用MCP模式（用於除錯）')
+    .option('-f, --force-new', '強制啟動新實例（忽略已運行的實例）')
     .action(startMCPServer);
 // 健康檢查命令
 program

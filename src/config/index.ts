@@ -72,7 +72,11 @@ export function createDefaultConfig(): Config {
     cleanupPortOnStart: getEnvBoolean('MCP_CLEANUP_PORT_ON_START', true),  // 默认启用端口清理
     // 新增：图片转文字功能配置
     enableImageToText: getEnvBoolean('MCP_ENABLE_IMAGE_TO_TEXT', true),
-    imageToTextPrompt: getEnvVar('MCP_IMAGE_TO_TEXT_PROMPT', '请详细描述这张图片的内容，包括主要元素、颜色、布局、文字等信息。')
+    imageToTextPrompt: getEnvVar('MCP_IMAGE_TO_TEXT_PROMPT', '请详细描述这张图片的内容，包括主要元素、颜色、布局、文字等信息。'),
+    // 新增：單一實例模式設定
+    lockFilePath: getOptionalEnvVar('MCP_LOCK_FILE_PATH'),
+    healthCheckTimeout: getEnvNumber('MCP_HEALTH_CHECK_TIMEOUT', 3000),
+    forceNewInstance: getEnvBoolean('MCP_FORCE_NEW_INSTANCE', false)
   };
 }
 
