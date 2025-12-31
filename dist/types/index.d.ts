@@ -544,4 +544,5 @@ export interface CLIDetectionResponse {
     timestamp?: string;
     error?: string;
 }
+export * from './ai-provider.js';
 //# sourceMappingURL=index.d.ts.map

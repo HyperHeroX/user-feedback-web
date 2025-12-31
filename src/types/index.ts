@@ -710,3 +710,6 @@ export interface CLIDetectionResponse {
   timestamp?: string;
   error?: string;
 }
+
+// ============ AI Provider Types ============
+export * from './ai-provider.js';

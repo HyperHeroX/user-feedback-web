@@ -1960,3 +1960,197 @@ textarea.form-control {
     background: var(--bg-tertiary);
     border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
+
+/* ============ Conversation Panel Styles ============ */
+
+.ai-conversation-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.conversation-panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    width: 90%;
+    max-width: 900px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-lg);
+}
+
+.conversation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.conversation-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.conversation-mode {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 4px 12px;
+    background: var(--bg-hover);
+    border-radius: 12px;
+}
+
+.mode-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.mode-indicator.mode-api {
+    background: var(--accent-blue);
+}
+
+.mode-indicator.mode-cli {
+    background: var(--accent-purple, #a855f7);
+}
+
+.conversation-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-md) var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    min-height: 300px;
+}
+
+.conversation-entry {
+    border-left: 3px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-tertiary);
+    overflow: hidden;
+}
+
+.conversation-entry.entry-prompt {
+    border-left-color: var(--accent-blue);
+}
+
+.conversation-entry.entry-thinking {
+    border-left-color: var(--accent-yellow);
+}
+
+.conversation-entry.entry-tool {
+    border-left-color: var(--accent-purple, #a855f7);
+}
+
+.conversation-entry.entry-result {
+    border-left-color: var(--accent-cyan, #06b6d4);
+}
+
+.conversation-entry.entry-ai {
+    border-left-color: var(--accent-green);
+}
+
+.conversation-entry.entry-error {
+    border-left-color: var(--accent-red);
+}
+
+.entry-summary {
+    padding: var(--spacing-sm) var(--spacing-md);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    user-select: none;
+    list-style: none;
+    background: var(--bg-hover);
+}
+
+.entry-summary::-webkit-details-marker {
+    display: none;
+}
+
+.entry-summary::before {
+    content: "▶";
+    font-size: 10px;
+    transition: transform 0.2s ease;
+    color: var(--text-secondary);
+}
+
+details[open] > .entry-summary::before {
+    transform: rotate(90deg);
+}
+
+.entry-icon {
+    font-size: 14px;
+}
+
+.entry-title {
+    flex: 1;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.entry-timestamp {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-family: "Consolas", "Monaco", monospace;
+}
+
+.entry-badge {
+    font-size: 12px;
+    padding: 2px 8px;
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    color: var(--text-secondary);
+}
+
+.entry-body {
+    padding: var(--spacing-md);
+    border-top: 1px solid var(--border-color);
+}
+
+.entry-content {
+    margin: 0;
+    padding: var(--spacing-sm);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-family: "Consolas", "Monaco", monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 300px;
+    overflow-y: auto;
+    color: var(--text-primary);
+}
+
+.conversation-footer {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}

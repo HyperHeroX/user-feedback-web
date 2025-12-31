@@ -34,6 +34,17 @@ import { emitSubmitFeedback, emitUserActivity } from "./socket-manager.js";
 import { clearImages } from "./image-handler.js";
 import { stopAllTimers } from "./timer-controller.js";
 import { getPinnedPromptsContent } from "./prompt-manager.js";
+import {
+  showConversationPanel,
+  hideConversationPanel,
+  addConversationEntry,
+  clearConversationPanel,
+  updateConversationMode,
+  updateConversationTitle,
+  addThinkingEntry,
+  removeThinkingEntry,
+  ConversationEntryType,
+} from "./conversation-panel.js";
 
 /**
  * 處理使用者活動
@@ -94,7 +105,7 @@ export function clearSubmissionInputs() {
 }
 
 /**
- * 生成 AI 回覆 (無 MCP 工具)
+ * 生成 AI 回覆 (無 MCP 工具) - 使用新的 Conversation Panel
  */
 export async function generateAIReply() {
   const workSummary = getWorkSummary();
@@ -105,17 +116,11 @@ export async function generateAIReply() {
 
   const userContext = document.getElementById("feedbackText").value;
 
-  // 使用 streaming panel 顯示進度
-  showStreamingPanel();
-
-  // 清空輸出區域
-  const container = document.getElementById("streamingOutput");
-  if (container) {
-    container.innerHTML = "";
-  }
+  showConversationPanel();
+  updateConversationTitle("AI 回覆");
+  clearConversationPanel();
 
   try {
-    // 構建請求內容
     const requestBody = {
       aiMessage: workSummary,
       userContext: userContext,
@@ -123,19 +128,14 @@ export async function generateAIReply() {
       projectPath: getCurrentProjectPath() || undefined,
     };
 
-    // Step 1: 顯示提示詞預覽（簡化版）
-    updateStreamingStatus("preparing", "準備提示詞...");
-    const localPreview = buildLocalPromptPreview(
-      workSummary,
-      userContext,
-      null
-    );
-    showPromptPreview(localPreview, 1, "pending", null);
+    addConversationEntry(ConversationEntryType.PROMPT, buildLocalPromptPreview(workSummary, userContext, null), {
+      title: "提示詞",
+      collapsed: true,
+      timestamp: Date.now(),
+    });
 
-    // Step 2: 顯示 AI 思考中
-    updateStreamingStatus("thinking", "AI 思考中...");
+    addThinkingEntry("AI 思考中...");
 
-    // Step 3: 發送請求並等待回覆
     const response = await fetch("/api/ai-reply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -143,11 +143,19 @@ export async function generateAIReply() {
     });
 
     const data = await response.json();
+    removeThinkingEntry();
 
     if (data.success) {
-      // 更新提示詞預覽為完整版本
+      updateConversationMode(data.mode, data.cliTool);
+
       if (data.promptSent) {
-        updatePromptPreview(data.promptSent, 1, data.mode, data.cliTool);
+        const promptEntries = document.querySelectorAll(".entry-prompt");
+        if (promptEntries.length > 0) {
+          const promptContent = promptEntries[0].querySelector(".entry-content");
+          if (promptContent) {
+            promptContent.textContent = data.promptSent;
+          }
+        }
       }
 
       const pinnedPromptsContent = await getPinnedPromptsContent();
@@ -159,25 +167,34 @@ export async function generateAIReply() {
       document.getElementById("feedbackText").value = finalReply;
       updateCharCount();
 
-      // Step 3: 顯示 AI 回覆
-      showAIReplyResult(finalReply, 1, data.mode, data.cliTool);
+      addConversationEntry(ConversationEntryType.AI, finalReply, {
+        title: "AI 回覆",
+        collapsed: false,
+        timestamp: Date.now(),
+        badge: data.mode === "cli" ? `CLI (${data.cliTool})` : "API",
+      });
 
       const modeLabel = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
-      updateStreamingStatus("success", `AI 回覆完成 (${modeLabel})`);
+      showToast("success", "完成", `AI 回覆完成 (${modeLabel})`);
     } else {
-      // 錯誤處理
-      const modeLabel = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
-      updateStreamingStatus("error", `AI 回覆失敗 (${modeLabel})`);
-      addStreamingOutput(data.error || "未知錯誤", "error");
-    }
+      addConversationEntry(ConversationEntryType.ERROR, data.error || "未知錯誤", {
+        title: "錯誤",
+        collapsed: false,
+        timestamp: Date.now(),
+      });
 
-    // 將取消按鈕改為確定按鈕
-    transformToConfirmButton();
+      const modeLabel = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
+      showToast("error", "失敗", `AI 回覆失敗 (${modeLabel})`);
+    }
   } catch (error) {
     console.error("生成 AI 回覆失敗:", error);
-    updateStreamingStatus("error", "AI 回覆失敗");
-    addStreamingOutput(error.message || "無法生成 AI 回覆", "error");
-    transformToConfirmButton();
+    removeThinkingEntry();
+    addConversationEntry(ConversationEntryType.ERROR, error.message || "無法生成 AI 回覆", {
+      title: "錯誤",
+      collapsed: false,
+      timestamp: Date.now(),
+    });
+    showToast("error", "錯誤", "無法生成 AI 回覆");
   }
 }
 
@@ -192,7 +209,6 @@ function transformToConfirmButton() {
     cancelBtn.classList.add("btn-primary");
     cancelBtn.onclick = () => {
       hideStreamingPanel();
-      // 恢復按鈕狀態
       cancelBtn.textContent = "取消";
       cancelBtn.classList.remove("btn-primary");
       cancelBtn.classList.add("btn-secondary");
@@ -775,15 +791,12 @@ export async function generateAIReplyWithTools() {
     return generateAIReply();
   }
 
-  showStreamingPanel();
+  showConversationPanel();
+  updateConversationTitle("AI 回覆 (含工具)");
+  clearConversationPanel();
+
   const controller = new AbortController();
   setStreamingAbortController(controller);
-
-  // 清空輸出區域
-  const container = document.getElementById("streamingOutput");
-  if (container) {
-    container.innerHTML = "";
-  }
 
   let round = 0;
   let toolResults = "";
@@ -796,23 +809,15 @@ export async function generateAIReplyWithTools() {
 
       round++;
 
-      // Step 1: 顯示提示詞預覽（前端構建的簡化版）
-      updateToolProgressUI(round, "preparing", "準備提示詞...");
-      const localPreview = buildLocalPromptPreview(
-        workSummary,
-        userContext,
-        toolResults
-      );
-      showPromptPreview(localPreview, round, "pending", null);
+      const localPreview = buildLocalPromptPreview(workSummary, userContext, toolResults);
+      addConversationEntry(ConversationEntryType.PROMPT, localPreview, {
+        title: `提示詞 (第 ${round} 輪)`,
+        collapsed: true,
+        timestamp: Date.now(),
+      });
 
-      // Step 2: 顯示 AI 思考中
-      updateToolProgressUI(
-        round,
-        "thinking",
-        "AI 思考中... (可能需要 30-60 秒)"
-      );
+      addThinkingEntry(`AI 思考中 (第 ${round} 輪)...`);
 
-      // Step 3: 發送請求並等待回覆
       const requestBody = {
         aiMessage: workSummary,
         userContext: userContext,
@@ -838,39 +843,30 @@ export async function generateAIReplyWithTools() {
       }
 
       const data = await response.json();
-      console.log("[feedback-handler] API response received:", {
-        success: data.success,
-        hasPromptSent: !!data.promptSent,
-        promptSentLength: data.promptSent?.length,
-        mode: data.mode,
-        cliTool: data.cliTool,
-      });
+      removeThinkingEntry();
 
       if (!data.success) {
-        addStreamingOutput(data.error || "AI 回覆失敗", "error");
-        updateStreamingStatus("error", "AI 回覆失敗");
+        addConversationEntry(ConversationEntryType.ERROR, data.error || "AI 回覆失敗", {
+          title: "錯誤",
+          collapsed: false,
+          timestamp: Date.now(),
+        });
         showToast("error", "AI 回覆失敗", data.error);
-        transformToConfirmButton();
         return;
       }
 
-      // 更新提示詞預覽為完整版本（如果有）
-      if (data.promptSent) {
-        console.log(
-          "[feedback-handler] Calling updatePromptPreview with promptSent"
-        );
-        updatePromptPreview(data.promptSent, round, data.mode, data.cliTool);
-      } else {
-        console.warn("[feedback-handler] data.promptSent is missing!");
-      }
+      updateConversationMode(data.mode, data.cliTool);
 
-      // Step 3: 顯示 AI 回覆
-      showAIReplyResult(data.reply, round, data.mode, data.cliTool);
+      addConversationEntry(ConversationEntryType.AI, data.reply, {
+        title: `AI 回覆 (第 ${round} 輪)`,
+        collapsed: false,
+        timestamp: Date.now(),
+        badge: data.mode === "cli" ? `CLI (${data.cliTool})` : "API",
+      });
+
       const parsed = parseToolCalls(data.reply);
 
       if (!parsed.hasToolCalls) {
-        updateToolProgressUI(round, "done", "完成!");
-
         const pinnedPromptsContent = await getPinnedPromptsContent();
         let finalReply = parsed.message || data.reply;
         if (pinnedPromptsContent) {
@@ -881,33 +877,28 @@ export async function generateAIReplyWithTools() {
         updateCharCount();
 
         const modeLabel = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
-        updateStreamingStatus("success", `AI 回覆完成 (${modeLabel})`);
-
-        // 將取消按鈕改為確定按鈕，讓用戶自己關閉
-        transformToConfirmButton();
+        showToast("success", "完成", `AI 回覆完成 (${modeLabel})`);
         return;
       }
 
-      // Step 4: 多輪對話 - 顯示工具呼叫
-      updateToolProgressUI(
-        round,
-        "executing",
-        "執行工具中...",
-        parsed.toolCalls
-      );
-      showToolCalls(parsed.toolCalls, round);
-
-      if (parsed.message) {
-        console.log(`[Round ${round}] AI: ${parsed.message}`);
-      }
+      const toolCallsInfo = parsed.toolCalls.map(t => `${t.name}: ${JSON.stringify(t.arguments)}`).join("\n");
+      addConversationEntry(ConversationEntryType.TOOL, toolCallsInfo, {
+        title: `工具呼叫 (${parsed.toolCalls.length} 個)`,
+        collapsed: false,
+        timestamp: Date.now(),
+        badge: `第 ${round} 輪`,
+      });
 
       const results = await executeMCPTools(parsed.toolCalls);
       toolResults = formatToolResults(results);
-      showToolResults(toolResults, round);
+
+      addConversationEntry(ConversationEntryType.RESULT, toolResults, {
+        title: "工具執行結果",
+        collapsed: true,
+        timestamp: Date.now(),
+      });
 
       if (round === maxToolRounds) {
-        updateToolProgressUI(round, "done", "已達最大輪次");
-
         const shouldContinue = await showRound5Confirmation();
         if (!shouldContinue) {
           const pinnedPromptsContent = await getPinnedPromptsContent();
@@ -919,8 +910,7 @@ export async function generateAIReplyWithTools() {
           }
           document.getElementById("feedbackText").value = finalReply;
           updateCharCount();
-          updateStreamingStatus("warning", "已達最大輪次，用戶選擇停止");
-          transformToConfirmButton();
+          showToast("warning", "提示", "已達最大輪次，用戶選擇停止");
           return;
         }
         round = 0;
@@ -928,14 +918,17 @@ export async function generateAIReplyWithTools() {
     }
   } catch (error) {
     console.error("MCP AI 回覆失敗:", error);
+    removeThinkingEntry();
     if (error.message !== "使用者取消操作") {
-      addStreamingOutput(error.message || "無法生成 AI 回覆", "error");
-      updateStreamingStatus("error", "AI 回覆失敗");
+      addConversationEntry(ConversationEntryType.ERROR, error.message || "無法生成 AI 回覆", {
+        title: "錯誤",
+        collapsed: false,
+        timestamp: Date.now(),
+      });
       showToast("error", "錯誤", "無法生成 AI 回覆");
     } else {
-      updateStreamingStatus("warning", "使用者取消操作");
+      showToast("warning", "提示", "使用者取消操作");
     }
-    transformToConfirmButton();
   }
 }
 
@@ -972,8 +965,19 @@ export async function triggerAutoAIReply() {
   }
 
   if (!hasMCPTools) {
-    showLoadingOverlay("正在自動生成 AI 回覆...");
+    showConversationPanel();
+    updateConversationTitle("自動 AI 回覆");
+    clearConversationPanel();
+
     try {
+      addConversationEntry(ConversationEntryType.PROMPT, buildLocalPromptPreview(workSummary, userContext, null), {
+        title: "提示詞",
+        collapsed: true,
+        timestamp: Date.now(),
+      });
+
+      addThinkingEntry("自動 AI 回覆中...");
+
       const response = await fetch("/api/ai-reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -986,35 +990,56 @@ export async function triggerAutoAIReply() {
       });
 
       const data = await response.json();
+      removeThinkingEntry();
 
       if (data.success) {
+        updateConversationMode(data.mode, data.cliTool);
+
         const pinnedPromptsContent = await getPinnedPromptsContent();
         let finalReply = data.reply;
         if (pinnedPromptsContent) {
           finalReply = pinnedPromptsContent + "\n\n" + data.reply;
         }
+
+        addConversationEntry(ConversationEntryType.AI, finalReply, {
+          title: "AI 回覆",
+          collapsed: false,
+          timestamp: Date.now(),
+          badge: data.mode === "cli" ? `CLI (${data.cliTool})` : "API",
+        });
+
         document.getElementById("feedbackText").value = finalReply;
         updateCharCount();
-        hideLoadingOverlay();
+
+        if (!debugMode) hideConversationPanel();
         showAutoReplyConfirmModal(finalReply);
       } else {
-        hideLoadingOverlay();
+        addConversationEntry(ConversationEntryType.ERROR, data.error || "AI 回覆失敗", {
+          title: "錯誤",
+          collapsed: false,
+          timestamp: Date.now(),
+        });
         showToast("error", "AI 回覆失敗", data.error);
       }
     } catch (error) {
       console.error("自動生成 AI 回覆失敗:", error);
-      hideLoadingOverlay();
+      removeThinkingEntry();
+      addConversationEntry(ConversationEntryType.ERROR, error.message || "無法自動生成 AI 回覆", {
+        title: "錯誤",
+        collapsed: false,
+        timestamp: Date.now(),
+      });
       showToast("error", "錯誤", "無法自動生成 AI 回覆");
     }
     return;
   }
 
-  showStreamingPanel();
+  showConversationPanel();
+  updateConversationTitle("自動 AI 回覆 (含工具)");
+  clearConversationPanel();
+
   const controller = new AbortController();
   setStreamingAbortController(controller);
-
-  const title = document.getElementById("streamingTitle");
-  if (title) title.textContent = "自動 AI 回覆中...";
 
   let round = 0;
   let toolResults = "";
@@ -1027,13 +1052,15 @@ export async function triggerAutoAIReply() {
       }
 
       round++;
-      updateToolProgressUI(
-        round,
-        "thinking",
-        "AI 思考中... (可能需要 30-60 秒)"
-      );
 
-      // 設置 3 分鐘超時
+      addConversationEntry(ConversationEntryType.PROMPT, buildLocalPromptPreview(workSummary, userContext, toolResults), {
+        title: `提示詞 (第 ${round} 輪)`,
+        collapsed: true,
+        timestamp: Date.now(),
+      });
+
+      addThinkingEntry(`自動 AI 思考中 (第 ${round} 輪)...`);
+
       const timeoutController = new AbortController();
       const timeoutId = setTimeout(() => timeoutController.abort(), 180000);
 
@@ -1057,41 +1084,52 @@ export async function triggerAutoAIReply() {
       }
 
       const data = await response.json();
+      removeThinkingEntry();
 
       if (!data.success) {
-        addStreamingOutput(data.error || "AI 回覆失敗", "error");
-        updateStreamingStatus("error", "AI 回覆失敗");
+        addConversationEntry(ConversationEntryType.ERROR, data.error || "AI 回覆失敗", {
+          title: "錯誤",
+          collapsed: false,
+          timestamp: Date.now(),
+        });
         showToast("error", "AI 回覆失敗", data.error);
         return;
       }
 
-      addStreamingOutput(data.reply, "ai-message");
+      updateConversationMode(data.mode, data.cliTool);
+
+      addConversationEntry(ConversationEntryType.AI, data.reply, {
+        title: `AI 回覆 (第 ${round} 輪)`,
+        collapsed: false,
+        timestamp: Date.now(),
+        badge: data.mode === "cli" ? `CLI (${data.cliTool})` : "API",
+      });
+
       const parsed = parseToolCalls(data.reply);
 
       if (!parsed.hasToolCalls) {
-        updateToolProgressUI(round, "done", "完成!");
         finalReply = parsed.message || data.reply;
         break;
       }
 
-      updateToolProgressUI(
-        round,
-        "executing",
-        "執行工具中...",
-        parsed.toolCalls
-      );
-
-      const toolCallsDisplay = parsed.toolCalls
-        .map((t) => `${t.name}(${JSON.stringify(t.arguments, null, 2)})`)
-        .join("\n\n");
-      addStreamingOutput(toolCallsDisplay, "tool-call");
+      const toolCallsInfo = parsed.toolCalls.map(t => `${t.name}: ${JSON.stringify(t.arguments)}`).join("\n");
+      addConversationEntry(ConversationEntryType.TOOL, toolCallsInfo, {
+        title: `工具呼叫 (${parsed.toolCalls.length} 個)`,
+        collapsed: false,
+        timestamp: Date.now(),
+        badge: `第 ${round} 輪`,
+      });
 
       const results = await executeMCPTools(parsed.toolCalls);
       toolResults = formatToolResults(results);
-      addStreamingOutput(toolResults, "tool-result");
+
+      addConversationEntry(ConversationEntryType.RESULT, toolResults, {
+        title: "工具執行結果",
+        collapsed: true,
+        timestamp: Date.now(),
+      });
 
       if (round === maxToolRounds) {
-        updateToolProgressUI(round, "done", "已達最大輪次");
         finalReply =
           parsed.message || "AI 工具呼叫已達最大輪次。\n\n" + toolResults;
         break;
@@ -1107,17 +1145,22 @@ export async function triggerAutoAIReply() {
     updateCharCount();
 
     await new Promise((r) => setTimeout(r, 1000));
-    if (!debugMode) hideStreamingPanel();
+    if (!debugMode) hideConversationPanel();
 
     showAutoReplyConfirmModal(finalReply);
   } catch (error) {
     console.error("自動生成 AI 回覆失敗:", error);
+    removeThinkingEntry();
     if (error.message !== "使用者取消操作") {
-      addStreamingOutput(error.message || "無法自動生成 AI 回覆", "error");
+      addConversationEntry(ConversationEntryType.ERROR, error.message || "無法自動生成 AI 回覆", {
+        title: "錯誤",
+        collapsed: false,
+        timestamp: Date.now(),
+      });
       showToast("error", "錯誤", "無法自動生成 AI 回覆");
     }
   } finally {
-    if (!debugMode) hideStreamingPanel();
+    if (!debugMode) hideConversationPanel();
   }
 }
 
