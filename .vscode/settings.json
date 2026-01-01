@@ -47,5 +47,12 @@
     {
       "file": ".github/copilot-instructions.md"
     }
-  ]
+  ],
+  "windowColor.name": "user-feedback-web",
+  "windowColor.isActivityBarColored": false,
+  "windowColor.isTitleBarColored": false,
+  "windowColor.isStatusBarColored": true,
+  "windowColor.isWindowNameColored": false,
+  "windowColor.isActiveItemsColored": true,
+  "windowColor.setWindowTitle": true
 }
