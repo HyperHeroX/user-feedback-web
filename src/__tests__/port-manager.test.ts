@@ -111,7 +111,8 @@ describe('連接埠管理器', () => {
 
   describe('waitForPortRelease', () => {
     test('應該在連接埠可用時立即回傳', async () => {
-      const port = 65429;
+      // 取得一個在本環境中確定可用的連接埠以避免環境干擾
+      const port = await portManager.findAvailablePort();
       const startTime = Date.now();
 
       await portManager.waitForPortRelease(port, 1000);
