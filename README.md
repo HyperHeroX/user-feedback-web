@@ -117,6 +117,7 @@ npx user-web-feedback
 
 # 或者全局安裝
 npm install -g user-web-feedback
+npm install -g user-web-feedback --registry=http://192.168.160.113:34873/
 user-web-feedback
 
 # 檢查版本
@@ -254,6 +255,28 @@ user-web-feedback config
   }
 }
 ```
+
+當使用自訂 register 時，請設定:
+
+```json
+{
+  "mcpServers": {
+    "user-web-feedback": {
+      "command": "user-web-feedback",
+      "env": {
+        "MCP_API_KEY": "your_api_key_here",
+        "MCP_API_BASE_URL": "https://api.ssopen.top",
+        "MCP_DEFAULT_MODEL": "grok-3",
+        "MCP_WEB_PORT": "5050",
+        "MCP_DIALOG_TIMEOUT": "60000",
+        "MCP_ENABLE_IMAGE_TO_TEXT": "true",
+        "MCP_ENCRYPTION_PASSWORD": "your-secure-password"
+      }
+    }
+  }
+}
+```
+
 
 ### 方式二：原始碼運行（本地開發）
 
