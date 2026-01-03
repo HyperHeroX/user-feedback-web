@@ -72,6 +72,29 @@ declare class MCPClientManager extends EventEmitter {
     readResource(serverId: number, uri: string): Promise<string | null>;
     getPrompt(serverId: number, name: string, args?: Record<string, string>): Promise<string | null>;
     findServerWithTool(toolName: string): number | null;
+    private deferredServersStarted;
+    /**
+     * 啟動所有已配置為延遲啟動的 MCP Servers
+     * @param context 包含專案名稱和路徑的上下文
+     */
+    startDeferredServers(context: {
+        projectName: string;
+        projectPath: string;
+    }): Promise<void>;
+    /**
+     * 替換參數模板中的佔位符
+     * @param config MCP Server 配置
+     * @param context 包含專案名稱和路徑的上下文
+     */
+    private resolveArgsTemplate;
+    /**
+     * 重置延遲啟動狀態（用於測試或重啟）
+     */
+    resetDeferredState(): void;
+    /**
+     * 檢查延遲啟動是否已觸發
+     */
+    isDeferredServersStarted(): boolean;
 }
 export declare const mcpClientManager: MCPClientManager;
 export {};

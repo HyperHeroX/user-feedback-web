@@ -631,6 +631,93 @@ class MCPClientManager extends EventEmitter {
         }
         return null;
     }
+
+    // ========== 延遲啟動相關方法 ==========
+    
+    private deferredServersStarted = false;
+
+    /**
+     * 啟動所有已配置為延遲啟動的 MCP Servers
+     * @param context 包含專案名稱和路徑的上下文
+     */
+    async startDeferredServers(context: { projectName: string; projectPath: string }): Promise<void> {
+        if (this.deferredServersStarted) {
+            logger.debug('延遲啟動的 MCP Servers 已啟動，跳過');
+            return;
+        }
+
+        const { getDeferredMCPServers } = await import('./database.js');
+        const deferredServers = getDeferredMCPServers();
+
+        if (deferredServers.length === 0) {
+            logger.info('沒有配置為延遲啟動的 MCP Servers');
+            this.deferredServersStarted = true;
+            return;
+        }
+
+        logger.info(`開始啟動 ${deferredServers.length} 個延遲的 MCP Servers，專案: ${context.projectName} @ ${context.projectPath}`);
+
+        const results = await Promise.allSettled(
+            deferredServers.map(config => {
+                const resolvedConfig = this.resolveArgsTemplate(config, context);
+                return this.connect(resolvedConfig);
+            })
+        );
+
+        let successCount = 0;
+        let failureCount = 0;
+
+        results.forEach((result, index) => {
+            const config = deferredServers[index];
+            if (!config) return;
+
+            if (result.status === 'fulfilled' && result.value.status === 'connected') {
+                successCount++;
+                logger.info(`✓ 延遲 MCP Server 啟動成功: ${config.name} (ID: ${config.id})`);
+            } else {
+                failureCount++;
+                const errorMsg = result.status === 'rejected' 
+                    ? (result.reason instanceof Error ? result.reason.message : String(result.reason))
+                    : (result.value.error || '未知錯誤');
+                logger.error(`✗ 延遲 MCP Server 啟動失敗: ${config.name} (ID: ${config.id}) - ${errorMsg}`);
+            }
+        });
+
+        logger.info(`延遲 MCP Server 啟動完成 - 成功: ${successCount}, 失敗: ${failureCount}`);
+        this.deferredServersStarted = true;
+    }
+
+    /**
+     * 替換參數模板中的佔位符
+     * @param config MCP Server 配置
+     * @param context 包含專案名稱和路徑的上下文
+     */
+    private resolveArgsTemplate(
+        config: MCPServerConfig,
+        context: { projectName: string; projectPath: string }
+    ): MCPServerConfig {
+        const templateArgs = config.startupArgsTemplate || config.args || [];
+        const resolvedArgs = templateArgs.map(arg =>
+            arg.replace(/\{project_path\}/g, context.projectPath)
+               .replace(/\{project_name\}/g, context.projectName)
+        );
+        return { ...config, args: resolvedArgs };
+    }
+
+    /**
+     * 重置延遲啟動狀態（用於測試或重啟）
+     */
+    resetDeferredState(): void {
+        this.deferredServersStarted = false;
+        logger.debug('延遲啟動狀態已重置');
+    }
+
+    /**
+     * 檢查延遲啟動是否已觸發
+     */
+    isDeferredServersStarted(): boolean {
+        return this.deferredServersStarted;
+    }
 }
 
 export const mcpClientManager = MCPClientManager.getInstance();

@@ -94,7 +94,7 @@ export declare class WebServer {
      */
     /**
      * 自動啟動已啟用的 MCP Servers
-     * 在服務啟動時自動連接所有已設定並啟用的 MCP Servers
+     * 在服務啟動時自動連接所有已設定並啟用的 MCP Servers（排除延遲啟動的伺服器）
      */
     private autoStartMCPServers;
     start(): Promise<void>;

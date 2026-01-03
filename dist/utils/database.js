@@ -222,6 +222,8 @@ function createTables() {
       env TEXT,
       url TEXT,
       enabled INTEGER DEFAULT 1,
+      deferred_startup INTEGER DEFAULT 0,
+      startup_args_template TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
@@ -230,6 +232,23 @@ function createTables() {
     db.exec(`
     CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled)
   `);
+    // 遷移：為現有的 mcp_servers 表添加 deferred_startup 和 startup_args_template 列（如果不存在）
+    try {
+        const mcpColumnCheck = db.prepare('PRAGMA table_info(mcp_servers)').all();
+        const hasDeferredStartupColumn = mcpColumnCheck.some(col => col.name === 'deferred_startup');
+        if (!hasDeferredStartupColumn) {
+            db.exec(`ALTER TABLE mcp_servers ADD COLUMN deferred_startup INTEGER DEFAULT 0`);
+            logger.info('Successfully migrated mcp_servers table - added deferred_startup column');
+        }
+        const hasStartupArgsTemplateColumn = mcpColumnCheck.some(col => col.name === 'startup_args_template');
+        if (!hasStartupArgsTemplateColumn) {
+            db.exec(`ALTER TABLE mcp_servers ADD COLUMN startup_args_template TEXT`);
+            logger.info('Successfully migrated mcp_servers table - added startup_args_template column');
+        }
+    }
+    catch (err) {
+        logger.warn('Migration check for mcp_servers failed:', err);
+    }
     // MCP Tool 啟用配置表
     db.exec(`
     CREATE TABLE IF NOT EXISTS mcp_tool_enables (
@@ -1102,7 +1121,7 @@ export function getAllMCPServers() {
     const rows = db.prepare(`
         SELECT 
             id, name, transport, command, args, env, url,
-            enabled,
+            enabled, deferred_startup, startup_args_template,
             created_at as createdAt,
             updated_at as updatedAt
         FROM mcp_servers
@@ -1111,8 +1130,10 @@ export function getAllMCPServers() {
     return rows.map(row => ({
         ...row,
         enabled: Boolean(row.enabled),
+        deferredStartup: Boolean(row.deferred_startup),
         args: row.args ? JSON.parse(row.args) : undefined,
-        env: row.env ? JSON.parse(row.env) : undefined
+        env: row.env ? JSON.parse(row.env) : undefined,
+        startupArgsTemplate: row.startup_args_template ? JSON.parse(row.startup_args_template) : undefined
     }));
 }
 /**
@@ -1125,7 +1146,7 @@ export function getEnabledMCPServers() {
     const rows = db.prepare(`
         SELECT 
             id, name, transport, command, args, env, url,
-            enabled,
+            enabled, deferred_startup, startup_args_template,
             created_at as createdAt,
             updated_at as updatedAt
         FROM mcp_servers
@@ -1135,8 +1156,62 @@ export function getEnabledMCPServers() {
     return rows.map(row => ({
         ...row,
         enabled: Boolean(row.enabled),
+        deferredStartup: Boolean(row.deferred_startup),
         args: row.args ? JSON.parse(row.args) : undefined,
-        env: row.env ? JSON.parse(row.env) : undefined
+        env: row.env ? JSON.parse(row.env) : undefined,
+        startupArgsTemplate: row.startup_args_template ? JSON.parse(row.startup_args_template) : undefined
+    }));
+}
+/**
+ * 獲取已啟用的非延遲啟動 MCP Servers
+ */
+export function getEnabledNonDeferredMCPServers() {
+    const db = tryGetDb();
+    if (!db)
+        return [];
+    const rows = db.prepare(`
+        SELECT 
+            id, name, transport, command, args, env, url,
+            enabled, deferred_startup, startup_args_template,
+            created_at as createdAt,
+            updated_at as updatedAt
+        FROM mcp_servers
+        WHERE enabled = 1 AND (deferred_startup = 0 OR deferred_startup IS NULL)
+        ORDER BY id ASC
+    `).all();
+    return rows.map(row => ({
+        ...row,
+        enabled: Boolean(row.enabled),
+        deferredStartup: Boolean(row.deferred_startup),
+        args: row.args ? JSON.parse(row.args) : undefined,
+        env: row.env ? JSON.parse(row.env) : undefined,
+        startupArgsTemplate: row.startup_args_template ? JSON.parse(row.startup_args_template) : undefined
+    }));
+}
+/**
+ * 獲取已啟用的延遲啟動 MCP Servers
+ */
+export function getDeferredMCPServers() {
+    const db = tryGetDb();
+    if (!db)
+        return [];
+    const rows = db.prepare(`
+        SELECT 
+            id, name, transport, command, args, env, url,
+            enabled, deferred_startup, startup_args_template,
+            created_at as createdAt,
+            updated_at as updatedAt
+        FROM mcp_servers
+        WHERE enabled = 1 AND deferred_startup = 1
+        ORDER BY id ASC
+    `).all();
+    return rows.map(row => ({
+        ...row,
+        enabled: Boolean(row.enabled),
+        deferredStartup: Boolean(row.deferred_startup),
+        args: row.args ? JSON.parse(row.args) : undefined,
+        env: row.env ? JSON.parse(row.env) : undefined,
+        startupArgsTemplate: row.startup_args_template ? JSON.parse(row.startup_args_template) : undefined
     }));
 }
 /**
@@ -1149,7 +1224,7 @@ export function getMCPServerById(id) {
     const row = db.prepare(`
         SELECT 
             id, name, transport, command, args, env, url,
-            enabled,
+            enabled, deferred_startup, startup_args_template,
             created_at as createdAt,
             updated_at as updatedAt
         FROM mcp_servers
@@ -1160,8 +1235,10 @@ export function getMCPServerById(id) {
     return {
         ...row,
         enabled: Boolean(row.enabled),
+        deferredStartup: Boolean(row.deferred_startup),
         args: row.args ? JSON.parse(row.args) : undefined,
-        env: row.env ? JSON.parse(row.env) : undefined
+        env: row.env ? JSON.parse(row.env) : undefined,
+        startupArgsTemplate: row.startup_args_template ? JSON.parse(row.startup_args_template) : undefined
     };
 }
 /**
@@ -1172,9 +1249,9 @@ export function createMCPServer(data) {
     if (!db)
         throw new Error('Database unavailable');
     const result = db.prepare(`
-        INSERT INTO mcp_servers (name, transport, command, args, env, url, enabled)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(data.name, data.transport, data.command || null, data.args ? JSON.stringify(data.args) : null, data.env ? JSON.stringify(data.env) : null, data.url || null, data.enabled !== false ? 1 : 0);
+        INSERT INTO mcp_servers (name, transport, command, args, env, url, enabled, deferred_startup, startup_args_template)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(data.name, data.transport, data.command || null, data.args ? JSON.stringify(data.args) : null, data.env ? JSON.stringify(data.env) : null, data.url || null, data.enabled !== false ? 1 : 0, data.deferredStartup ? 1 : 0, data.startupArgsTemplate ? JSON.stringify(data.startupArgsTemplate) : null);
     const server = getMCPServerById(result.lastInsertRowid);
     if (!server)
         throw new Error('Failed to create MCP Server');
@@ -1220,6 +1297,14 @@ export function updateMCPServer(id, data) {
     if (data.enabled !== undefined) {
         updates.push('enabled = ?');
         params.push(data.enabled ? 1 : 0);
+    }
+    if (data.deferredStartup !== undefined) {
+        updates.push('deferred_startup = ?');
+        params.push(data.deferredStartup ? 1 : 0);
+    }
+    if (data.startupArgsTemplate !== undefined) {
+        updates.push('startup_args_template = ?');
+        params.push(data.startupArgsTemplate ? JSON.stringify(data.startupArgsTemplate) : null);
     }
     if (updates.length === 0) {
         return existing;

@@ -102,6 +102,14 @@ export declare function getAllMCPServers(): MCPServerConfig[];
  */
 export declare function getEnabledMCPServers(): MCPServerConfig[];
 /**
+ * 獲取已啟用的非延遲啟動 MCP Servers
+ */
+export declare function getEnabledNonDeferredMCPServers(): MCPServerConfig[];
+/**
+ * 獲取已啟用的延遲啟動 MCP Servers
+ */
+export declare function getDeferredMCPServers(): MCPServerConfig[];
+/**
  * 根據 ID 獲取 MCP Server
  */
 export declare function getMCPServerById(id: number): MCPServerConfig | null;

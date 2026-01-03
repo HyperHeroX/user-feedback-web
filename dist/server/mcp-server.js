@@ -159,6 +159,8 @@ export class MCPServer {
             // console.error('傳送MCP日誌通知失敗:', error);
         }
     }
+    // ========== 延遲啟動相關 ==========
+    deferredStartupTriggered = false;
     /**
      * 實作collect_feedback功能
      */
@@ -166,6 +168,20 @@ export class MCPServer {
         const { work_summary, project_name, project_path } = params;
         const timeout_seconds = this.config.dialogTimeout;
         logger.info(`開始收集回饋，工作匯報長度: ${work_summary.length}字元，逾時: ${timeout_seconds}秒，專案: ${project_name || 'Default'}`);
+        // 觸發延遲啟動的 MCP Servers（首次帶有 project_path 時）
+        if (project_path && !this.deferredStartupTriggered) {
+            this.deferredStartupTriggered = true;
+            const { mcpClientManager } = await import('../utils/mcp-client-manager.js');
+            const path = await import('path');
+            const resolvedProjectName = project_name || path.basename(project_path);
+            logger.info(`首次收到專案資訊，啟動延遲的 MCP Servers: ${resolvedProjectName} @ ${project_path}`);
+            mcpClientManager.startDeferredServers({
+                projectName: resolvedProjectName,
+                projectPath: project_path
+            }).catch(err => {
+                logger.error('延遲 MCP Server 啟動失敗:', err);
+            });
+        }
         // 傳送MCP工具呼叫開始通知
         logger.mcpToolCallStarted('collect_feedback', {
             work_summary_length: work_summary.length,

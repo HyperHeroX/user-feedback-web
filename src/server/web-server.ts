@@ -2648,14 +2648,20 @@ export class WebServer {
    */
   /**
    * 自動啟動已啟用的 MCP Servers
-   * 在服務啟動時自動連接所有已設定並啟用的 MCP Servers
+   * 在服務啟動時自動連接所有已設定並啟用的 MCP Servers（排除延遲啟動的伺服器）
    */
   private async autoStartMCPServers(): Promise<void> {
     try {
-      const enabledServers = getEnabledMCPServers();
+      const { getEnabledNonDeferredMCPServers, getDeferredMCPServers } = await import('../utils/database.js');
+      const enabledServers = getEnabledNonDeferredMCPServers();
+      const deferredServers = getDeferredMCPServers();
+
+      if (deferredServers.length > 0) {
+        logger.info(`${deferredServers.length} 個 MCP Servers 配置為延遲啟動，等待專案資訊後啟動`);
+      }
 
       if (enabledServers.length === 0) {
-        logger.info('沒有已啟用的 MCP Servers 需要自動啟動');
+        logger.info('沒有需要立即啟動的 MCP Servers');
         return;
       }
 

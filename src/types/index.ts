@@ -371,6 +371,15 @@ export interface MCPServerConfig {
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
+  // 延遲啟動設定
+  deferredStartup?: boolean;
+  startupArgsTemplate?: string[];
+}
+
+// 延遲啟動上下文
+export interface DeferredStartupContext {
+  projectName: string;
+  projectPath: string;
 }
 
 // MCP Server 連接狀態
@@ -477,6 +486,8 @@ export interface CreateMCPServerRequest {
   env?: Record<string, string>;
   url?: string;
   enabled?: boolean;
+  deferredStartup?: boolean;
+  startupArgsTemplate?: string[];
 }
 
 // 更新 MCP Server 請求
@@ -488,6 +499,8 @@ export interface UpdateMCPServerRequest {
   env?: Record<string, string>;
   url?: string;
   enabled?: boolean;
+  deferredStartup?: boolean;
+  startupArgsTemplate?: string[];
 }
 
 // MCP Tool 呼叫請求

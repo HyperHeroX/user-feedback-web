@@ -137,6 +137,24 @@
             color: var(--text-primary, #1a1a2e);
         }
 
+        .server-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .deferred-badge {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .server-card.deferred {
+            border-left: 3px solid #f59e0b;
+        }
+
         .server-status {
             display: inline-flex;
             align-items: center;
@@ -478,6 +496,39 @@
             resize: vertical;
         }
 
+        .form-divider {
+            border-top: 1px solid var(--border-color, #e1e5e9);
+            margin: 20px 0;
+        }
+
+        .form-checkbox-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .form-checkbox {
+            width: 18px;
+            height: 18px;
+            margin-top: 2px;
+            cursor: pointer;
+            accent-color: var(--primary-color, #4a90d9);
+        }
+
+        .form-checkbox-label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            cursor: pointer;
+            margin-bottom: 0;
+        }
+
+        .form-hint {
+            font-size: 12px;
+            color: var(--text-secondary, #6b7280);
+            font-weight: normal;
+        }
+
         .modal-footer {
             display: flex;
             justify-content: flex-end;
@@ -700,6 +751,26 @@
                         <div class="form-group">
                             <label class="form-label" for="serverUrl">URL *</label>
                             <input type="url" class="form-input" id="serverUrl" placeholder="http://localhost:9121/mcp">
+                        </div>
+                    </div>
+
+                    <div class="form-divider"></div>
+
+                    <div class="form-group">
+                        <div class="form-checkbox-group">
+                            <input type="checkbox" class="form-checkbox" id="serverDeferredStartup">
+                            <label class="form-label form-checkbox-label" for="serverDeferredStartup">
+                                延遲啟動
+                                <span class="form-hint">啟用後，此 Server 將在 AI 首次回報專案資訊時才啟動</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="deferredFields" style="display: none;">
+                        <div class="form-group">
+                            <label class="form-label" for="serverStartupArgsTemplate">啟動參數範本</label>
+                            <textarea class="form-textarea" id="serverStartupArgsTemplate" placeholder="使用 {project_path} 和 {project_name} 作為變數&#10;例如：--project&#10;{project_path}"></textarea>
+                            <span class="form-hint">當 AI 回報專案資訊時，會將 {project_path} 和 {project_name} 替換為實際值後加入啟動參數</span>
                         </div>
                     </div>
                 </form>

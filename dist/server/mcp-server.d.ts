@@ -23,6 +23,7 @@ export declare class MCPServer {
      * 傳送MCP日誌通知
      */
     private sendLogNotification;
+    private deferredStartupTriggered;
     /**
      * 實作collect_feedback功能
      */

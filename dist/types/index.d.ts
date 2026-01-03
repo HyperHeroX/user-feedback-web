@@ -286,6 +286,12 @@ export interface MCPServerConfig {
     enabled: boolean;
     createdAt: string;
     updatedAt: string;
+    deferredStartup?: boolean;
+    startupArgsTemplate?: string[];
+}
+export interface DeferredStartupContext {
+    projectName: string;
+    projectPath: string;
 }
 export type MCPConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'reconnecting';
 export interface MCPServerState {
@@ -371,6 +377,8 @@ export interface CreateMCPServerRequest {
     env?: Record<string, string>;
     url?: string;
     enabled?: boolean;
+    deferredStartup?: boolean;
+    startupArgsTemplate?: string[];
 }
 export interface UpdateMCPServerRequest {
     name?: string;
@@ -380,6 +388,8 @@ export interface UpdateMCPServerRequest {
     env?: Record<string, string>;
     url?: string;
     enabled?: boolean;
+    deferredStartup?: boolean;
+    startupArgsTemplate?: string[];
 }
 export interface MCPToolCallRequest {
     serverId: number;

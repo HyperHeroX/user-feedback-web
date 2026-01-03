@@ -22,6 +22,9 @@
         serverArgs: document.getElementById('serverArgs'),
         serverEnv: document.getElementById('serverEnv'),
         serverUrl: document.getElementById('serverUrl'),
+        serverDeferredStartup: document.getElementById('serverDeferredStartup'),
+        serverStartupArgsTemplate: document.getElementById('serverStartupArgsTemplate'),
+        deferredFields: document.getElementById('deferredFields'),
         stdioFields: document.getElementById('stdioFields'),
         httpFields: document.getElementById('httpFields'),
         addServerBtn: document.getElementById('addServerBtn'),
@@ -133,15 +136,18 @@
         const tools = state.tools || [];
         const isReconnecting = state.status === 'reconnecting';
         const hasError = state.status === 'error' || state.lastError;
+        const isDeferred = server.deferredStartup;
+        const isDeferredWaiting = isDeferred && state.status === 'disconnected' && !hasError;
 
         return `
-            <div class="server-card ${statusClass}" data-server-id="${server.id}">
+            <div class="server-card ${statusClass} ${isDeferred ? 'deferred' : ''}" data-server-id="${server.id}">
                 <div class="server-header">
                     <div class="server-info">
                         <span class="server-name">${escapeHtml(server.name)}</span>
+                        ${isDeferred ? '<span class="server-badge deferred-badge">⏳ 延遲啟動</span>' : ''}
                         <span class="server-status ${statusClass}">
                             <span class="status-dot"></span>
-                            ${statusText}
+                            ${isDeferredWaiting ? '等待專案資訊' : statusText}
                         </span>
                     </div>
                     <div class="server-actions">
@@ -149,7 +155,9 @@
                             ? `<button class="btn btn-secondary btn-disconnect" data-id="${server.id}">斷開</button>`
                             : isReconnecting
                                 ? `<button class="btn btn-warning btn-cancel-reconnect" data-id="${server.id}">取消重連</button>`
-                                : `<button class="btn btn-success btn-connect" data-id="${server.id}">連接</button>`
+                                : isDeferredWaiting
+                                    ? ''
+                                    : `<button class="btn btn-success btn-connect" data-id="${server.id}">連接</button>`
                         }
                         ${hasError && !isReconnecting ? `<button class="btn btn-primary btn-retry" data-id="${server.id}">🔄 重試</button>` : ''}
                         <button class="btn btn-secondary btn-edit" data-id="${server.id}">編輯</button>
@@ -179,6 +187,12 @@
                                 <span class="detail-value">${escapeHtml(server.url || '-')}</span>
                             </div>
                         `}
+                        ${isDeferred && server.startupArgsTemplate ? `
+                            <div class="detail-item">
+                                <span class="detail-label">啟動參數範本</span>
+                                <span class="detail-value">${escapeHtml(server.startupArgsTemplate.split('\n').join(' '))}</span>
+                            </div>
+                        ` : ''}
                         ${hasError ? `
                             <div class="error-section" style="grid-column: 1 / -1;">
                                 <div class="detail-item">
@@ -288,6 +302,11 @@
             elements.httpFields.style.display = isStdio ? 'none' : 'block';
         });
 
+        // 延遲啟動開關
+        elements.serverDeferredStartup.addEventListener('change', (e) => {
+            elements.deferredFields.style.display = e.target.checked ? 'block' : 'none';
+        });
+
         // 點擊 Modal 外部關閉
         elements.serverModal.addEventListener('click', (e) => {
             if (e.target === elements.serverModal) {
@@ -350,17 +369,22 @@
             elements.serverArgs.value = (server.args || []).join('\n');
             elements.serverEnv.value = server.env ? JSON.stringify(server.env, null, 2) : '';
             elements.serverUrl.value = server.url || '';
+            elements.serverDeferredStartup.checked = server.deferredStartup || false;
+            elements.serverStartupArgsTemplate.value = server.startupArgsTemplate || '';
         } else {
             elements.modalTitle.textContent = '新增 MCP Server';
             elements.serverId.value = '';
             elements.serverForm.reset();
             elements.serverEnv.value = '';
+            elements.serverDeferredStartup.checked = false;
+            elements.serverStartupArgsTemplate.value = '';
         }
 
         // 更新欄位顯示
         const isStdio = elements.serverTransport.value === 'stdio';
         elements.stdioFields.style.display = isStdio ? 'block' : 'none';
         elements.httpFields.style.display = isStdio ? 'none' : 'block';
+        elements.deferredFields.style.display = elements.serverDeferredStartup.checked ? 'block' : 'none';
 
         elements.serverModal.classList.add('active');
     }
@@ -379,6 +403,8 @@
         const argsText = elements.serverArgs.value.trim();
         const envText = elements.serverEnv.value.trim();
         const url = elements.serverUrl.value.trim();
+        const deferredStartup = elements.serverDeferredStartup.checked;
+        const startupArgsTemplate = elements.serverStartupArgsTemplate.value.trim();
 
         if (!name) {
             showToast('請輸入名稱', 'error');
@@ -414,7 +440,9 @@
             args: transport === 'stdio' ? args : undefined,
             env: transport === 'stdio' && Object.keys(env).length > 0 ? env : undefined,
             url: transport !== 'stdio' ? url : undefined,
-            enabled: true
+            enabled: true,
+            deferredStartup,
+            startupArgsTemplate: deferredStartup && startupArgsTemplate ? startupArgsTemplate : undefined
         };
 
         showLoading(true);
