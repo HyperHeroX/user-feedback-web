@@ -262,7 +262,8 @@ user-web-feedback config
 {
   "mcpServers": {
     "user-web-feedback": {
-      "command": "user-web-feedback",
+      "command": "npx",
+      "args": ["-y", "user-web-feedback@latest", "--register", "http://localhost:5050"],
       "env": {
         "MCP_API_KEY": "your_api_key_here",
         "MCP_API_BASE_URL": "https://api.ssopen.top",
