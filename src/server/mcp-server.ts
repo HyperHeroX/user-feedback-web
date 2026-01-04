@@ -204,10 +204,10 @@ export class MCPServer {
       this.deferredStartupTriggered = true;
       const { mcpClientManager } = await import('../utils/mcp-client-manager.js');
       const path = await import('path');
-      
+
       const resolvedProjectName = project_name || path.basename(project_path);
       logger.info(`首次收到專案資訊，啟動延遲的 MCP Servers: ${resolvedProjectName} @ ${project_path}`);
-      
+
       mcpClientManager.startDeferredServers({
         projectName: resolvedProjectName,
         projectPath: project_path

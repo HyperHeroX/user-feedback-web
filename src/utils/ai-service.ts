@@ -7,11 +7,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getAISettings, getCLISettings, createCLITerminal, insertCLIExecutionLog, updateCLITerminal, getCLITerminalById } from './database.js';
 import { logger } from './logger.js';
 import type { AIReplyRequest, AIReplyResponse, CLISettings } from '../types/index.js';
-import { buildToolsPrompt } from './mcp-tool-parser.js';
 import { mcpClientManager } from './mcp-client-manager.js';
 import { executeCLI } from './cli-executor.js';
 import { isToolAvailable } from './cli-detector.js';
-import { randomUUID } from 'crypto';
+import { getPromptAggregator } from './prompt-aggregator/index.js';
+import { buildToolsPrompt } from './mcp-tool-parser.js';
 
 // 重試配置
 const MAX_RETRIES = 3;
@@ -42,11 +42,18 @@ export async function generateAIReply(request: AIReplyRequest): Promise<AIReplyR
 
         // 檢查 CLI 模式設定
         const cliSettings = getCLISettings();
+        logger.info('[AI Service] CLI 設定狀態', {
+            aiMode: cliSettings?.aiMode,
+            cliTool: cliSettings?.cliTool,
+            fallbackToApi: cliSettings?.cliFallbackToApi
+        });
+        
         if (cliSettings?.aiMode === 'cli') {
             logger.info('[AI Service] 使用 CLI 模式生成回覆');
             return generateCLIReply(request, cliSettings);
         }
 
+        logger.info('[AI Service] 使用 API 模式生成回覆');
         // 以下為 API 模式
         return generateAPIReply(request);
     } catch (error) {
@@ -60,6 +67,7 @@ export async function generateAIReply(request: AIReplyRequest): Promise<AIReplyR
 
 /**
  * 使用 CLI 工具生成回覆
+ * 使用 PromptAggregator 建構提示詞
  */
 async function generateCLIReply(request: AIReplyRequest, cliSettings: CLISettings): Promise<AIReplyResponse> {
     const tool = cliSettings.cliTool;
@@ -71,7 +79,13 @@ async function generateCLIReply(request: AIReplyRequest, cliSettings: CLISetting
 
         if (cliSettings.cliFallbackToApi) {
             logger.info('[AI Service] Falling back to API mode');
-            return generateAPIReply(request);
+            const apiResult = await generateAPIReply(request);
+            // 標記為 fallback 模式，讓前端知道這是 CLI 模式但 fallback 到 API
+            return {
+                ...apiResult,
+                mode: 'api',
+                fallbackReason: `CLI 工具 ${tool} 未安裝或不可用，已自動切換到 API 模式`
+            };
         }
 
         return {
@@ -97,8 +111,28 @@ async function generateCLIReply(request: AIReplyRequest, cliSettings: CLISetting
         updateCLITerminal(terminalId, { status: 'running' });
     }
 
-    // 建構提示詞
-    const prompt = buildCLIPrompt(request);
+    // 使用 PromptAggregator 建構提示詞
+    const aggregator = getPromptAggregator();
+    const settings = getAISettings();
+    
+    let mcpTools: { name: string; description?: string; inputSchema?: Record<string, unknown> }[] = [];
+    if (request.includeMCPTools) {
+        try {
+            const allTools = mcpClientManager.getAllTools();
+            mcpTools = allTools.map(t => ({
+                name: t.name,
+                description: t.description,
+                inputSchema: t.inputSchema as Record<string, unknown>
+            }));
+        } catch {
+            logger.warn('[AI Service] 無法獲取 MCP 工具');
+        }
+    }
+
+    const context = aggregator.buildContextSync(request, settings ?? null, cliSettings, mcpTools);
+    context.mode = 'cli';
+    const aggregated = aggregator.aggregate(context);
+    const prompt = aggregated.fullPrompt;
 
     try {
         // 執行 CLI
@@ -136,7 +170,12 @@ async function generateCLIReply(request: AIReplyRequest, cliSettings: CLISetting
         // CLI 執行失敗，檢查是否需要 fallback
         if (cliSettings.cliFallbackToApi) {
             logger.warn('[AI Service] CLI execution failed, falling back to API');
-            return generateAPIReply(request);
+            const apiResult = await generateAPIReply(request);
+            return {
+                ...apiResult,
+                mode: 'api',
+                fallbackReason: `CLI 執行失敗 (${result.error || '未知錯誤'})，已自動切換到 API 模式`
+            };
         }
 
         return {
@@ -161,7 +200,12 @@ async function generateCLIReply(request: AIReplyRequest, cliSettings: CLISetting
 
         if (cliSettings.cliFallbackToApi) {
             logger.warn('[AI Service] CLI error, falling back to API');
-            return generateAPIReply(request);
+            const apiResult = await generateAPIReply(request);
+            return {
+                ...apiResult,
+                mode: 'api',
+                fallbackReason: `CLI 執行錯誤 (${error instanceof Error ? error.message : '未知錯誤'})，已自動切換到 API 模式`
+            };
         }
 
         throw error;
@@ -587,80 +631,22 @@ export function estimateTokenCount(text: string): number {
 
 /**
  * 獲取提示詞預覽（供前端顯示）
+ * 使用 PromptAggregator 統一提示詞構建
  */
 export async function getPromptPreview(request: AIReplyRequest): Promise<{ success: boolean; prompt: string; mode: 'api' | 'cli'; cliTool?: string; error?: string }> {
     try {
-        const cliSettings = getCLISettings();
+        const { getPromptAggregator } = await import('./prompt-aggregator/index.js');
+        const aggregator = getPromptAggregator();
+        const previewResult = await aggregator.preview(request);
 
-        if (cliSettings?.aiMode === 'cli') {
-            // CLI 模式
-            const prompt = buildCLIPrompt(request);
-            return {
-                success: true,
-                prompt,
-                mode: 'cli',
-                cliTool: cliSettings.cliTool
-            };
-        }
-
-        // API 模式
-        const settings = getAISettings();
-        if (!settings || !settings.apiKey || settings.apiKey === 'YOUR_API_KEY_HERE') {
-            return {
-                success: false,
-                prompt: '',
-                mode: 'api',
-                error: '請先在設定中配置 AI API Key'
-            };
-        }
-
-        // 構建 MCP 工具提示詞
-        let mcpToolsPrompt = '';
-        if (request.includeMCPTools) {
-            try {
-                const allTools = mcpClientManager.getAllTools();
-
-                if (settings.mcpToolsPrompt) {
-                    mcpToolsPrompt = settings.mcpToolsPrompt
-                        .replace(/\{project_name\}/g, request.projectName || '未命名專案')
-                        .replace(/\{project_path\}/g, request.projectPath || '');
-
-                    if (allTools.length > 0) {
-                        mcpToolsPrompt += '\n\n## 可用工具列表\n\n';
-                        for (const tool of allTools) {
-                            mcpToolsPrompt += `### ${tool.name}\n`;
-                            if (tool.description) {
-                                mcpToolsPrompt += `${tool.description}\n`;
-                            }
-                            if (tool.inputSchema) {
-                                mcpToolsPrompt += '\n參數格式:\n```json\n';
-                                mcpToolsPrompt += JSON.stringify(tool.inputSchema, null, 2);
-                                mcpToolsPrompt += '\n```\n';
-                            }
-                            mcpToolsPrompt += '\n';
-                        }
-                    }
-                } else {
-                    mcpToolsPrompt = buildToolsPrompt(allTools, request.projectName, request.projectPath);
-                }
-            } catch {
-                // 忽略
-            }
-        }
-
-        const prompt = buildPrompt(
-            settings.systemPrompt,
-            request.aiMessage,
-            request.userContext,
-            mcpToolsPrompt,
-            request.toolResults
-        );
-
-        return {
-            success: true,
-            prompt,
-            mode: 'api'
+        const result: { success: boolean; prompt: string; mode: 'api' | 'cli'; cliTool?: string; error?: string } = {
+            success: previewResult.success,
+            prompt: previewResult.prompt,
+            mode: previewResult.mode
         };
+        if (previewResult.cliTool) result.cliTool = previewResult.cliTool;
+        if (previewResult.error) result.error = previewResult.error;
+        return result;
     } catch (error) {
         return {
             success: false,
@@ -670,4 +656,5 @@ export async function getPromptPreview(request: AIReplyRequest): Promise<{ succe
         };
     }
 }
+
 

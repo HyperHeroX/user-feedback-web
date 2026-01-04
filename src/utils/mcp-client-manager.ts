@@ -153,7 +153,7 @@ class MCPClientManager extends EventEmitter {
             state.errorDetails = errorStack;
             state.lastError = errorMessage;
             state.lastErrorAt = new Date().toISOString();
-            
+
             logger.error(`Failed to connect MCP Server ${config.name}:`, error);
 
             insertMCPServerLog({
@@ -171,18 +171,18 @@ class MCPClientManager extends EventEmitter {
                 })
             });
 
-            this.emit('server:error', { 
-                serverId: config.id, 
-                serverName: config.name, 
-                error: errorMessage, 
-                details: errorStack 
+            this.emit('server:error', {
+                serverId: config.id,
+                serverName: config.name,
+                error: errorMessage,
+                details: errorStack
             });
 
-            const tempInstance: MCPClientInstance = { 
-                client: null as unknown as Client, 
-                transport: null as unknown as Transport, 
-                state, 
-                config 
+            const tempInstance: MCPClientInstance = {
+                client: null as unknown as Client,
+                transport: null as unknown as Transport,
+                state,
+                config
             };
             this.clients.set(config.id, tempInstance);
 
@@ -249,7 +249,7 @@ class MCPClientManager extends EventEmitter {
             this.reconnectConfig.maxDelay
         );
         const nextRetryAt = new Date(Date.now() + delay).toISOString();
-        
+
         const instance = this.clients.get(config.id);
         if (instance) {
             instance.state.status = 'reconnecting';
@@ -292,7 +292,7 @@ class MCPClientManager extends EventEmitter {
     async retryConnect(serverId: number): Promise<MCPServerState | null> {
         const instance = this.clients.get(serverId);
         const config = instance?.config ?? getMCPServerById(serverId);
-        
+
         if (!config) {
             logger.error(`無法找到 MCP Server 配置: ${serverId}`);
             return null;
@@ -337,11 +337,11 @@ class MCPClientManager extends EventEmitter {
                 })
             });
 
-            this.emit('server:error', { 
-                serverId, 
-                serverName, 
-                error: error.message, 
-                details: error.stack 
+            this.emit('server:error', {
+                serverId,
+                serverName,
+                error: error.message,
+                details: error.stack
             });
             this.emit('server:state-changed', { serverId, state: instance.state });
         };
@@ -633,7 +633,7 @@ class MCPClientManager extends EventEmitter {
     }
 
     // ========== 延遲啟動相關方法 ==========
-    
+
     private deferredServersStarted = false;
 
     /**
@@ -676,7 +676,7 @@ class MCPClientManager extends EventEmitter {
                 logger.info(`✓ 延遲 MCP Server 啟動成功: ${config.name} (ID: ${config.id})`);
             } else {
                 failureCount++;
-                const errorMsg = result.status === 'rejected' 
+                const errorMsg = result.status === 'rejected'
                     ? (result.reason instanceof Error ? result.reason.message : String(result.reason))
                     : (result.value.error || '未知錯誤');
                 logger.error(`✗ 延遲 MCP Server 啟動失敗: ${config.name} (ID: ${config.id}) - ${errorMsg}`);
@@ -699,7 +699,7 @@ class MCPClientManager extends EventEmitter {
         const templateArgs = config.startupArgsTemplate || config.args || [];
         const resolvedArgs = templateArgs.map(arg =>
             arg.replace(/\{project_path\}/g, context.projectPath)
-               .replace(/\{project_name\}/g, context.projectName)
+                .replace(/\{project_name\}/g, context.projectName)
         );
         return { ...config, args: resolvedArgs };
     }

@@ -219,6 +219,7 @@ export interface AIReplyResponse {
     mode?: 'api' | 'cli';
     cliTool?: string;
     promptSent?: string;
+    fallbackReason?: string;
 }
 export interface UserPreferences {
     id: number;
@@ -522,7 +523,7 @@ export interface CLISettingsResponse {
     settings?: CLISettings;
     error?: string;
 }
-export type CLITerminalStatus = 'running' | 'idle' | 'error' | 'stopped';
+export type CLITerminalStatus = 'running' | 'idle' | 'error' | 'stopped' | 'mcp-processing';
 export interface CLITerminal {
     id: string;
     projectName: string;

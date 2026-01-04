@@ -11,6 +11,5 @@ export declare class CLIProvider implements IAIProvider {
     getMode(): AIProviderMode;
     isAvailable(): Promise<boolean>;
     generateReply(request: AIReplyRequest): Promise<AIReplyResponse>;
-    private buildCLIPrompt;
 }
 //# sourceMappingURL=cli-provider.d.ts.map

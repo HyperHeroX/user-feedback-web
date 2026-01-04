@@ -12,7 +12,7 @@ import type { CLIExecuteOptions, CLIToolType } from '../types/index.js';
 
 describe('CLI Executor', () => {
     describe('buildCommandArgs', () => {
-        it('應該為 gemini 建構正確的命令參數', () => {
+        it('應該為 gemini 建構正確的命令參數（prompt 透過 stdin 傳遞）', () => {
             const options: CLIExecuteOptions = {
                 tool: 'gemini',
                 prompt: 'Hello world',
@@ -21,13 +21,14 @@ describe('CLI Executor', () => {
 
             const args = buildCommandArgs(options);
 
-            expect(args).toContain('-p');
-            expect(args).toContain('Hello world');
+            // Gemini CLI: prompt 透過 stdin，args 只含 output-format
             expect(args).toContain('--output-format');
             expect(args).toContain('text');
+            expect(args).not.toContain('Hello world'); // prompt 透過 stdin 傳遞
+            expect(args).not.toContain('-p'); // -p 已棄用
         });
 
-        it('應該為 claude 建構正確的命令參數', () => {
+        it('應該為 claude 建構正確的命令參數（prompt 透過 stdin 傳遞）', () => {
             const options: CLIExecuteOptions = {
                 tool: 'claude',
                 prompt: 'Test prompt',
@@ -36,10 +37,11 @@ describe('CLI Executor', () => {
 
             const args = buildCommandArgs(options);
 
-            expect(args).toContain('-p');
-            expect(args).toContain('Test prompt');
+            // Claude CLI: -p (--print) 為非互動模式標誌，prompt 透過 stdin
+            expect(args).toContain('-p'); // --print 標誌
             expect(args).toContain('--output-format');
             expect(args).toContain('text');
+            expect(args).not.toContain('Test prompt'); // prompt 透過 stdin 傳遞
         });
 
         it('應該使用預設 outputFormat 為 text', () => {

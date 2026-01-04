@@ -1982,10 +1982,12 @@ textarea.form-control {
     border-radius: var(--radius-lg);
     width: 90%;
     max-width: 900px;
+    height: 85vh;
     max-height: 85vh;
     display: flex;
     flex-direction: column;
     box-shadow: var(--shadow-lg);
+    overflow: hidden;
 }
 
 .conversation-header {
@@ -2034,13 +2036,11 @@ textarea.form-control {
 }
 
 .conversation-body {
-    flex: 1;
+    flex: 1 1 0;
+    min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: var(--spacing-md) var(--spacing-lg);
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-md);
-    min-height: 300px;
 }
 
 .conversation-entry {
@@ -2048,6 +2048,7 @@ textarea.form-control {
     border-radius: var(--radius-sm);
     background: var(--bg-tertiary);
     overflow: hidden;
+    margin-bottom: var(--spacing-md);
 }
 
 .conversation-entry.entry-prompt {

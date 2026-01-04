@@ -3,10 +3,10 @@
  * 使用 Google Gemini API 生成 AI 回覆
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getAISettings } from './database.js';
+import { getAISettings, getCLISettings } from './database.js';
 import { logger } from './logger.js';
-import { buildToolsPrompt } from './mcp-tool-parser.js';
 import { mcpClientManager } from './mcp-client-manager.js';
+import { getPromptAggregator } from './prompt-aggregator/index.js';
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [1000, 2000, 4000];
 const cache = new Map();
@@ -37,38 +37,26 @@ export class APIProvider {
                 logger.warn('[APIProvider] API Key 未設定或無效');
                 return { success: false, error: '請先在設定中配置 AI API Key', mode: 'api' };
             }
-            let mcpToolsPrompt = '';
+            const aggregator = getPromptAggregator();
+            const cliSettings = getCLISettings();
+            let mcpTools = [];
             if (request.includeMCPTools) {
                 try {
                     const allTools = mcpClientManager.getAllTools();
-                    if (settings.mcpToolsPrompt) {
-                        mcpToolsPrompt = settings.mcpToolsPrompt
-                            .replace(/\{project_name\}/g, request.projectName || '未命名專案')
-                            .replace(/\{project_path\}/g, request.projectPath || '');
-                        if (allTools.length > 0) {
-                            mcpToolsPrompt += '\n\n## 可用工具列表\n\n';
-                            for (const tool of allTools) {
-                                mcpToolsPrompt += `### ${tool.name}\n`;
-                                if (tool.description)
-                                    mcpToolsPrompt += `${tool.description}\n`;
-                                if (tool.inputSchema) {
-                                    mcpToolsPrompt += '\n參數格式:\n```json\n';
-                                    mcpToolsPrompt += JSON.stringify(tool.inputSchema, null, 2);
-                                    mcpToolsPrompt += '\n```\n';
-                                }
-                                mcpToolsPrompt += '\n';
-                            }
-                        }
-                    }
-                    else {
-                        mcpToolsPrompt = buildToolsPrompt(allTools, request.projectName, request.projectPath);
-                    }
+                    mcpTools = allTools.map(tool => ({
+                        name: tool.name,
+                        description: tool.description,
+                        inputSchema: tool.inputSchema
+                    }));
                 }
                 catch (error) {
                     logger.warn('[APIProvider] 無法取得 MCP 工具', error);
                 }
             }
-            const promptSent = this.buildPrompt(settings.systemPrompt, request.aiMessage, request.userContext, mcpToolsPrompt, request.toolResults);
+            const context = aggregator.buildContextSync(request, settings, cliSettings, mcpTools);
+            context.mode = 'api';
+            const aggregated = aggregator.aggregate(context);
+            const promptSent = aggregated.fullPrompt;
             const reply = await this.generateWithRetry(settings.apiKey, settings.model, promptSent, settings.temperature, settings.maxTokens);
             if (!request.toolResults) {
                 cache.set(cacheKey, { reply, timestamp: Date.now() });
@@ -84,18 +72,6 @@ export class APIProvider {
                 mode: 'api'
             };
         }
-    }
-    buildPrompt(systemPrompt, aiMessage, userContext, mcpToolsPrompt = '', toolResults) {
-        let prompt = `${systemPrompt}\n\n`;
-        if (mcpToolsPrompt)
-            prompt += mcpToolsPrompt + '\n\n';
-        prompt += `AI 工作匯報：\n${aiMessage}\n\n`;
-        if (userContext)
-            prompt += `使用者上下文：\n${userContext}\n\n`;
-        if (toolResults)
-            prompt += `先前工具執行結果：\n${toolResults}\n\n`;
-        prompt += '請生成一個簡潔、專業的回應：';
-        return prompt;
     }
     async generateWithRetry(apiKey, model, prompt, temperature, maxTokens, retryCount = 0) {
         try {

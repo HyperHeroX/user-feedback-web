@@ -12,6 +12,7 @@ jest.unstable_mockModule('../utils/database.js', () => ({
   insertCLIExecutionLog: jest.fn(),
   updateCLITerminal: jest.fn(),
   getCLITerminalById: jest.fn(),
+  getPinnedPrompts: jest.fn(() => []),
 }));
 
 jest.unstable_mockModule('../utils/cli-detector.js', () => ({

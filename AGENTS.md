@@ -74,6 +74,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 2. ✅ **單元測試無錯誤** - 所有後端單元測試通過
 3. ✅ **前端 UI 測試無錯誤** - 前端元件測試通過
 4. ✅ **瀏覽器 UI 測試無錯誤** - 使用 Browser Automation Tools 進行 E2E 測試
+5. ✅ **Jest 測試無異步洩漏** - 測試完成後不得出現 `Jest did not exit one second after the test run has completed` 警告，若出現必須立即修復
 
 ### 7. 程式碼品質規範 (禁止事項)
 

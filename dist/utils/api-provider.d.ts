@@ -9,7 +9,6 @@ export declare class APIProvider implements IAIProvider {
     getMode(): AIProviderMode;
     isAvailable(): Promise<boolean>;
     generateReply(request: AIReplyRequest): Promise<AIReplyResponse>;
-    private buildPrompt;
     private generateWithRetry;
     private sleep;
     private cleanExpiredCache;

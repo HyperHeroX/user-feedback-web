@@ -114,7 +114,9 @@ export async function generateAIReply() {
     return;
   }
 
-  const userContext = document.getElementById("feedbackText").value;
+  // 第一輪不需要 userContext（用戶回覆）
+  // 只傳送 AI 工作匯報 + 系統提示詞 + 釘選提示詞
+  const userContext = "";
 
   showConversationPanel();
   updateConversationTitle("AI 回覆");
@@ -148,6 +150,11 @@ export async function generateAIReply() {
     if (data.success) {
       updateConversationMode(data.mode, data.cliTool);
 
+      // 如果有 fallback 原因，顯示通知
+      if (data.fallbackReason) {
+        showToast("warning", "模式切換", data.fallbackReason);
+      }
+
       if (data.promptSent) {
         const promptEntries = document.querySelectorAll(".entry-prompt");
         if (promptEntries.length > 0) {
@@ -167,11 +174,17 @@ export async function generateAIReply() {
       document.getElementById("feedbackText").value = finalReply;
       updateCharCount();
 
+      // 如果是 fallback，badge 顯示不同的樣式
+      let badge = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
+      if (data.fallbackReason) {
+        badge = "API (fallback)";
+      }
+
       addConversationEntry(ConversationEntryType.AI, finalReply, {
         title: "AI 回覆",
         collapsed: false,
         timestamp: Date.now(),
-        badge: data.mode === "cli" ? `CLI (${data.cliTool})` : "API",
+        badge: badge,
       });
 
       const modeLabel = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
@@ -774,7 +787,9 @@ export async function generateAIReplyWithTools() {
     return;
   }
 
-  const userContext = document.getElementById("feedbackText").value;
+  // 第一輪不需要 userContext（用戶回覆），只有後續輪次才需要
+  // userContext 會在工具執行後由用戶填入回覆
+  let userContext = "";
   const maxToolRounds = getMaxToolRounds();
 
   let hasMCPTools = false;
@@ -857,11 +872,22 @@ export async function generateAIReplyWithTools() {
 
       updateConversationMode(data.mode, data.cliTool);
 
+      // 如果有 fallback 原因，顯示通知
+      if (data.fallbackReason) {
+        showToast("warning", "模式切換", data.fallbackReason);
+      }
+
+      // 如果是 fallback，badge 顯示不同的樣式
+      let badgeTools1 = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
+      if (data.fallbackReason) {
+        badgeTools1 = "API (fallback)";
+      }
+
       addConversationEntry(ConversationEntryType.AI, data.reply, {
         title: `AI 回覆 (第 ${round} 輪)`,
         collapsed: false,
         timestamp: Date.now(),
-        badge: data.mode === "cli" ? `CLI (${data.cliTool})` : "API",
+        badge: badgeTools1,
       });
 
       const parsed = parseToolCalls(data.reply);
@@ -995,17 +1021,28 @@ export async function triggerAutoAIReply() {
       if (data.success) {
         updateConversationMode(data.mode, data.cliTool);
 
+        // 如果有 fallback 原因，顯示通知
+        if (data.fallbackReason) {
+          showToast("warning", "模式切換", data.fallbackReason);
+        }
+
         const pinnedPromptsContent = await getPinnedPromptsContent();
         let finalReply = data.reply;
         if (pinnedPromptsContent) {
           finalReply = pinnedPromptsContent + "\n\n" + data.reply;
         }
 
+        // 如果是 fallback，badge 顯示不同的樣式
+        let badgeAuto1 = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
+        if (data.fallbackReason) {
+          badgeAuto1 = "API (fallback)";
+        }
+
         addConversationEntry(ConversationEntryType.AI, finalReply, {
           title: "AI 回覆",
           collapsed: false,
           timestamp: Date.now(),
-          badge: data.mode === "cli" ? `CLI (${data.cliTool})` : "API",
+          badge: badgeAuto1,
         });
 
         document.getElementById("feedbackText").value = finalReply;
@@ -1098,11 +1135,22 @@ export async function triggerAutoAIReply() {
 
       updateConversationMode(data.mode, data.cliTool);
 
+      // 如果有 fallback 原因，顯示通知
+      if (data.fallbackReason) {
+        showToast("warning", "模式切換", data.fallbackReason);
+      }
+
+      // 如果是 fallback，badge 顯示不同的樣式
+      let badgeAuto2 = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
+      if (data.fallbackReason) {
+        badgeAuto2 = "API (fallback)";
+      }
+
       addConversationEntry(ConversationEntryType.AI, data.reply, {
         title: `AI 回覆 (第 ${round} 輪)`,
         collapsed: false,
         timestamp: Date.now(),
-        badge: data.mode === "cli" ? `CLI (${data.cliTool})` : "API",
+        badge: badgeAuto2,
       });
 
       const parsed = parseToolCalls(data.reply);

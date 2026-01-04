@@ -31,6 +31,7 @@ export declare function validateAPIKey(apiKey: string, model: string): Promise<{
 export declare function estimateTokenCount(text: string): number;
 /**
  * 獲取提示詞預覽（供前端顯示）
+ * 使用 PromptAggregator 統一提示詞構建
  */
 export declare function getPromptPreview(request: AIReplyRequest): Promise<{
     success: boolean;

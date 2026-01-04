@@ -11,7 +11,7 @@ export declare class CLIError extends Error {
     constructor(code: CLIErrorCode, message: string, details?: unknown | undefined);
 }
 /**
- * 建構 CLI 命令參數
+ * 建構 CLI 命令參數（不包含 prompt，因為 prompt 透過 stdin 傳遞）
  */
 export declare function buildCommandArgs(options: CLIExecuteOptions): string[];
 /**
@@ -19,7 +19,7 @@ export declare function buildCommandArgs(options: CLIExecuteOptions): string[];
  */
 export declare function parseOutput(rawOutput: string, tool: CLIToolType): string;
 /**
- * 執行 CLI 命令
+ * 執行 CLI 命令（使用 stdin 傳遞 prompt）
  */
 export declare function executeCLI(options: CLIExecuteOptions): Promise<CLIExecuteResult>;
 /**
