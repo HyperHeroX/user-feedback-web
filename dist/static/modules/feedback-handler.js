@@ -130,12 +130,35 @@ export async function generateAIReply() {
       projectPath: getCurrentProjectPath() || undefined,
     };
 
-    addConversationEntry(ConversationEntryType.PROMPT, buildLocalPromptPreview(workSummary, userContext, null), {
-      title: "提示詞",
-      collapsed: true,
+    // 先獲取完整提示詞預覽
+    let fullPrompt = buildLocalPromptPreview(workSummary, userContext, null);
+    let currentMode = "pending";
+    let currentCliTool = null;
+    
+    try {
+      const previewResponse = await fetch("/api/prompt-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
+      const previewData = await previewResponse.json();
+      if (previewData.success && previewData.prompt) {
+        fullPrompt = previewData.prompt;
+        currentMode = previewData.mode;
+        currentCliTool = previewData.cliTool;
+      }
+    } catch (previewError) {
+      console.warn("無法獲取完整提示詞預覽，使用本地預覽:", previewError);
+    }
+
+    const modeLabel = currentMode === "cli" ? `CLI (${currentCliTool})` : currentMode === "api" ? "API" : "準備中";
+    addConversationEntry(ConversationEntryType.PROMPT, fullPrompt, {
+      title: `提示詞 (${modeLabel})`,
+      collapsed: false,
       timestamp: Date.now(),
     });
 
+    updateConversationMode(currentMode, currentCliTool);
     addThinkingEntry("AI 思考中...");
 
     const response = await fetch("/api/ai-reply", {
@@ -754,7 +777,7 @@ function showToolResults(results, round) {
 }
 
 /**
- * 構建前端提示詞預覽（簡化版）
+ * 構建前端提示詞預覽（簡化版 - 用於 API 獲取失敗時的後備方案）
  */
 function buildLocalPromptPreview(workSummary, userContext, toolResults) {
   let preview = "";
@@ -771,8 +794,6 @@ function buildLocalPromptPreview(workSummary, userContext, toolResults) {
     preview += "## 工具執行結果\n";
     preview += toolResults + "\n\n";
   }
-
-  preview += "(完整提示詞包含系統指令和 MCP 工具列表，將在 AI 回覆後顯示)";
 
   return preview;
 }
@@ -824,15 +845,6 @@ export async function generateAIReplyWithTools() {
 
       round++;
 
-      const localPreview = buildLocalPromptPreview(workSummary, userContext, toolResults);
-      addConversationEntry(ConversationEntryType.PROMPT, localPreview, {
-        title: `提示詞 (第 ${round} 輪)`,
-        collapsed: true,
-        timestamp: Date.now(),
-      });
-
-      addThinkingEntry(`AI 思考中 (第 ${round} 輪)...`);
-
       const requestBody = {
         aiMessage: workSummary,
         userContext: userContext,
@@ -841,6 +853,37 @@ export async function generateAIReplyWithTools() {
         projectName: getCurrentProjectName() || undefined,
         projectPath: getCurrentProjectPath() || undefined,
       };
+
+      // 先獲取完整提示詞預覽
+      let fullPrompt = buildLocalPromptPreview(workSummary, userContext, toolResults);
+      let currentMode = "pending";
+      let currentCliTool = null;
+      
+      try {
+        const previewResponse = await fetch("/api/prompt-preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        });
+        const previewData = await previewResponse.json();
+        if (previewData.success && previewData.prompt) {
+          fullPrompt = previewData.prompt;
+          currentMode = previewData.mode;
+          currentCliTool = previewData.cliTool;
+        }
+      } catch (previewError) {
+        console.warn("無法獲取完整提示詞預覽，使用本地預覽:", previewError);
+      }
+
+      const modeLabel = currentMode === "cli" ? `CLI (${currentCliTool})` : currentMode === "api" ? "API" : "準備中";
+      addConversationEntry(ConversationEntryType.PROMPT, fullPrompt, {
+        title: `提示詞 (第 ${round} 輪) - ${modeLabel}`,
+        collapsed: false,
+        timestamp: Date.now(),
+      });
+
+      updateConversationMode(currentMode, currentCliTool);
+      addThinkingEntry(`AI 思考中 (第 ${round} 輪)...`);
 
       const timeoutController = new AbortController();
       const timeoutId = setTimeout(() => timeoutController.abort(), 180000);
@@ -996,23 +1039,48 @@ export async function triggerAutoAIReply() {
     clearConversationPanel();
 
     try {
-      addConversationEntry(ConversationEntryType.PROMPT, buildLocalPromptPreview(workSummary, userContext, null), {
-        title: "提示詞",
-        collapsed: true,
+      const requestBody = {
+        aiMessage: workSummary,
+        userContext: userContext,
+        projectName: getCurrentProjectName() || undefined,
+        projectPath: getCurrentProjectPath() || undefined,
+      };
+
+      // 先獲取完整提示詞預覽
+      let fullPrompt = buildLocalPromptPreview(workSummary, userContext, null);
+      let currentMode = "pending";
+      let currentCliTool = null;
+      
+      try {
+        const previewResponse = await fetch("/api/prompt-preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        });
+        const previewData = await previewResponse.json();
+        if (previewData.success && previewData.prompt) {
+          fullPrompt = previewData.prompt;
+          currentMode = previewData.mode;
+          currentCliTool = previewData.cliTool;
+        }
+      } catch (previewError) {
+        console.warn("無法獲取完整提示詞預覽，使用本地預覽:", previewError);
+      }
+
+      const modeLabel = currentMode === "cli" ? `CLI (${currentCliTool})` : currentMode === "api" ? "API" : "準備中";
+      addConversationEntry(ConversationEntryType.PROMPT, fullPrompt, {
+        title: `提示詞 (${modeLabel})`,
+        collapsed: false,
         timestamp: Date.now(),
       });
 
+      updateConversationMode(currentMode, currentCliTool);
       addThinkingEntry("自動 AI 回覆中...");
 
       const response = await fetch("/api/ai-reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          aiMessage: workSummary,
-          userContext: userContext,
-          projectName: getCurrentProjectName() || undefined,
-          projectPath: getCurrentProjectPath() || undefined,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -1090,12 +1158,44 @@ export async function triggerAutoAIReply() {
 
       round++;
 
-      addConversationEntry(ConversationEntryType.PROMPT, buildLocalPromptPreview(workSummary, userContext, toolResults), {
-        title: `提示詞 (第 ${round} 輪)`,
-        collapsed: true,
+      const requestBody = {
+        aiMessage: workSummary,
+        userContext: userContext,
+        includeMCPTools: true,
+        toolResults: toolResults || undefined,
+        projectName: getCurrentProjectName() || undefined,
+        projectPath: getCurrentProjectPath() || undefined,
+      };
+
+      // 先獲取完整提示詞預覽
+      let fullPrompt = buildLocalPromptPreview(workSummary, userContext, toolResults);
+      let currentMode = "pending";
+      let currentCliTool = null;
+      
+      try {
+        const previewResponse = await fetch("/api/prompt-preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        });
+        const previewData = await previewResponse.json();
+        if (previewData.success && previewData.prompt) {
+          fullPrompt = previewData.prompt;
+          currentMode = previewData.mode;
+          currentCliTool = previewData.cliTool;
+        }
+      } catch (previewError) {
+        console.warn("無法獲取完整提示詞預覽，使用本地預覽:", previewError);
+      }
+
+      const modeLabel = currentMode === "cli" ? `CLI (${currentCliTool})` : currentMode === "api" ? "API" : "準備中";
+      addConversationEntry(ConversationEntryType.PROMPT, fullPrompt, {
+        title: `提示詞 (第 ${round} 輪) - ${modeLabel}`,
+        collapsed: false,
         timestamp: Date.now(),
       });
 
+      updateConversationMode(currentMode, currentCliTool);
       addThinkingEntry(`自動 AI 思考中 (第 ${round} 輪)...`);
 
       const timeoutController = new AbortController();
@@ -1106,14 +1206,7 @@ export async function triggerAutoAIReply() {
         response = await fetch("/api/ai-reply", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            aiMessage: workSummary,
-            userContext: userContext,
-            includeMCPTools: true,
-            toolResults: toolResults || undefined,
-            projectName: getCurrentProjectName() || undefined,
-            projectPath: getCurrentProjectPath() || undefined,
-          }),
+          body: JSON.stringify(requestBody),
           signal: timeoutController.signal,
         });
       } finally {
