@@ -191,7 +191,9 @@ export async function generateAIReply() {
       const pinnedPromptsContent = await getPinnedPromptsContent();
       let finalReply = data.reply;
       if (pinnedPromptsContent) {
-        finalReply = pinnedPromptsContent + "\n\n" + data.reply;
+        finalReply = pinnedPromptsContent + "\n\n以下為我的回覆:\n" + data.reply;
+      } else {
+        finalReply = "以下為我的回覆:\n" + data.reply;
       }
 
       document.getElementById("feedbackText").value = finalReply;
@@ -939,7 +941,9 @@ export async function generateAIReplyWithTools() {
         const pinnedPromptsContent = await getPinnedPromptsContent();
         let finalReply = parsed.message || data.reply;
         if (pinnedPromptsContent) {
-          finalReply = pinnedPromptsContent + "\n\n" + finalReply;
+          finalReply = pinnedPromptsContent + "\n\n以下為我的回覆:\n" + finalReply;
+        } else {
+          finalReply = "以下為我的回覆:\n" + finalReply;
         }
 
         document.getElementById("feedbackText").value = finalReply;
@@ -975,7 +979,9 @@ export async function generateAIReplyWithTools() {
             parsed.message ||
             "AI 工具呼叫已達最大輪次，請手動完成回覆。\n\n" + toolResults;
           if (pinnedPromptsContent) {
-            finalReply = pinnedPromptsContent + "\n\n" + finalReply;
+            finalReply = pinnedPromptsContent + "\n\n以下為我的回覆:\n" + finalReply;
+          } else {
+            finalReply = "以下為我的回覆:\n" + finalReply;
           }
           document.getElementById("feedbackText").value = finalReply;
           updateCharCount();
@@ -1097,7 +1103,9 @@ export async function triggerAutoAIReply() {
         const pinnedPromptsContent = await getPinnedPromptsContent();
         let finalReply = data.reply;
         if (pinnedPromptsContent) {
-          finalReply = pinnedPromptsContent + "\n\n" + data.reply;
+          finalReply = pinnedPromptsContent + "\n\n以下為我的回覆:\n" + data.reply;
+        } else {
+          finalReply = "以下為我的回覆:\n" + data.reply;
         }
 
         // 如果是 fallback，badge 顯示不同的樣式
@@ -1279,7 +1287,9 @@ export async function triggerAutoAIReply() {
 
     const pinnedPromptsContent = await getPinnedPromptsContent();
     if (pinnedPromptsContent) {
-      finalReply = pinnedPromptsContent + "\n\n" + finalReply;
+      finalReply = pinnedPromptsContent + "\n\n以下為我的回覆:\n" + finalReply;
+    } else {
+      finalReply = "以下為我的回覆:\n" + finalReply;
     }
 
     document.getElementById("feedbackText").value = finalReply;
