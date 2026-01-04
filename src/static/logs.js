@@ -95,7 +95,7 @@
     try {
       const params = new URLSearchParams({
         page: currentPage,
-        pageSize: PAGE_SIZE,
+        limit: PAGE_SIZE,
       });
 
       if (currentFilters.level) {
