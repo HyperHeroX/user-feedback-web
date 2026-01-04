@@ -109,8 +109,8 @@ export async function loadLogs(page = 1) {
 
     const data = await response.json();
     const logs = data.logs || [];
-    currentLogPage = data.page || 1;
-    totalLogPages = data.totalPages || 1;
+    currentLogPage = data.pagination?.page || 1;
+    totalLogPages = data.pagination?.totalPages || 1;
 
     // 渲染日誌條目
     if (logs.length === 0) {

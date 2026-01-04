@@ -183,11 +183,15 @@ export class PortManager {
      */
     async getPortInfo(port) {
         const available = await this.isPortAvailable(port);
+        let pid;
+        if (!available) {
+            const processInfo = await processManager.getPortProcess(port);
+            pid = processInfo?.pid;
+        }
         return {
             port,
             available,
-            // TODO: 新增PID偵測（需要跨平台實作）
-            pid: undefined
+            pid
         };
     }
     /**
@@ -207,10 +211,19 @@ export class PortManager {
     async cleanupZombieProcesses() {
         logger.info('開始清理僵屍處理程序...');
         try {
-            // TODO: 實作跨平台的處理程序清理
-            // Windows: tasklist, taskkill
-            // Unix/Linux: ps, kill
-            logger.info('僵屍處理程序清理完成');
+            let cleanedCount = 0;
+            for (let port = this.PORT_RANGE_START; port <= this.PORT_RANGE_END; port++) {
+                const processInfo = await processManager.getPortProcess(port);
+                if (processInfo && processManager.isOwnProcess(processInfo)) {
+                    logger.info(`發現僵屍處理程序: PID ${processInfo.pid} 佔用連接埠 ${port}`);
+                    const killed = await processManager.killProcess(processInfo.pid, true);
+                    if (killed) {
+                        cleanedCount++;
+                        logger.info(`已清理僵屍處理程序: PID ${processInfo.pid}`);
+                    }
+                }
+            }
+            logger.info(`僵屍處理程序清理完成，共清理 ${cleanedCount} 個處理程序`);
         }
         catch (error) {
             logger.warn('清理僵屍處理程序時出錯:', error);
@@ -305,10 +318,14 @@ export class PortManager {
     async forceReleasePort(port) {
         logger.warn(`強制釋放連接埠: ${port}`);
         try {
-            // TODO: 實作跨平台的處理程序終止
-            // 1. 找到佔用連接埠的處理程序PID
-            // 2. 終止該處理程序
-            // 3. 等待連接埠釋放
+            const processInfo = await processManager.getPortProcess(port);
+            if (processInfo) {
+                logger.info(`發現佔用連接埠 ${port} 的處理程序: PID ${processInfo.pid}, 名稱: ${processInfo.name}`);
+                const killed = await processManager.killProcess(processInfo.pid, true);
+                if (!killed) {
+                    throw new MCPError(`Failed to kill process ${processInfo.pid} occupying port ${port}`, 'PROCESS_KILL_FAILED', { pid: processInfo.pid, port });
+                }
+            }
             await this.waitForPortRelease(port, 3000);
             logger.info(`連接埠 ${port} 強制釋放成功`);
         }
