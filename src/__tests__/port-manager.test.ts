@@ -84,9 +84,10 @@ describe('連接埠管理器', () => {
 
       expect(info).toMatchObject({
         port: port,
-        available: expect.any(Boolean),
-        pid: undefined // 目前實作中PID檢測未實現
+        available: expect.any(Boolean)
       });
+      // PID 可能是數字或 undefined（取決於連接埠是否被佔用）
+      expect(info.pid === undefined || typeof info.pid === 'number').toBe(true);
     });
   });
 
@@ -100,9 +101,10 @@ describe('連接埠管理器', () => {
       for (const info of status) {
         expect(info).toMatchObject({
           port: expect.any(Number),
-          available: expect.any(Boolean),
-          pid: undefined
+          available: expect.any(Boolean)
         });
+        // PID 可能是數字或 undefined（取決於連接埠是否被佔用）
+        expect(info.pid === undefined || typeof info.pid === 'number').toBe(true);
         expect(info.port).toBeGreaterThanOrEqual(5000);
         expect(info.port).toBeLessThanOrEqual(5099);
       }
