@@ -101,6 +101,11 @@ document.addEventListener("DOMContentLoaded", () => {
 function initEventListeners() {
   // 文字輸入區
   const feedbackText = document.getElementById("feedbackText");
+  
+  // 設定初始前綴
+  feedbackText.value = "以下為我的回覆:\n";
+  updateCharCount();
+  
   feedbackText.addEventListener("input", handleUserActivity);
   feedbackText.addEventListener("input", updateCharCount);
 

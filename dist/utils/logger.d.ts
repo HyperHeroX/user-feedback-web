@@ -29,6 +29,10 @@ declare class Logger {
      */
     setDatabaseLogging(enabled: boolean): void;
     /**
+     * 停止 Logger 的所有計時器（用於測試清理）
+     */
+    destroy(): void;
+    /**
      * 延遲載入 database 函式
      */
     private loadDatabaseFunctions;

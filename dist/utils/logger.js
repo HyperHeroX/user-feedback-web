@@ -116,6 +116,17 @@ class Logger {
         this.dbLoggingEnabled = enabled;
     }
     /**
+     * 停止 Logger 的所有計時器（用於測試清理）
+     */
+    destroy() {
+        if (this.flushInterval) {
+            clearInterval(this.flushInterval);
+            this.flushInterval = null;
+        }
+        // 同步刷新剩餘的日誌
+        this.flushToDatabase();
+    }
+    /**
      * 延遲載入 database 函式
      */
     async loadDatabaseFunctions() {

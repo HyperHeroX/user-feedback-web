@@ -108,7 +108,7 @@
       const response = await fetch(`${API_BASE}/api/logs?${params}`);
       const data = await response.json();
 
-      totalLogs = data.total || 0;
+      totalLogs = data.pagination?.total || 0;
       renderLogs(data.logs || []);
       updatePagination();
     } catch (error) {
