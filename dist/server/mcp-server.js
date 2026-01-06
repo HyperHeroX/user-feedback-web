@@ -332,8 +332,15 @@ export class MCPServer {
                 return originalSend(message);
             };
             await this.mcpServer.connect(transport);
-            // 啟動Web伺服器（在MCP連線建立後）
-            await this.webServer.start();
+            // 啟動Web伺服器（非阻塞，讓 MCP initialize 可以先完成回應）
+            // 使用 setImmediate 確保 MCP 連接的 initialize 回應先發送
+            setImmediate(() => {
+                this.webServer.start().then(() => {
+                    logger.info('Web伺服器啟動成功');
+                }).catch((error) => {
+                    logger.error('Web伺服器啟動失敗:', error);
+                });
+            });
             this.isRunning = true;
             logger.info('MCP伺服器啟動成功');
             // 保持進程運行（即使 stdin 關閉）
