@@ -17,6 +17,7 @@ export class MCPServer {
     webServer;
     config;
     isRunning = false;
+    sseTransport = null;
     constructor(config) {
         this.config = config;
         // 创建MCP服务器实例
@@ -38,6 +39,32 @@ export class MCPServer {
         // 註冊MCP工具函式和日誌處理
         this.registerTools();
         this.setupLogging();
+    }
+    /**
+     * 取得 McpServer 實例（供 HTTP 傳輸使用）
+     */
+    getMcpServerInstance() {
+        return this.mcpServer;
+    }
+    /**
+     * 取得 SSE Transport 實例
+     */
+    getSSETransport() {
+        return this.sseTransport;
+    }
+    /**
+     * 設定 SSE Transport（由 WebServer 建立後注入）
+     */
+    setSSETransport(transport) {
+        this.sseTransport = transport;
+    }
+    /**
+     * 連接 SSE Transport
+     */
+    async connectSSETransport(transport) {
+        this.sseTransport = transport;
+        await this.mcpServer.connect(transport);
+        logger.info('SSE Transport 已連接');
     }
     /**
      * 註冊MCP工具函式
@@ -103,7 +130,8 @@ export class MCPServer {
                 }
                 logger.mcp('collect_feedback', params, { feedback_count: result.feedback.length });
                 // 將格式化後的 feedback 傳回作為工具結果
-                const content = this.formatFeedbackForMCP(result.feedback);
+                // 在 HTTP 模式下，將 feedbackUrl 包含在回應中讓客戶端開啟
+                const content = this.formatFeedbackForMCP(result.feedback, result.feedbackUrl);
                 return {
                     content,
                     isError: false
@@ -208,14 +236,22 @@ export class MCPServer {
     /**
      * 將回饋資料格式化為MCP內容（支援圖片顯示）
      */
-    formatFeedbackForMCP(feedback) {
-        if (feedback.length === 0) {
-            return [{
-                    type: 'text',
-                    text: '未收到使用者回饋'
-                }];
-        }
+    formatFeedbackForMCP(feedback, feedbackUrl) {
         const content = [];
+        // 如果有 feedbackUrl，在開頭顯示（用於 HTTP 模式讓客戶端開啟）
+        if (feedbackUrl) {
+            content.push({
+                type: 'text',
+                text: `📋 反饋頁面: ${feedbackUrl}`
+            });
+        }
+        if (feedback.length === 0) {
+            content.push({
+                type: 'text',
+                text: '未收到使用者回饋'
+            });
+            return content;
+        }
         // 新增總結文字
         content.push({
             type: 'text',
@@ -307,44 +343,56 @@ export class MCPServer {
             return;
         }
         try {
-            logger.info('正在啟動MCP伺服器...');
-            // 連線 MCP傳輸
-            const transport = new StdioServerTransport();
-            // 設定傳輸錯誤處理
-            transport.onerror = (error) => {
-                logger.error('MCP傳輸錯誤:', error);
-            };
-            transport.onclose = () => {
-                logger.info('MCP傳輸連線已關閉');
-                this.isRunning = false;
-            };
-            // 新增訊息除錯
-            const originalOnMessage = transport.onmessage;
-            transport.onmessage = (message) => {
-                logger.debug('📥 收到MCP消息:', JSON.stringify(message, null, 2));
-                if (originalOnMessage) {
-                    originalOnMessage(message);
-                }
-            };
-            const originalSend = transport.send.bind(transport);
-            transport.send = (message) => {
-                logger.debug('📤 发送MCP消息:', JSON.stringify(message, null, 2));
-                return originalSend(message);
-            };
-            await this.mcpServer.connect(transport);
-            // 啟動Web伺服器（非阻塞，讓 MCP initialize 可以先完成回應）
-            // 使用 setImmediate 確保 MCP 連接的 initialize 回應先發送
-            setImmediate(() => {
-                this.webServer.start().then(() => {
-                    logger.info('Web伺服器啟動成功');
-                }).catch((error) => {
-                    logger.error('Web伺服器啟動失敗:', error);
+            const transportMode = this.config.mcpTransport || 'stdio';
+            logger.info(`正在啟動MCP伺服器 (傳輸模式: ${transportMode})...`);
+            // 根據傳輸模式選擇連接方式
+            if (transportMode === 'stdio') {
+                // stdio 模式: 直接連接 StdioServerTransport
+                const transport = new StdioServerTransport();
+                // 設定傳輸錯誤處理
+                transport.onerror = (error) => {
+                    logger.error('MCP傳輸錯誤:', error);
+                };
+                transport.onclose = () => {
+                    logger.info('MCP傳輸連線已關閉');
+                    this.isRunning = false;
+                };
+                // 新增訊息除錯
+                const originalOnMessage = transport.onmessage;
+                transport.onmessage = (message) => {
+                    logger.debug('📥 收到MCP消息:', JSON.stringify(message, null, 2));
+                    if (originalOnMessage) {
+                        originalOnMessage(message);
+                    }
+                };
+                const originalSend = transport.send.bind(transport);
+                transport.send = (message) => {
+                    logger.debug('📤 发送MCP消息:', JSON.stringify(message, null, 2));
+                    return originalSend(message);
+                };
+                await this.mcpServer.connect(transport);
+                // 啟動Web伺服器（非阻塞，讓 MCP initialize 可以先完成回應）
+                setImmediate(() => {
+                    this.webServer.start().then(() => {
+                        logger.info('Web伺服器啟動成功');
+                    }).catch((error) => {
+                        logger.error('Web伺服器啟動失敗:', error);
+                    });
                 });
-            });
+                // 保持進程運行（即使 stdin 關閉）
+                process.stdin.resume();
+            }
+            else if (transportMode === 'sse' || transportMode === 'streamable-http') {
+                // HTTP 模式 (sse 或 streamable-http): 啟動 Web 伺服器並設定 MCP HTTP 端點
+                logger.info(`HTTP 傳輸模式: ${transportMode}，MCP 連接將由 HTTP 端點處理`);
+                await this.webServer.startWithMCPEndpoints(this, transportMode);
+                logger.info('Web伺服器啟動成功，等待 HTTP MCP 客戶端連接...');
+            }
+            else {
+                throw new MCPError(`不支援的傳輸模式: ${transportMode}`, 'CONFIG_ERROR');
+            }
             this.isRunning = true;
             logger.info('MCP伺服器啟動成功');
-            // 保持進程運行（即使 stdin 關閉）
-            process.stdin.resume();
         }
         catch (error) {
             logger.error('MCP伺服器啟動失敗:', error);
@@ -367,6 +415,29 @@ export class MCPServer {
         catch (error) {
             logger.error('Web伺服器啟動失敗:', error);
             throw new MCPError('Failed to start web server', 'WEB_SERVER_START_ERROR', error);
+        }
+    }
+    /**
+     * 使用 HTTP 傳輸模式啟動（SSE 或 Streamable HTTP）
+     * @param transportMode - 傳輸模式：'sse' 或 'streamable-http'
+     */
+    async startWithHTTPTransport(transportMode) {
+        if (this.isRunning) {
+            logger.warn('MCP伺服器已在執行中');
+            return;
+        }
+        try {
+            logger.info(`正在啟動 HTTP 傳輸模式 (${transportMode})...`);
+            // 啟動 Web 伺服器並啟用 MCP HTTP 端點
+            await this.webServer.startWithMCPEndpoints(this, transportMode);
+            this.isRunning = true;
+            logger.info(`MCP 伺服器已在 HTTP 模式 (${transportMode}) 下啟動`);
+            // 保持處理程序執行
+            process.stdin.resume();
+        }
+        catch (error) {
+            logger.error('HTTP 傳輸模式啟動失敗:', error);
+            throw new MCPError('Failed to start MCP server with HTTP transport', 'HTTP_TRANSPORT_START_ERROR', error);
         }
     }
     /**

@@ -26,6 +26,7 @@ import { maskApiKey } from '../utils/crypto-helper.js';
 import { generateAIReply, validateAPIKey } from '../utils/ai-service.js';
 import { mcpClientManager } from '../utils/mcp-client-manager.js';
 import { detectCLITools, clearDetectionCache } from '../utils/cli-detector.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 /**
  * Web伺服器類別
  */
@@ -42,6 +43,9 @@ export class WebServer {
     sessionStorage;
     autoReplyTimers = new Map();
     autoReplyWarningTimers = new Map();
+    mcpServerRef = null;
+    sseTransports = new Map();
+    sseTransportsList = [];
     constructor(config) {
         this.config = config;
         this.portManager = new PortManager();
@@ -2312,12 +2316,21 @@ export class WebServer {
             // 发送MCP日志通知，包含反馈页面信息
             logger.mcpFeedbackPageCreated(sessionId, feedbackUrl, timeoutSeconds);
             // 注意：逾時處理現在由SessionStorage的清理機制處理
-            // 開啟瀏覽器
-            this.openFeedbackPage(sessionId).catch((error) => {
-                logger.error('開啟回饋頁面失敗:', error);
-                this.sessionStorage.deleteSession(sessionId);
-                reject(error);
-            });
+            // 判斷是否為 HTTP 傳輸模式（sse/streamable-http）
+            const isHTTPTransport = this.config.mcpTransport === 'sse' || this.config.mcpTransport === 'streamable-http';
+            if (isHTTPTransport) {
+                // HTTP 模式：不嘗試開啟瀏覽器（容器環境無法開啟主機瀏覽器）
+                // 客戶端應從工具回應中的 feedbackUrl 自行開啟
+                logger.info(`HTTP 傳輸模式，請手動開啟瀏覽器存取: ${feedbackUrl}`);
+            }
+            else {
+                // stdio 模式：嘗試開啟瀏覽器
+                this.openFeedbackPage(sessionId).catch((error) => {
+                    logger.warn('開啟回饋頁面失敗（不影響會話）:', error);
+                    logger.info(`請手動開啟瀏覽器存取: ${feedbackUrl}`);
+                    // 不再 reject 和刪除 session，讓使用者可以手動開啟
+                });
+            }
         });
     }
     emitDashboardSessionCreated(projectId, sessionId, projectName, workSummary) {
@@ -2500,6 +2513,136 @@ export class WebServer {
             logger.error('Web伺服器啟動失敗:', error);
             throw new MCPError('Failed to start web server', 'WEB_SERVER_START_ERROR', error);
         }
+    }
+    /**
+     * 啟動 Web 伺服器並啟用 MCP HTTP 端點
+     * @param mcpServer - MCP Server 實例
+     * @param transportMode - 傳輸模式：'sse' 或 'streamable-http'
+     */
+    async startWithMCPEndpoints(mcpServer, transportMode) {
+        this.mcpServerRef = mcpServer;
+        // 設定 MCP HTTP 端點
+        this.setupMCPHTTPEndpoints(transportMode);
+        // 啟動 Web 伺服器
+        await this.start();
+        logger.info(`MCP HTTP 端點已啟用 (${transportMode})`);
+    }
+    /**
+     * 設定 MCP HTTP 端點
+     * @param transportMode - 傳輸模式
+     */
+    setupMCPHTTPEndpoints(transportMode) {
+        // 同時設定兩種端點以支援 VSCode 的向後兼容機制
+        // VSCode 會先嘗試 Streamable HTTP (POST /mcp)，失敗後退回 SSE (GET /mcp/sse)
+        this.setupSSEEndpoints();
+        this.setupStreamableHTTPEndpoints();
+        logger.info(`已設定 MCP HTTP 端點 (主要模式: ${transportMode})`);
+    }
+    /**
+     * 設定 SSE 端點
+     */
+    setupSSEEndpoints() {
+        // GET /mcp/sse - SSE 連線端點
+        this.app.get('/mcp/sse', async (req, res) => {
+            logger.info('收到 SSE 連線請求');
+            if (!this.mcpServerRef) {
+                res.status(500).json({ error: 'MCP Server not initialized' });
+                return;
+            }
+            // 設定 SSE 回應標頭
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+            res.setHeader('X-Accel-Buffering', 'no');
+            // 建立 SSE Transport (SDK 會自動生成 sessionId)
+            const transport = new SSEServerTransport('/mcp/message', res);
+            // 使用 response 物件作為唯一標識
+            const sessionKey = Symbol();
+            this.sseTransportsList.push({ key: sessionKey, transport, res });
+            // 設定關閉處理
+            req.on('close', () => {
+                logger.info('SSE 連線已關閉');
+                const index = this.sseTransportsList.findIndex(t => t.key === sessionKey);
+                if (index !== -1) {
+                    this.sseTransportsList.splice(index, 1);
+                }
+            });
+            try {
+                // 連接 MCP Server 到此 Transport
+                await this.mcpServerRef.connectSSETransport(transport);
+                logger.info('SSE Transport 已連接');
+            }
+            catch (error) {
+                logger.error('SSE Transport 連接失敗:', error);
+                const index = this.sseTransportsList.findIndex(t => t.key === sessionKey);
+                if (index !== -1) {
+                    this.sseTransportsList.splice(index, 1);
+                }
+            }
+        });
+        // POST /mcp/message - SSE 訊息端點
+        this.app.post('/mcp/message', express.json(), async (req, res) => {
+            logger.debug('收到 SSE 訊息:', JSON.stringify(req.body));
+            if (this.sseTransportsList.length === 0) {
+                res.status(400).json({ error: 'No active SSE session' });
+                return;
+            }
+            // 嘗試所有活躍的 transport，SDK 會驗證 sessionId
+            let handled = false;
+            for (const { transport } of this.sseTransportsList) {
+                try {
+                    await transport.handlePostMessage(req, res, req.body);
+                    handled = true;
+                    break;
+                }
+                catch (error) {
+                    // 如果 sessionId 不匹配，繼續嘗試下一個
+                    if (!res.headersSent) {
+                        continue;
+                    }
+                    break;
+                }
+            }
+            if (!handled && !res.headersSent) {
+                res.status(400).json({ error: 'Session not found' });
+            }
+        });
+        logger.info('SSE 端點已設定: GET /mcp/sse, POST /mcp/message');
+    }
+    /**
+     * 設定 Streamable HTTP 端點
+     */
+    async setupStreamableHTTPEndpoints() {
+        // 動態匯入 Streamable HTTP Transport
+        const { StreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
+        // POST /mcp - Streamable HTTP 端點
+        this.app.post('/mcp', express.json(), async (req, res) => {
+            logger.debug('收到 Streamable HTTP 請求:', JSON.stringify(req.body));
+            if (!this.mcpServerRef) {
+                res.status(500).json({ error: 'MCP Server not initialized' });
+                return;
+            }
+            try {
+                // 建立 Streamable HTTP Transport
+                const transport = new StreamableHTTPServerTransport({
+                    sessionIdGenerator: () => `http-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+                });
+                // 處理請求
+                await transport.handleRequest(req, res, req.body);
+                // 如果這是初始化請求，連接 MCP Server
+                if (req.body?.method === 'initialize') {
+                    await this.mcpServerRef.getMcpServerInstance().connect(transport);
+                    logger.info('Streamable HTTP Transport 已連接');
+                }
+            }
+            catch (error) {
+                logger.error('處理 Streamable HTTP 請求失敗:', error);
+                if (!res.headersSent) {
+                    res.status(500).json({ error: 'Failed to process request' });
+                }
+            }
+        });
+        logger.info('Streamable HTTP 端點已設定: POST /mcp');
     }
     /**
      * 優雅停止Web伺服器

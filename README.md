@@ -385,6 +385,129 @@ Whenever you're about to complete a user request, call the MCP instead of simply
 
 ---
 
+## 🌐 HTTP 傳輸模式（Docker 部署）
+
+除了傳統的 stdio 傳輸模式，本系統現在支援 HTTP 傳輸模式（SSE 和 Streamable HTTP），使其能夠在 Docker 容器中運行並接受遠端 MCP 連線。
+
+### 傳輸模式說明
+
+| 模式 | 描述 | 適用場景 |
+|------|------|----------|
+| `stdio` | 標準輸入/輸出傳輸（預設） | 本地 MCP 客戶端（Claude Desktop、Cursor） |
+| `sse` | Server-Sent Events | Docker 部署、遠端連線 |
+| `streamable-http` | Streamable HTTP | Docker 部署、現代 HTTP 串流 |
+
+### 使用方式
+
+#### 命令列啟動
+
+```bash
+# 使用 SSE 傳輸模式
+npx user-web-feedback --transport sse
+
+# 使用 Streamable HTTP 傳輸模式
+npx user-web-feedback --transport streamable-http
+```
+
+#### 環境變數配置
+
+```bash
+# 設定傳輸模式
+MCP_TRANSPORT=sse  # 或 streamable-http
+```
+
+### Docker 部署
+
+#### 使用 Docker Compose（推薦）
+
+```bash
+# 啟動服務
+docker-compose up -d
+
+# 查看日誌
+docker-compose logs -f
+```
+
+#### 使用 Docker 直接運行
+
+```bash
+# 構建映像
+docker build -t user-feedback-web .
+
+# 運行容器
+docker run -d \
+  --name user-feedback-web \
+  -p 3000:3000 \
+  -e MCP_TRANSPORT=sse \
+  -e MCP_WEB_PORT=3000 \
+  -v ./data:/app/data \
+  user-feedback-web
+```
+
+### HTTP MCP Server 配置範例
+
+#### Claude Desktop / Cursor 配置（連接到 Docker 容器）
+
+使用 SSE 傳輸連接到運行中的 Docker 容器：
+
+```json
+{
+  "mcpServers": {
+    "user-web-feedback": {
+      "transport": "sse",
+      "url": "http://localhost:3000/mcp/sse"
+    }
+  }
+}
+```
+
+使用 Streamable HTTP 傳輸：
+
+```json
+{
+  "mcpServers": {
+    "user-web-feedback": {
+      "transport": "streamable-http",
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
+```
+
+#### 遠端伺服器連接
+
+如果 Docker 容器運行在遠端伺服器：
+
+```json
+{
+  "mcpServers": {
+    "user-web-feedback": {
+      "transport": "sse",
+      "url": "http://your-server-ip:3000/mcp/sse"
+    }
+  }
+}
+```
+
+### HTTP 端點說明
+
+| 端點 | 方法 | 描述 |
+|------|------|------|
+| `/mcp/sse` | GET | SSE 連線端點 |
+| `/mcp/message` | POST | SSE 訊息端點 |
+| `/mcp` | POST | Streamable HTTP 端點 |
+| `/health` | GET | 健康檢查端點 |
+
+### 注意事項
+
+1. **安全性**：HTTP 傳輸模式不包含內建認證，建議在生產環境中使用反向代理（如 nginx）添加 HTTPS 和認證。
+
+2. **網路配置**：確保防火牆允許對應端口的流量。
+
+3. **日誌**：可透過 `LOG_LEVEL` 環境變數調整日誌級別（debug、info、warn、error）。
+
+---
+
 ## 🆕 最新功能 (v2.1.3+)
 
 ### 🎨 增強版反饋介面（最新）

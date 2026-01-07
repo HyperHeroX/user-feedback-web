@@ -2,6 +2,7 @@
  * user-feedback MCP Tools - Web伺服器實作
  */
 import { Config, FeedbackData } from '../types/index.js';
+import type { MCPServer } from './mcp-server.js';
 /**
  * Web伺服器類別
  */
@@ -18,6 +19,9 @@ export declare class WebServer {
     private sessionStorage;
     private autoReplyTimers;
     private autoReplyWarningTimers;
+    private mcpServerRef;
+    private sseTransports;
+    private sseTransportsList;
     constructor(config: Config);
     /**
      * 設置 MCP 客戶端事件監聽，將狀態變更推送到前端
@@ -98,6 +102,25 @@ export declare class WebServer {
      */
     private autoStartMCPServers;
     start(): Promise<void>;
+    /**
+     * 啟動 Web 伺服器並啟用 MCP HTTP 端點
+     * @param mcpServer - MCP Server 實例
+     * @param transportMode - 傳輸模式：'sse' 或 'streamable-http'
+     */
+    startWithMCPEndpoints(mcpServer: MCPServer, transportMode: 'sse' | 'streamable-http'): Promise<void>;
+    /**
+     * 設定 MCP HTTP 端點
+     * @param transportMode - 傳輸模式
+     */
+    private setupMCPHTTPEndpoints;
+    /**
+     * 設定 SSE 端點
+     */
+    private setupSSEEndpoints;
+    /**
+     * 設定 Streamable HTTP 端點
+     */
+    private setupStreamableHTTPEndpoints;
     /**
      * 優雅停止Web伺服器
      */

@@ -68,7 +68,9 @@ export function createDefaultConfig() {
         // 新增：單一實例模式設定
         lockFilePath: getOptionalEnvVar('MCP_LOCK_FILE_PATH'),
         healthCheckTimeout: getEnvNumber('MCP_HEALTH_CHECK_TIMEOUT', 3000),
-        forceNewInstance: getEnvBoolean('MCP_FORCE_NEW_INSTANCE', false)
+        forceNewInstance: getEnvBoolean('MCP_FORCE_NEW_INSTANCE', false),
+        // MCP Server 傳輸模式
+        mcpTransport: getEnvVar('MCP_TRANSPORT', 'stdio')
     };
 }
 /**
@@ -130,5 +132,6 @@ export function displayConfig(config) {
     console.log(`  Cleanup Port On Start: ${config.cleanupPortOnStart ? 'enabled' : 'disabled'}`);
     console.log(`  Image To Text: ${config.enableImageToText ? 'enabled' : 'disabled'}`);
     console.log(`  Image To Text Prompt: ${config.imageToTextPrompt ? config.imageToTextPrompt.substring(0, 50) + '...' : 'default'}`);
+    console.log(`  MCP Transport: ${config.mcpTransport || 'stdio'}`);
 }
 //# sourceMappingURL=index.js.map

@@ -2,6 +2,9 @@
  * user-feedback MCP Tools - 類型定義
  */
 
+// MCP Server 傳輸模式（用於本服務提供的 MCP Server）
+export type MCPServerTransportMode = 'stdio' | 'sse' | 'streamable-http';
+
 // 基礎設定類型
 export interface Config {
   apiKey?: string | undefined;
@@ -28,6 +31,8 @@ export interface Config {
   lockFilePath?: string | undefined;         // 鎖定檔案路徑
   healthCheckTimeout?: number | undefined;   // 健康檢查逾時（毫秒）
   forceNewInstance?: boolean | undefined;    // 強制啟動新實例
+  // MCP Server 傳輸模式設定
+  mcpTransport?: MCPServerTransportMode | undefined;  // MCP Server 傳輸模式
 }
 
 // 回饋資料類型

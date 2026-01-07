@@ -1,4 +1,5 @@
 # Docker Compose 配置文件
+# 支援 HTTP 傳輸模式 (SSE/Streamable HTTP) 的 MCP Server
 
 version: '3.8'
 
@@ -7,16 +8,29 @@ services:
     build: .
     container_name: user-feedback-web
     ports:
-      - "3000:3000"      # Web 介面
-      - "5555:5555"      # MCP 伺服器埠
+      - "3000:3000"      # Web 介面 + MCP HTTP 端點
     environment:
       - NODE_ENV=production
       - LOG_LEVEL=info
+      - MCP_TRANSPORT=sse           # MCP 傳輸模式: stdio | sse | streamable-http
+      - MCP_WEB_PORT=3000           # Web 伺服器端口
+      - MCP_DIALOG_TIMEOUT=60000    # 反饋對話逾時（秒），最大 60000 秒（約 16.7 小時）
+      # 可選配置：
+      # - MCP_API_KEY=your_api_key_here
+      # - MCP_API_BASE_URL=https://api.ssopen.top
+      # - MCP_DEFAULT_MODEL=grok-3
+      # - MCP_ENCRYPTION_PASSWORD=your-secure-password
     volumes:
       - ./data:/app/data  # 持久化數據
     restart: unless-stopped
     networks:
       - user-feedback-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
 
 networks:
   user-feedback-network:

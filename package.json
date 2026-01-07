@@ -70,7 +70,7 @@
     "socket.io": "^4.7.2",
     "sql.js": "^1.13.0",
     "tslib": "^2.6.2",
-    "zod": "^4.3.5"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/compression": "^1.7.3",

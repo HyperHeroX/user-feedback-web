@@ -1,6 +1,7 @@
 /**
  * user-feedback MCP Tools - 類型定義
  */
+export type MCPServerTransportMode = 'stdio' | 'sse' | 'streamable-http';
 export interface Config {
     apiKey?: string | undefined;
     apiBaseUrl: string;
@@ -22,6 +23,7 @@ export interface Config {
     lockFilePath?: string | undefined;
     healthCheckTimeout?: number | undefined;
     forceNewInstance?: boolean | undefined;
+    mcpTransport?: MCPServerTransportMode | undefined;
 }
 export interface FeedbackData {
     text?: string;

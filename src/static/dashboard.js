@@ -397,10 +397,8 @@
     // 最多顯示 3 個會話
     const displaySessions = sessions.slice(0, 3);
 
+    // 注意：此函數僅返回卡片內部內容，外層 div.project-card 由 createProjectCard 建立
     return `
-            <div class="project-card ${
-              hasActive ? "has-active" : ""
-            }" data-project-id="${project.id}">
                 <div class="project-card-header">
                     <div class="project-name">
                         <span class="icon">📁</span>
@@ -442,7 +440,6 @@
                         : ""
                     }
                 </div>
-            </div>
         `;
   }
 
@@ -486,6 +483,11 @@
   // 隱藏空狀態
   function hideEmptyState() {
     elements.emptyState.style.display = "none";
+    // 移除載入中佔位符
+    const loadingPlaceholder = elements.projectsList.querySelector('.loading-placeholder');
+    if (loadingPlaceholder) {
+      loadingPlaceholder.remove();
+    }
   }
 
   // 導航到專案的第一個活躍會話

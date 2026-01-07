@@ -46,6 +46,7 @@ function showWelcome(): void {
 async function startMCPServer(options: {
   port?: number;
   web?: boolean;
+  transport?: string;
   config?: string;
   debug?: boolean;
   forceNew?: boolean;
@@ -118,19 +119,28 @@ async function startMCPServer(options: {
     // 建立並啟動MCP伺服器
     const server = new MCPServer(config);
 
+    // 決定傳輸模式（命令列參數優先於配置）
+    const transportMode = options.transport || config.mcpTransport || 'stdio';
+
     // 決定啟動模式：
     // 1. 明確指定 --web 時使用 Web 模式
     // 2. TTY 模式（直接在終端運行）時自動使用 Web 模式
-    // 3. 其他情況（被 MCP 客戶端調用）使用完整 MCP 模式
-    const useWebOnly = options.web || (!isMCPMode && process.stdin.isTTY);
+    // 3. HTTP 傳輸模式（sse 或 streamable-http）使用 HTTP 模式
+    // 4. 其他情況（被 MCP 客戶端調用）使用 stdio MCP 模式
+    const useWebOnly = options.web || (!isMCPMode && process.stdin.isTTY && transportMode === 'stdio');
+    const useHTTPTransport = transportMode === 'sse' || transportMode === 'streamable-http';
 
     if (useWebOnly) {
       // 僅Web模式
       logger.info('啟動Web模式...');
       await server.startWebOnly();
+    } else if (useHTTPTransport) {
+      // HTTP 傳輸模式
+      logger.info(`啟動 HTTP 傳輸模式 (${transportMode})...`);
+      await server.startWithHTTPTransport(transportMode as 'sse' | 'streamable-http');
     } else {
-      // 完整MCP模式
-      logger.info('啟動MCP伺服器...');
+      // 完整MCP模式（stdio）
+      logger.info('啟動MCP伺服器 (stdio)...');
       await server.start();
     }
 
@@ -200,6 +210,7 @@ program
   .description('啟動MCP回饋收集器')
   .option('-p, --port <number>', '指定Web伺服器連接埠', parseInt)
   .option('-w, --web', '僅啟動Web模式（不啟動MCP伺服器）')
+  .option('-t, --transport <type>', 'MCP傳輸模式 (stdio|sse|streamable-http)', 'stdio')
   .option('-c, --config <path>', '指定設定檔路徑')
   .option('-d, --debug', '啟用除錯模式（顯示詳細的MCP通訊日誌）')
   .option('--mcp-mode', '強制啟用MCP模式（用於除錯）')
