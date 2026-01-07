@@ -425,22 +425,23 @@ export class MCPServer {
           this.isRunning = false;
         };
 
-        // 新增訊息除錯
+        // 先連接 transport，讓 MCP SDK 設置真正的 message handler
+        await this.mcpServer.connect(transport);
+
+        // 連接後再設置消息攔截器（用於除錯）
         const originalOnMessage = transport.onmessage;
-        transport.onmessage = (message) => {
-          logger.debug('📥 收到MCP消息:', JSON.stringify(message, null, 2));
-          if (originalOnMessage) {
+        if (originalOnMessage) {
+          transport.onmessage = (message) => {
+            logger.debug('📥 收到MCP消息:', JSON.stringify(message, null, 2));
             originalOnMessage(message);
-          }
-        };
+          };
+        }
 
         const originalSend = transport.send.bind(transport);
         transport.send = (message) => {
           logger.debug('📤 发送MCP消息:', JSON.stringify(message, null, 2));
           return originalSend(message);
         };
-
-        await this.mcpServer.connect(transport);
 
         // 啟動Web伺服器（非阻塞，讓 MCP initialize 可以先完成回應）
         setImmediate(() => {

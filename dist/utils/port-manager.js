@@ -69,74 +69,35 @@ export class PortManager {
      * 智慧連接埠衝突解決
      */
     async resolvePortConflict(port) {
-        logger.info(`開始解決連接埠 ${port} 的衝突`);
-        // 1. 檢查連接埠是否可用
+        logger.info(`檢查連接埠 ${port} 是否可用`);
+        // 檢查連接埠是否可用
         if (await this.isPortAvailable(port)) {
             logger.info(`連接埠 ${port} 可用，直接使用`);
             return port;
         }
-        // 2. 取得佔用處理程序資訊
-        const processInfo = await processManager.getPortProcess(port);
-        if (!processInfo) {
-            // 連接埠被佔用但找不到處理程序，等待釋放
-            logger.info(`連接埠 ${port} 被佔用但找不到處理程序，等待釋放...`);
-            if (await processManager.waitForPortRelease(port, 5000)) {
-                logger.info(`連接埠 ${port} 已自動釋放`);
-                return port;
-            }
-            logger.warn(`連接埠 ${port} 釋放逾時，尋找其他連接埠`);
-            return await this.findAlternativePort(port);
-        }
-        // 3. 檢查是否是自己的處理程序
-        if (processManager.isOwnProcess(processInfo)) {
-            logger.info(`發現自己的僵屍處理程序，嘗試清理: PID ${processInfo.pid}`);
-            if (await processManager.forceReleasePort(port)) {
-                logger.info(`成功清理僵屍處理程序，連接埠 ${port} 已釋放`);
-                return port;
-            }
-            else {
-                logger.error('無法清理僵屍處理程序，尋找其他連接埠');
-                return await this.findAlternativePort(port);
-            }
-        }
-        // 4. 檢查是否是安全處理程序
-        if (processManager.isSafeToKill(processInfo)) {
-            logger.warn(`嘗試終止安全處理程序: ${processInfo.name} (PID: ${processInfo.pid})`);
-            if (await processManager.forceReleasePort(port)) {
-                logger.info(`成功終止處理程序，連接埠 ${port} 已釋放`);
-                return port;
-            }
-            else {
-                logger.error('無法終止處理程序，尋找其他連接埠');
-                return await this.findAlternativePort(port);
-            }
-        }
-        // 5. 無法清理，尋找其他連接埠
-        logger.warn(`無法清理連接埠 ${port} (處理程序: ${processInfo.name})，尋找其他可用連接埠`);
+        // 連接埠被佔用，使用逃避策略 - 不嘗試終止現有進程
+        logger.info(`連接埠 ${port} 被佔用，使用逃避策略尋找下一個可用連接埠`);
         return await this.findAlternativePort(port);
     }
     /**
      * 尋找替代連接埠
      */
     async findAlternativePort(preferredPort) {
-        logger.info(`尋找連接埠 ${preferredPort} 的替代方案`);
-        // 嘗試相近的連接埠
-        const nearbyPorts = [
-            preferredPort + 1,
-            preferredPort + 2,
-            preferredPort + 3,
-            preferredPort - 1,
-            preferredPort - 2,
-            preferredPort - 3
-        ].filter(p => p > 1024 && p < 65535);
-        for (const port of nearbyPorts) {
+        logger.info(`尋找連接埠 ${preferredPort} 的替代方案（最多嘗試 ${this.MAX_RETRIES} 次）`);
+        // 從 preferredPort + 1 開始順序遞增嘗試
+        for (let i = 1; i <= this.MAX_RETRIES; i++) {
+            const port = preferredPort + i;
+            if (port > 65535) {
+                break;
+            }
+            logger.debug(`嘗試連接埠 ${port}...`);
             if (await this.isPortAvailable(port)) {
-                logger.info(`找到相近的可用連接埠: ${port}`);
+                logger.info(`找到可用連接埠: ${port}`);
                 return port;
             }
+            logger.debug(`連接埠 ${port} 被佔用，繼續嘗試...`);
         }
-        // 在端口范围内查找
-        return await this.findAvailablePort();
+        throw new Error(`無法在 ${this.MAX_RETRIES} 次嘗試後找到可用連接埠（從 ${preferredPort + 1} 到 ${preferredPort + this.MAX_RETRIES}）`);
     }
     /**
      * 查找可用連接埠（傳統方法）

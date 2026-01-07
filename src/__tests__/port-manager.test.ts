@@ -161,4 +161,63 @@ describe('連接埠管理器', () => {
       portManager.isPortAvailable = originalIsPortAvailable;
     });
   });
+
+  describe('resolvePortConflict（端口逃避策略）', () => {
+    test('應該在連接埠可用時直接使用', async () => {
+      const preferredPort = 65429;
+      const isAvailable = await portManager.isPortAvailable(preferredPort);
+      
+      if (isAvailable) {
+        const resolvedPort = await portManager.resolvePortConflict(preferredPort);
+        expect(resolvedPort).toBe(preferredPort);
+      }
+    });
+
+    test('應該在連接埠被佔用時使用替代連接埠', async () => {
+      const { createServer } = await import('net');
+      const server = createServer();
+
+      await new Promise<void>((resolve) => {
+        server.listen(0, () => {
+          resolve();
+        });
+      });
+
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+
+      if (port > 0) {
+        const resolvedPort = await portManager.resolvePortConflict(port);
+        expect(resolvedPort).not.toBe(port);
+        expect(resolvedPort).toBeGreaterThan(port);
+      }
+
+      server.close();
+    });
+  });
+
+  describe('findAlternativePort（順序遞增）', () => {
+    test('應該從 preferredPort + 1 開始順序遞增', async () => {
+      // 使用一個很可能可用的端口範圍
+      const availablePort = await portManager.findAvailablePort();
+      // 使用這個可用端口的前一個作為 preferredPort
+      const preferredPort = availablePort - 1;
+      
+      const alternativePort = await portManager.findAlternativePort(preferredPort);
+      
+      expect(alternativePort).toBeGreaterThan(preferredPort);
+      expect(alternativePort).toBeLessThanOrEqual(preferredPort + 20);
+    });
+
+    test('應該在達到最大嘗試次數後拋出錯誤', async () => {
+      const originalIsPortAvailable = portManager.isPortAvailable;
+      portManager.isPortAvailable = jest.fn().mockResolvedValue(false);
+
+      await expect(portManager.findAlternativePort(5050)).rejects.toThrow(
+        '無法在'
+      );
+
+      portManager.isPortAvailable = originalIsPortAvailable;
+    });
+  });
 });

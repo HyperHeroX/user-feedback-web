@@ -194,9 +194,12 @@ MCP_ENCRYPTION_PASSWORD="your-secure-password"  # API Key 加密主密碼（強�
 
 # URL 和端口優化配置 (v2.0.7 新增)
 MCP_USE_FIXED_URL="true"           # 使用固定 URL，不帶會話參數 (預設: true)
-MCP_FORCE_PORT="false"             # 強制使用指定端口 (預設: false)
-MCP_KILL_PORT_PROCESS="false"      # 自動終止占用進程 (預設: false)
 MCP_CLEANUP_PORT_ON_START="true"   # 啟動時清理端口 (預設: true)
+
+# 多實例支援 (v2.3.0 新增)
+# 當端口被佔用時，系統會自動遞增到下一個可用端口
+# 例如：5050 被佔用 → 自動使用 5051
+# 最多嘗試 20 個連續端口
 ```
 
 ---
