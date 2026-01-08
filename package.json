@@ -1,13 +1,13 @@
 {
   "name": "@hiro-tools/user-web-feedback",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "基於Node.js的MCP回饋收集器 - 支持AI工作彙報和用戶回饋收集",
   "publishConfig": {
     "registry": "http://192.168.160.113:34873/"
   },
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
   "bin": {
-    "user-web-feedback": "dist/cli.js"
+    "user-web-feedback": "dist/cli.cjs"
   },
   "type": "module",
   "engines": {
@@ -34,8 +34,7 @@
     "url": "https://github.com/sanshao85/user-web-feedback-web/issues"
   },
   "scripts": {
-    "build": "tsc && npm run copy-static",
-    "copy-static": "node ./scripts/copy-static.cjs",
+    "build": "tsup",
     "dev": "tsx watch --clear-screen=false src/cli.ts",
     "start": "node dist/cli.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
@@ -83,6 +82,7 @@
     "sql.js": "^1.13.0",
     "ts-jest": "^29.1.1",
     "tslib": "^2.6.2",
+    "tsup": "^8.5.1",
     "tsx": "^3.14.0",
     "typescript": "^5.2.2",
     "zod": "^3.25.76"

@@ -1,1 +1,0 @@
-{"version":3,"file":"closing.d.ts","sourceRoot":"","sources":["../../../../src/utils/prompt-aggregator/components/closing.ts"],"names":[],"mappings":"AAAA;;GAEG;AACH,OAAO,KAAK,EAAE,aAAa,EAAE,MAAM,+BAA+B,CAAC;AACnE,OAAO,EAAE,mBAAmB,EAAE,MAAM,qBAAqB,CAAC;AAE1D,qBAAa,sBAAuB,SAAQ,mBAAmB;;IAK3D,KAAK,CAAC,OAAO,EAAE,aAAa,GAAG,MAAM,GAAG,IAAI;CAS/C"}
