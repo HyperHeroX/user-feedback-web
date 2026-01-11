@@ -16,6 +16,7 @@ export default defineConfig({
   shims: true,
   external: [
     'better-sqlite3',
+    'jimp',
   ],
   noExternal: [
     '@modelcontextprotocol/sdk',
@@ -28,7 +29,6 @@ export default defineConfig({
     'express',
     'find-free-port',
     'helmet',
-    'jimp',
     'marked',
     'open',
     'socket.io',

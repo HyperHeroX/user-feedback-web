@@ -1,9 +1,9 @@
 /**
  * user-feedback MCP Tools - 圖片處理工具
  * 使用 Jimp 庫進行圖片處理和最佳化
+ * 採用延遲載入模式以減少啟動時間
  */
 
-import Jimp from 'jimp';
 import { MCPError, ImageData } from '../types/index.js';
 import { logger } from './logger.js';
 
@@ -11,6 +11,47 @@ import { logger } from './logger.js';
  * 支援的圖片格式
  */
 const SUPPORTED_FORMATS = ['jpeg', 'jpg', 'png', 'gif', 'webp', 'bmp', 'tiff'];
+
+// Jimp 模組延遲載入
+let JimpModule: typeof import('jimp') | null = null;
+let jimpLoadPromise: Promise<typeof import('jimp')> | null = null;
+
+async function getJimp(): Promise<typeof import('jimp')> {
+  if (JimpModule) {
+    return JimpModule;
+  }
+
+  if (jimpLoadPromise) {
+    return jimpLoadPromise;
+  }
+
+  jimpLoadPromise = (async () => {
+    try {
+      logger.debug('延遲載入 Jimp 模組...');
+      const module = await import('jimp');
+      JimpModule = module;
+      logger.debug('Jimp 模組載入完成');
+      return module;
+    } catch (error) {
+      jimpLoadPromise = null;
+      logger.warn('Jimp 模組載入失敗，圖片處理功能將不可用:', error);
+      throw new MCPError(
+        'Jimp module not available. Image processing is disabled.',
+        'JIMP_NOT_AVAILABLE',
+        error
+      );
+    }
+  })();
+
+  return jimpLoadPromise;
+}
+
+/**
+ * 檢查 Jimp 是否可用（不會觸發載入）
+ */
+export function isJimpAvailable(): boolean {
+  return JimpModule !== null;
+}
 
 /**
  * 圖片處理器類別
@@ -34,13 +75,11 @@ export class ImageProcessor {
    * 驗證圖片格式
    */
   validateImageFormat(filename: string, mimeType: string): boolean {
-    // 檢查檔案副檔名
     const ext = filename.toLowerCase().split('.').pop();
     if (!ext || !SUPPORTED_FORMATS.includes(ext)) {
       return false;
     }
 
-    // 檢查MIME類型
     const validMimeTypes = [
       'image/jpeg',
       'image/jpg',
@@ -72,14 +111,13 @@ export class ImageProcessor {
     hasAlpha: boolean;
   }> {
     try {
-      // 移除Base64前綴
+      const Jimp = await getJimp();
+      
       const base64Content = base64Data.replace(/^data:image\/[^;]+;base64,/, '');
       const buffer = Buffer.from(base64Content, 'base64');
 
-      // 使用 Jimp 讀取圖片資訊
-      const image = await Jimp.read(buffer);
+      const image = await Jimp.default.read(buffer);
 
-      // 從 MIME 類型推斷格式
       const mimeType = image.getMIME();
       const format = mimeType.split('/')[1] || 'unknown';
 
@@ -91,6 +129,9 @@ export class ImageProcessor {
         hasAlpha: image.hasAlpha()
       };
     } catch (error) {
+      if (error instanceof MCPError) {
+        throw error;
+      }
       logger.error('取得圖片資訊失敗:', error);
       throw new MCPError(
         'Failed to get image information',
@@ -110,6 +151,8 @@ export class ImageProcessor {
     format?: 'jpeg' | 'png' | 'webp';
   } = {}): Promise<string> {
     try {
+      const Jimp = await getJimp();
+      
       const base64Content = base64Data.replace(/^data:image\/[^;]+;base64,/, '');
       const buffer = Buffer.from(base64Content, 'base64');
 
@@ -120,15 +163,12 @@ export class ImageProcessor {
         format = 'jpeg'
       } = options;
 
-      // 使用 Jimp 读取图片
-      let image = await Jimp.read(buffer);
+      let image = await Jimp.default.read(buffer);
 
-      // 調整尺寸
       const originalWidth = image.getWidth();
       const originalHeight = image.getHeight();
 
       if (originalWidth > maxWidth || originalHeight > maxHeight) {
-        // 計算縮放比例，保持寬高比
         const widthRatio = maxWidth / originalWidth;
         const heightRatio = maxHeight / originalHeight;
         const ratio = Math.min(widthRatio, heightRatio);
@@ -139,39 +179,38 @@ export class ImageProcessor {
         image = image.resize(newWidth, newHeight);
       }
 
-      // 設定品質
       image = image.quality(quality);
 
-      // 轉換格式和取得buffer
       let outputBuffer: Buffer;
       let mimeType: string;
 
       switch (format) {
         case 'jpeg':
-          outputBuffer = await image.getBufferAsync(Jimp.MIME_JPEG);
-          mimeType = Jimp.MIME_JPEG;
+          outputBuffer = await image.getBufferAsync(Jimp.default.MIME_JPEG);
+          mimeType = Jimp.default.MIME_JPEG;
           break;
         case 'png':
-          outputBuffer = await image.getBufferAsync(Jimp.MIME_PNG);
-          mimeType = Jimp.MIME_PNG;
+          outputBuffer = await image.getBufferAsync(Jimp.default.MIME_PNG);
+          mimeType = Jimp.default.MIME_PNG;
           break;
         case 'webp':
-          // Jimp 可能不支援 WebP，降級到 JPEG
-          outputBuffer = await image.getBufferAsync(Jimp.MIME_JPEG);
-          mimeType = Jimp.MIME_JPEG;
+          outputBuffer = await image.getBufferAsync(Jimp.default.MIME_JPEG);
+          mimeType = Jimp.default.MIME_JPEG;
           break;
         default:
-          outputBuffer = await image.getBufferAsync(Jimp.MIME_JPEG);
-          mimeType = Jimp.MIME_JPEG;
+          outputBuffer = await image.getBufferAsync(Jimp.default.MIME_JPEG);
+          mimeType = Jimp.default.MIME_JPEG;
       }
 
-      // 轉換回Base64
       const compressedBase64 = `data:${mimeType};base64,${outputBuffer.toString('base64')}`;
 
       logger.debug(`圖片壓縮完成: ${buffer.length} -> ${outputBuffer.length} bytes`);
 
       return compressedBase64;
     } catch (error) {
+      if (error instanceof MCPError) {
+        throw error;
+      }
       logger.error('圖片壓縮失敗:', error);
       throw new MCPError(
         'Failed to compress image',
@@ -186,7 +225,6 @@ export class ImageProcessor {
    */
   async validateAndProcessImage(imageData: ImageData): Promise<ImageData> {
     try {
-      // 驗證基本資訊
       if (!imageData.name || !imageData.data || !imageData.type) {
         throw new MCPError(
           'Invalid image data: missing required fields',
@@ -194,7 +232,6 @@ export class ImageProcessor {
         );
       }
 
-      // 驗證格式
       if (!this.validateImageFormat(imageData.name, imageData.type)) {
         throw new MCPError(
           `Unsupported image format: ${imageData.type}`,
@@ -202,7 +239,6 @@ export class ImageProcessor {
         );
       }
 
-      // 驗證大小
       if (!this.validateImageSize(imageData.size)) {
         throw new MCPError(
           `Image size ${imageData.size} exceeds limit ${this.maxFileSize}`,
@@ -210,10 +246,8 @@ export class ImageProcessor {
         );
       }
 
-      // 取得圖片詳細資訊
       const info = await this.getImageInfoFromBase64(imageData.data);
 
-      // 檢查圖片尺寸
       if (info.width > this.maxWidth || info.height > this.maxHeight) {
         logger.info(`圖片尺寸過大 (${info.width}x${info.height})，正在壓縮...`);
 
@@ -261,7 +295,6 @@ export class ImageProcessor {
         results.push(processedImage);
       } catch (error) {
         logger.error(`處理圖片 ${images[i]?.name} 失敗:`, error);
-        // 繼續處理其他圖片，但記錄錯誤
         throw error;
       }
     }
@@ -275,21 +308,24 @@ export class ImageProcessor {
    */
   async generateThumbnail(base64Data: string, size: number = 150): Promise<string> {
     try {
+      const Jimp = await getJimp();
+      
       const base64Content = base64Data.replace(/^data:image\/[^;]+;base64,/, '');
       const buffer = Buffer.from(base64Content, 'base64');
 
-      // 使用 Jimp 產生縮圖
-      const image = await Jimp.read(buffer);
+      const image = await Jimp.default.read(buffer);
 
-      // 裁剪為正方形並調整大小
       const thumbnail = image
-        .cover(size, size) // 類似 Sharp 的 fit: 'cover'
+        .cover(size, size)
         .quality(80);
 
-      const thumbnailBuffer = await thumbnail.getBufferAsync(Jimp.MIME_JPEG);
+      const thumbnailBuffer = await thumbnail.getBufferAsync(Jimp.default.MIME_JPEG);
 
       return `data:image/jpeg;base64,${thumbnailBuffer.toString('base64')}`;
     } catch (error) {
+      if (error instanceof MCPError) {
+        throw error;
+      }
       logger.error('產生縮圖失敗:', error);
       throw new MCPError(
         'Failed to generate thumbnail',

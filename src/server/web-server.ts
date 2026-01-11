@@ -42,33 +42,60 @@ export class WebServer {
   private port: number = 0;
   private isServerRunning = false;
   private portManager: PortManager;
-  private imageProcessor: ImageProcessor;
-  private imageToTextService: ImageToTextService;
+  private _imageProcessor: ImageProcessor | null = null;
+  private _imageToTextService: ImageToTextService | null = null;
   private sessionStorage: SessionStorage;
   private autoReplyTimers: Map<string, NodeJS.Timeout> = new Map();
   private autoReplyWarningTimers: Map<string, NodeJS.Timeout> = new Map();
   private mcpServerRef: MCPServer | null = null;
   private sseTransports: Map<string, SSEServerTransport> = new Map();
   private sseTransportsList: Array<{ key: symbol; transport: SSEServerTransport; res: express.Response }> = [];
+  private dbInitialized = false;
+
+  /**
+   * 延遲載入 ImageProcessor
+   */
+  private get imageProcessor(): ImageProcessor {
+    if (!this._imageProcessor) {
+      this._imageProcessor = new ImageProcessor({
+        maxFileSize: this.config.maxFileSize,
+        maxWidth: 2048,
+        maxHeight: 2048
+      });
+    }
+    return this._imageProcessor;
+  }
+
+  /**
+   * 延遲載入 ImageToTextService
+   */
+  private get imageToTextService(): ImageToTextService {
+    if (!this._imageToTextService) {
+      this._imageToTextService = new ImageToTextService(this.config);
+    }
+    return this._imageToTextService;
+  }
+
+  /**
+   * 延遲初始化資料庫
+   */
+  private ensureDatabase(): void {
+    if (!this.dbInitialized) {
+      try {
+        initDatabase();
+        this.dbInitialized = true;
+        logger.info('資料庫初始化成功');
+      } catch (error) {
+        logger.error('資料庫初始化失敗:', error);
+        throw error;
+      }
+    }
+  }
 
   constructor(config: Config) {
     this.config = config;
     this.portManager = new PortManager();
-    this.imageProcessor = new ImageProcessor({
-      maxFileSize: config.maxFileSize,
-      maxWidth: 2048,
-      maxHeight: 2048
-    });
-    this.imageToTextService = new ImageToTextService(config);
     this.sessionStorage = new SessionStorage();
-
-    // 初始化資料庫
-    try {
-      initDatabase();
-      logger.info('資料庫初始化成功');
-    } catch (error) {
-      logger.error('資料庫初始化失敗:', error);
-    }
 
     // 建立Express應用程式
     this.app = express();
@@ -92,7 +119,7 @@ export class WebServer {
   }
 
   /**
-   * 設置 MCP 客戶端事件監聽，將狀態變更推送到前端
+   * 設置 MCP 客戶端事件監聯，將狀態變更推送到前端
    */
   private setupMCPClientEvents(): void {
     mcpClientManager.on('server:connected', (data) => {
@@ -2724,6 +2751,9 @@ export class WebServer {
     }
 
     try {
+      // 延遲初始化資料庫（僅在首次啟動 Web 服務時）
+      this.ensureDatabase();
+
       // 根據設定選擇連接埠策略
       if (this.config.forcePort) {
         // 強制連接埠模式
