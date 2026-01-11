@@ -113,7 +113,10 @@ export async function executeCLI(options: CLIExecuteOptions): Promise<CLIExecute
     return new Promise((resolve) => {
         const args = buildCommandArgs(options);
 
-        logger.info(`[CLI] 命令參數: ${options.tool} ${args.join(' ')}`);
+        // 合併命令和參數為單一字串，避免 Node.js v22+ 的 DEP0190 警告
+        // 當使用 shell: true 時，傳遞 args 陣列會觸發安全警告
+        const fullCommand = `${options.tool} ${args.join(' ')}`;
+        logger.info(`[CLI] 執行命令: ${fullCommand}`);
 
         const spawnOptions: { cwd?: string; shell: boolean; timeout: number } = {
             shell: true,
@@ -124,7 +127,8 @@ export async function executeCLI(options: CLIExecuteOptions): Promise<CLIExecute
             spawnOptions.cwd = options.workingDirectory;
         }
 
-        const child = spawn(options.tool, args, spawnOptions);
+        // 使用單一字串命令而非命令+參數陣列
+        const child = spawn(fullCommand, [], spawnOptions);
         logger.info(`[CLI] 進程已啟動, PID: ${child.pid}`);
 
         let stdout = '';

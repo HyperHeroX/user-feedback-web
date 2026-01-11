@@ -40,10 +40,10 @@ export default defineConfig({
     console.log('Copying static files...');
     const { cpSync, existsSync, copyFileSync } = await import('fs');
     const { join } = await import('path');
-    
+
     const staticSrc = join(process.cwd(), 'src', 'static');
     const staticDest = join(process.cwd(), 'dist', 'static');
-    
+
     if (existsSync(staticSrc)) {
       cpSync(staticSrc, staticDest, { recursive: true });
       console.log('✅ Static files copied');

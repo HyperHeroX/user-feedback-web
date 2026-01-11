@@ -2850,7 +2850,7 @@ export class WebServer {
 
       // 建立 SSE Transport (SDK 會自動生成 sessionId)
       const transport = new SSEServerTransport('/mcp/message', res);
-      
+
       // 使用 response 物件作為唯一標識
       const sessionKey = Symbol();
       this.sseTransportsList.push({ key: sessionKey, transport, res });
