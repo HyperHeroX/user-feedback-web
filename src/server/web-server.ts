@@ -120,38 +120,39 @@ export class WebServer {
 
   /**
    * 解析靜態資源目錄，優先使用建置產物，其次回退到原始碼目錄
-   * 使用模組的實際位置而不是 process.cwd()，以支援從任何目錄啟動的 MCP 模式
+   * 支援多種執行環境：開發模式、打包模式、npx 執行模式
    */
   private getStaticAssetsPath(): string {
-    // 取得當前模組的目錄（dist/server 或 src/server）
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
 
-    // 專案根目錄的不同可能性：
-    // 1. 如果從 dist/server/web-server.js 執行：__dirname = .../dist/server，向上 2 級得到專案根
-    // 2. 如果從 src/server/web-server.ts 執行：__dirname = .../src/server，向上 2 級得到專案根
-    const projectRoot = path.resolve(__dirname, '..', '..');
+    // 建立候選路徑列表，按優先順序排列
+    const candidates: string[] = [];
 
-    // 嘗試在專案根目錄的相對位置查找靜態檔案
-    const candidates = [
-      path.resolve(projectRoot, 'dist/static'),
-      path.resolve(projectRoot, 'src/static'),
-      // 備選方案：使用 process.cwd() 作為最後的回退
-      path.resolve(process.cwd(), 'dist/static'),
-      path.resolve(process.cwd(), 'src/static')
-    ];
+    // 情境 1: tsup 打包後的單檔模式 (dist/cli.cjs)
+    // __dirname = .../dist，靜態資源在同層的 static 目錄
+    candidates.push(path.resolve(__dirname, 'static'));
+
+    // 情境 2: 開發模式或非打包執行 (src/server/web-server.ts 或 dist/server/web-server.js)
+    // __dirname = .../src/server 或 .../dist/server，向上 2 級後在 dist/static 或 src/static
+    const projectRoot = path.resolve(__dirname, '..', '..');
+    candidates.push(path.resolve(projectRoot, 'dist/static'));
+    candidates.push(path.resolve(projectRoot, 'src/static'));
+
+    // 情境 3: 從工作目錄尋找（最後回退）
+    candidates.push(path.resolve(process.cwd(), 'dist/static'));
+    candidates.push(path.resolve(process.cwd(), 'src/static'));
 
     for (const candidate of candidates) {
-      if (fs.existsSync(candidate)) {
+      if (fs.existsSync(candidate) && fs.existsSync(path.join(candidate, 'index.html'))) {
         logger.debug(`找到靜態資源目錄: ${candidate}`);
         return candidate;
       }
     }
 
-    // 最後回退到專案根目錄下的 static（若存在）
-    const fallback = path.resolve(projectRoot, 'static');
-    logger.warn(`未找到靜態資源目錄，使用回退路徑: ${fallback}`);
-    return fallback;
+    // 如果都找不到，記錄所有嘗試過的路徑以便除錯
+    logger.warn(`未找到靜態資源目錄，已嘗試: ${candidates.join(', ')}`);
+    return candidates[0];
   }
 
   /**

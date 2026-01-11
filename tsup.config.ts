@@ -38,7 +38,7 @@ export default defineConfig({
   ],
   onSuccess: async () => {
     console.log('Copying static files...');
-    const { cpSync, existsSync } = await import('fs');
+    const { cpSync, existsSync, copyFileSync } = await import('fs');
     const { join } = await import('path');
     
     const staticSrc = join(process.cwd(), 'src', 'static');
@@ -47,6 +47,14 @@ export default defineConfig({
     if (existsSync(staticSrc)) {
       cpSync(staticSrc, staticDest, { recursive: true });
       console.log('✅ Static files copied');
+    }
+
+    // Copy Socket.IO client from node_modules to static folder
+    const socketIOClientSrc = join(process.cwd(), 'node_modules', 'socket.io', 'client-dist', 'socket.io.min.js');
+    const socketIOClientDest = join(staticDest, 'socket.io.min.js');
+    if (existsSync(socketIOClientSrc)) {
+      copyFileSync(socketIOClientSrc, socketIOClientDest);
+      console.log('✅ Socket.IO client copied');
     }
   },
 });
