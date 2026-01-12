@@ -68409,7 +68409,7 @@ var init_dist2 = __esm({
   }
 });
 
-// node_modules/eventsource/dist/index.js
+// node_modules/@modelcontextprotocol/sdk/node_modules/eventsource/dist/index.js
 function syntaxError(message) {
   const DomException = globalThis.DOMException;
   return typeof DomException == "function" ? new DomException(message, "SyntaxError") : new SyntaxError(message);
@@ -68433,7 +68433,7 @@ function getBaseURL() {
 }
 var ErrorEvent, __typeError, __accessCheck, __privateGet, __privateAdd, __privateSet, __privateMethod, _readyState, _url, _redirectUrl, _withCredentials, _fetch, _reconnectInterval, _reconnectTimer, _lastEventId, _controller, _parser, _onError, _onMessage, _onOpen, _EventSource_instances, connect_fn, _onFetchResponse, _onFetchError, getRequestOptions_fn, _onEvent, _onRetryChange, failConnection_fn, scheduleReconnect_fn, _reconnect, EventSource;
 var init_dist3 = __esm({
-  "node_modules/eventsource/dist/index.js"() {
+  "node_modules/@modelcontextprotocol/sdk/node_modules/eventsource/dist/index.js"() {
     "use strict";
     init_cjs_shims();
     init_dist2();
@@ -81997,6 +81997,7 @@ init_cjs_shims();
 
 // node_modules/zod-to-json-schema/dist/esm/selectParser.js
 init_cjs_shims();
+init_zod();
 
 // node_modules/zod-to-json-schema/dist/esm/parsers/any.js
 init_cjs_shims();
@@ -82017,6 +82018,7 @@ function parseAnyDef(refs) {
 
 // node_modules/zod-to-json-schema/dist/esm/parsers/array.js
 init_cjs_shims();
+init_zod();
 function parseArrayDef(def, refs) {
   const res = {
     type: "array"
@@ -82260,6 +82262,7 @@ init_cjs_shims();
 
 // node_modules/zod-to-json-schema/dist/esm/parsers/record.js
 init_cjs_shims();
+init_zod();
 
 // node_modules/zod-to-json-schema/dist/esm/parsers/string.js
 init_cjs_shims();
