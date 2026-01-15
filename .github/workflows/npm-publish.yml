@@ -56,21 +56,59 @@ jobs:
           sudo apt-get install -y build-essential python3
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: |
+          # 清除 better-sqlite3 的緩存，強制重新構建
+          pnpm store prune || true
+          # 安裝依賴並確保構建腳本運行
+          pnpm install --frozen-lockfile --ignore-scripts=false
 
       - name: Rebuild better-sqlite3
         run: |
-          # 使用 pnpm rebuild 重建 better-sqlite3
-          pnpm rebuild better-sqlite3 || {
-            # 如果 pnpm rebuild 失敗，嘗試手動構建
-            echo "pnpm rebuild failed, trying manual build..."
-            BETTER_SQLITE3_PATH=$(find node_modules/.pnpm -name "better-sqlite3" -type d | grep -E "better-sqlite3@[0-9]" | head -1)
-            if [ -n "$BETTER_SQLITE3_PATH" ]; then
+          echo "Rebuilding better-sqlite3..."
+          # 方法 1: 使用 pnpm rebuild
+          pnpm rebuild better-sqlite3 2>&1 | tee /tmp/rebuild.log || {
+            echo "pnpm rebuild failed, checking log..."
+            cat /tmp/rebuild.log || true
+            echo "Trying manual build..."
+            
+            # 方法 2: 找到 better-sqlite3 路徑並手動構建
+            BETTER_SQLITE3_PATH=$(find node_modules/.pnpm -type d -path "*/better-sqlite3@*/node_modules/better-sqlite3" | head -1)
+            if [ -n "$BETTER_SQLITE3_PATH" ] && [ -d "$BETTER_SQLITE3_PATH" ]; then
+              echo "Found better-sqlite3 at: $BETTER_SQLITE3_PATH"
               cd "$BETTER_SQLITE3_PATH"
-              npm run build-release || npm run install || node-gyp rebuild
+              
+              # 嘗試多種構建方法
+              npm run build-release 2>&1 || \
+              npm run install 2>&1 || \
+              node-gyp rebuild 2>&1 || \
+              npm run build 2>&1 || {
+                echo "All build methods failed"
+                ls -la build/ Release/ out/ 2>/dev/null || true
+                exit 1
+              }
+              
               cd - > /dev/null
+              echo "Manual build completed"
+            else
+              echo "Could not find better-sqlite3 path"
+              find node_modules/.pnpm -name "better-sqlite3" -type d | head -5
+              exit 1
             fi
           }
+          
+          # 驗證構建結果
+          echo "Verifying build..."
+          BETTER_SQLITE3_PATH=$(find node_modules/.pnpm -type d -path "*/better-sqlite3@*/node_modules/better-sqlite3" | head -1)
+          if [ -n "$BETTER_SQLITE3_PATH" ]; then
+            if find "$BETTER_SQLITE3_PATH" -name "*.node" -type f | grep -q .; then
+              echo "✅ Found .node file(s):"
+              find "$BETTER_SQLITE3_PATH" -name "*.node" -type f
+            else
+              echo "❌ No .node files found in $BETTER_SQLITE3_PATH"
+              find "$BETTER_SQLITE3_PATH" -type f | head -10
+              exit 1
+            fi
+          fi
 
       - name: Run tests
         run: pnpm test
