@@ -5,10 +5,10 @@ on:
     branches:
       - main
     paths:
-      - 'package.json'
-      - 'src/**'
-      - 'tsconfig.json'
-      - 'tsup.config.ts'
+      - "package.json"
+      - "src/**"
+      - "tsconfig.json"
+      - "tsup.config.ts"
   workflow_dispatch:
 
 jobs:
@@ -17,7 +17,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -28,8 +28,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "18"
+          registry-url: "https://registry.npmjs.org"
+          scope: "@hirohsu"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
@@ -63,11 +64,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           # Get current version
           CURRENT_VERSION=$(node -p "require('./package.json').version")
           echo "Current version: $CURRENT_VERSION"
-          
+
           # Check if this commit already bumped version (avoid infinite loop)
           if git log -1 --pretty=%B | grep -q "chore: bump version"; then
             echo "Version already bumped in this commit, skipping..."
@@ -75,32 +76,30 @@ jobs:
             echo "tag=v$CURRENT_VERSION" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           # Bump patch version
           IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
           MAJOR=${VERSION_PARTS[0]}
           MINOR=${VERSION_PARTS[1]}
           PATCH=${VERSION_PARTS[2]}
-          
+
           NEW_PATCH=$((PATCH + 1))
           NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
           echo "New version: $NEW_VERSION"
-          
+
           # Update package.json
           npm version $NEW_VERSION --no-git-tag-version
-          
+
           # Commit version bump with [skip ci] to avoid triggering workflow again
           git add package.json
           git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
-          
+
           # Create and push tag
           git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
           git push origin main --tags
-          
+
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
 
-      - name: Publish to npm
-        run: pnpm publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Publish to npm (OIDC Trusted Publishing)
+        run: npm publish --access public --provenance
