@@ -116,6 +116,9 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           scope: "@hirohsu"
 
+      - name: Install latest npm (required for OIDC)
+        run: npm install -g npm@latest
+
       - name: Install pnpm
         uses: pnpm/action-setup@v2
         with:
