@@ -2,5 +2,4 @@ packages:
   - '.'
 
 ignoredBuiltDependencies:
-  - better-sqlite3
   - esbuild
