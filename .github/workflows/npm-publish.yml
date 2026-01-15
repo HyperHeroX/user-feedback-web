@@ -68,6 +68,14 @@ jobs:
           CURRENT_VERSION=$(node -p "require('./package.json').version")
           echo "Current version: $CURRENT_VERSION"
           
+          # Check if this commit already bumped version (avoid infinite loop)
+          if git log -1 --pretty=%B | grep -q "chore: bump version"; then
+            echo "Version already bumped in this commit, skipping..."
+            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+            echo "tag=v$CURRENT_VERSION" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
           # Bump patch version
           IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
           MAJOR=${VERSION_PARTS[0]}
@@ -81,7 +89,7 @@ jobs:
           # Update package.json
           npm version $NEW_VERSION --no-git-tag-version
           
-          # Commit version bump
+          # Commit version bump with [skip ci] to avoid triggering workflow again
           git add package.json
           git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
           
