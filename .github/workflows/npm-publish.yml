@@ -33,6 +33,8 @@ jobs:
           node-version: "18"
           registry-url: "https://registry.npmjs.org"
           scope: "@hirohsu"
+          # 啟用 OIDC 認證
+          always-auth: true
 
       - name: Install pnpm
         uses: pnpm/action-setup@v2
