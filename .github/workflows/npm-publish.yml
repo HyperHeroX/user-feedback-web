@@ -1,14 +1,12 @@
 name: Publish to npm
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
     branches:
       - main
-    paths:
-      - "package.json"
-      - "src/**"
-      - "tsconfig.json"
-      - "tsup.config.ts"
   workflow_dispatch:
 
 jobs:
@@ -17,6 +15,8 @@ jobs:
     permissions:
       contents: write
       id-token: write
+    # 只在 CI workflow 成功完成時運行
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
     steps:
       - name: Checkout code
@@ -24,6 +24,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          # 如果是由 workflow_run 觸發，使用觸發 workflow 的 commit
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -50,97 +52,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
-      - name: Install build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential python3
-
       - name: Install dependencies
-        run: |
-          # 清除 better-sqlite3 的緩存，強制重新構建
-          pnpm store prune || true
-          # 安裝依賴並確保構建腳本運行
-          pnpm install --frozen-lockfile --ignore-scripts=false
-
-      - name: Rebuild better-sqlite3
-        run: |
-          echo "Rebuilding better-sqlite3..."
-          
-          # 找到 better-sqlite3 的實際路徑
-          BETTER_SQLITE3_PATH=$(find node_modules/.pnpm -type d -path "*/better-sqlite3@*/node_modules/better-sqlite3" | head -1)
-          
-          if [ -z "$BETTER_SQLITE3_PATH" ] || [ ! -d "$BETTER_SQLITE3_PATH" ]; then
-            echo "❌ Could not find better-sqlite3 path"
-            find node_modules/.pnpm -name "better-sqlite3" -type d | head -5
-            exit 1
-          fi
-          
-          echo "Found better-sqlite3 at: $BETTER_SQLITE3_PATH"
-          cd "$BETTER_SQLITE3_PATH"
-          
-          # 檢查是否已經有 .node 文件
-          if find . -name "*.node" -type f | grep -q .; then
-            echo "✅ .node file(s) already exist:"
-            find . -name "*.node" -type f
-            cd - > /dev/null
-            exit 0
-          fi
-          
-          echo "No .node files found, building..."
-          
-          # 嘗試構建，使用多種方法
-          BUILD_SUCCESS=false
-          
-          # 方法 1: npm run install (better-sqlite3 的標準構建方法)
-          if npm run install 2>&1; then
-            echo "✅ Build successful with 'npm run install'"
-            BUILD_SUCCESS=true
-          else
-            echo "⚠️ 'npm run install' failed, trying other methods..."
-          fi
-          
-          # 方法 2: node-gyp rebuild
-          if [ "$BUILD_SUCCESS" = false ]; then
-            if node-gyp rebuild 2>&1; then
-              echo "✅ Build successful with 'node-gyp rebuild'"
-              BUILD_SUCCESS=true
-            else
-              echo "⚠️ 'node-gyp rebuild' failed, trying other methods..."
-            fi
-          fi
-          
-          # 方法 3: npm run build-release
-          if [ "$BUILD_SUCCESS" = false ]; then
-            if npm run build-release 2>&1; then
-              echo "✅ Build successful with 'npm run build-release'"
-              BUILD_SUCCESS=true
-            else
-              echo "⚠️ 'npm run build-release' failed"
-            fi
-          fi
-          
-          # 驗證構建結果
-          if find . -name "*.node" -type f | grep -q .; then
-            echo "✅ Build verification successful, found .node file(s):"
-            find . -name "*.node" -type f
-            BUILD_SUCCESS=true
-          fi
-          
-          cd - > /dev/null
-          
-          if [ "$BUILD_SUCCESS" = false ]; then
-            echo "❌ All build methods failed"
-            echo "Checking build directory contents:"
-            ls -la "$BETTER_SQLITE3_PATH/build/" 2>/dev/null || echo "No build/ directory"
-            ls -la "$BETTER_SQLITE3_PATH/Release/" 2>/dev/null || echo "No Release/ directory"
-            ls -la "$BETTER_SQLITE3_PATH/out/" 2>/dev/null || echo "No out/ directory"
-            exit 1
-          fi
-          
-          echo "✅ better-sqlite3 rebuild completed successfully"
-
-      - name: Run tests
-        run: pnpm test
+        run: pnpm install --frozen-lockfile
 
       - name: Build
         run: pnpm build
