@@ -58,47 +58,29 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Bump version and create tag
+      - name: Create tag
         id: version
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Get current version
+          # 獲取當前版本號（版本號應該在代碼提交時就已經更新，符合 AGENTS.md 要求）
           CURRENT_VERSION=$(node -p "require('./package.json').version")
           echo "Current version: $CURRENT_VERSION"
 
-          # Check if this commit already bumped version (avoid infinite loop)
-          if git log -1 --pretty=%B | grep -q "chore: bump version"; then
-            echo "Version already bumped in this commit, skipping..."
+          # 檢查 tag 是否已存在
+          if git rev-parse "v$CURRENT_VERSION" >/dev/null 2>&1; then
+            echo "Tag v$CURRENT_VERSION already exists, skipping..."
             echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
             echo "tag=v$CURRENT_VERSION" >> $GITHUB_OUTPUT
             exit 0
           fi
 
-          # Bump patch version
-          IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
-          MAJOR=${VERSION_PARTS[0]}
-          MINOR=${VERSION_PARTS[1]}
-          PATCH=${VERSION_PARTS[2]}
+          # 創建並推送 tag（不推送 commit，因為版本號應該在提交時就已經更新）
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$CURRENT_VERSION" -m "Release v$CURRENT_VERSION"
+          git push origin "v$CURRENT_VERSION"
 
-          NEW_PATCH=$((PATCH + 1))
-          NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
-          echo "New version: $NEW_VERSION"
-
-          # Update package.json
-          npm version $NEW_VERSION --no-git-tag-version
-
-          # Commit version bump with [skip ci] to avoid triggering workflow again
-          git add package.json
-          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
-
-          # Create and push tag
-          git tag -a "v$NEW_VERSION" -m "Release v$NEW_VERSION"
-          git push origin main --tags
-
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "tag=v$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$CURRENT_VERSION" >> $GITHUB_OUTPUT
 
       - name: Publish to npm (OIDC Trusted Publishing)
         run: npm publish --access public --provenance
