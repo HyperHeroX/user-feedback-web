@@ -60,8 +60,17 @@ jobs:
 
       - name: Rebuild better-sqlite3
         run: |
-          cd node_modules/.pnpm/better-sqlite3@*/node_modules/better-sqlite3
-          npm rebuild
+          # 使用 pnpm rebuild 重建 better-sqlite3
+          pnpm rebuild better-sqlite3 || {
+            # 如果 pnpm rebuild 失敗，嘗試手動構建
+            echo "pnpm rebuild failed, trying manual build..."
+            BETTER_SQLITE3_PATH=$(find node_modules/.pnpm -name "better-sqlite3" -type d | grep -E "better-sqlite3@[0-9]" | head -1)
+            if [ -n "$BETTER_SQLITE3_PATH" ]; then
+              cd "$BETTER_SQLITE3_PATH"
+              npm run build-release || npm run install || node-gyp rebuild
+              cd - > /dev/null
+            fi
+          }
 
       - name: Run tests
         run: pnpm test
