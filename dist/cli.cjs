@@ -90439,7 +90439,7 @@ var helmet = Object.assign(
 var import_compression = __toESM(require_compression(), 1);
 var import_path6 = __toESM(require("path"), 1);
 var import_fs7 = __toESM(require("fs"), 1);
-var import_url = require("url");
+var import_url2 = require("url");
 init_logger();
 
 // src/utils/port-manager.ts
@@ -91996,21 +91996,80 @@ var projectManager = ProjectManager.getInstance();
 init_cjs_shims();
 var import_fs4 = require("fs");
 var import_path4 = require("path");
+var import_url = require("url");
+var import_meta = {};
+function getDirname() {
+  try {
+    if (typeof import_meta !== "undefined" && importMetaUrl) {
+      return (0, import_path4.dirname)((0, import_url.fileURLToPath)(importMetaUrl));
+    }
+  } catch {
+  }
+  if (typeof __dirname !== "undefined") {
+    return __dirname;
+  }
+  return process.cwd();
+}
+function findPackageJson(startPath) {
+  let currentPath = startPath;
+  const root = process.platform === "win32" ? currentPath.split("\\")[0] + "\\" : "/";
+  while (currentPath !== root) {
+    const pkgPath = (0, import_path4.join)(currentPath, "package.json");
+    if ((0, import_fs4.existsSync)(pkgPath)) {
+      return pkgPath;
+    }
+    const parentPath = (0, import_path4.dirname)(currentPath);
+    if (parentPath === currentPath) {
+      break;
+    }
+    currentPath = parentPath;
+  }
+  return null;
+}
 function getPackageVersion() {
   try {
-    const possiblePaths = [
-      (0, import_path4.join)(__dirname, "..", "..", "package.json"),
-      (0, import_path4.join)(process.cwd(), "package.json")
-    ];
-    for (const pkgPath of possiblePaths) {
+    const currentDir = getDirname();
+    const pkgPath1 = findPackageJson(currentDir);
+    if (pkgPath1) {
       try {
-        const pkgContent = (0, import_fs4.readFileSync)(pkgPath, "utf-8");
+        const pkgContent = (0, import_fs4.readFileSync)(pkgPath1, "utf-8");
         const pkg = JSON.parse(pkgContent);
         if (pkg.version) {
           return pkg.version;
         }
       } catch {
-        continue;
+      }
+    }
+    const cwd = process.cwd();
+    if (cwd !== currentDir) {
+      const pkgPath2 = findPackageJson(cwd);
+      if (pkgPath2) {
+        try {
+          const pkgContent = (0, import_fs4.readFileSync)(pkgPath2, "utf-8");
+          const pkg = JSON.parse(pkgContent);
+          if (pkg.version) {
+            return pkg.version;
+          }
+        } catch {
+        }
+      }
+    }
+    const possiblePaths = [
+      (0, import_path4.join)(currentDir, "..", "..", "package.json"),
+      (0, import_path4.join)(currentDir, "..", "package.json"),
+      (0, import_path4.join)(process.cwd(), "package.json")
+    ];
+    for (const pkgPath of possiblePaths) {
+      if ((0, import_fs4.existsSync)(pkgPath)) {
+        try {
+          const pkgContent = (0, import_fs4.readFileSync)(pkgPath, "utf-8");
+          const pkg = JSON.parse(pkgContent);
+          if (pkg.version) {
+            return pkg.version;
+          }
+        } catch {
+          continue;
+        }
       }
     }
     return "0.0.0";
@@ -92435,7 +92494,7 @@ var WebServer = class {
    * 支援多種執行環境：開發模式、打包模式、npx 執行模式
    */
   getStaticAssetsPath() {
-    const __filename2 = (0, import_url.fileURLToPath)(importMetaUrl);
+    const __filename2 = (0, import_url2.fileURLToPath)(importMetaUrl);
     const __dirname3 = import_path6.default.dirname(__filename2);
     const candidates = [];
     candidates.push(import_path6.default.resolve(__dirname3, "static"));
