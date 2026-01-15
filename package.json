@@ -1,6 +1,6 @@
 {
   "name": "@hirohsu/user-web-feedback",
-  "version": "2.6.4",
+  "version": "2.6.1",
   "description": "基於Node.js的MCP回饋收集器 - 支持AI工作彙報和用戶回饋收集",
   "main": "dist/index.cjs",
   "bin": {
