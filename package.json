@@ -24,7 +24,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+hhttps://github.com/HyperHeroX/user-feedback-web"
+    "url": "git+https://github.com/HyperHeroX/user-feedback-web.git"
   },
   "homepage": "https://github.com/HyperHeroX/user-feedback-web#readme",
   "bugs": {
