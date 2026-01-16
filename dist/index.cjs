@@ -77675,7 +77675,7 @@ function detectPlatformBinary({ [platform]: platformBinary }, { wsl }) {
   }
   return detectArchBinary(platformBinary);
 }
-var import_node_process8, import_node_buffer3, import_node_path3, import_node_url2, import_node_child_process4, import_promises, import_node_fs5, import_is_wsl, __dirname2, localXdgOpenPath, platform, arch, getWslDrivesMountPoint, pTryEach, baseOpen, open, openApp, apps, open_default;
+var import_node_process8, import_node_buffer3, import_node_path3, import_node_url2, import_node_child_process4, import_promises, import_node_fs5, import_is_wsl, __dirname3, localXdgOpenPath, platform, arch, getWslDrivesMountPoint, pTryEach, baseOpen, open, openApp, apps, open_default;
 var init_open = __esm({
   "node_modules/open/index.js"() {
     "use strict";
@@ -77691,8 +77691,8 @@ var init_open = __esm({
     init_define_lazy_prop();
     init_default_browser();
     init_is_inside_container();
-    __dirname2 = import_node_path3.default.dirname((0, import_node_url2.fileURLToPath)(importMetaUrl));
-    localXdgOpenPath = import_node_path3.default.join(__dirname2, "xdg-open");
+    __dirname3 = import_node_path3.default.dirname((0, import_node_url2.fileURLToPath)(importMetaUrl));
+    localXdgOpenPath = import_node_path3.default.join(__dirname3, "xdg-open");
     ({ platform, arch } = import_node_process8.default);
     getWslDrivesMountPoint = /* @__PURE__ */ (() => {
       const defaultMountPoint = "/mnt/";
@@ -77839,7 +77839,7 @@ var init_open = __esm({
         if (app) {
           command = app;
         } else {
-          const isBundled = !__dirname2 || __dirname2 === "/";
+          const isBundled = !__dirname3 || __dirname3 === "/";
           let exeLocalXdgOpen = false;
           try {
             await import_promises.default.access(localXdgOpenPath, import_node_fs5.constants.X_OK);
@@ -81728,7 +81728,7 @@ var helmet = Object.assign(
 var import_compression = __toESM(require_compression(), 1);
 var import_path6 = __toESM(require("path"), 1);
 var import_fs7 = __toESM(require("fs"), 1);
-var import_url2 = require("url");
+var import_url3 = require("url");
 init_logger();
 
 // src/utils/port-manager.ts
@@ -83285,10 +83285,17 @@ var projectManager = ProjectManager.getInstance();
 init_cjs_shims();
 var import_fs4 = require("fs");
 var import_path4 = require("path");
+var import_url = require("url");
+var __filename2 = (0, import_url.fileURLToPath)(importMetaUrl);
+var __dirname2 = (0, import_path4.dirname)(__filename2);
 function getPackageVersion() {
   try {
     const possiblePaths = [
-      (0, import_path4.join)(__dirname, "..", "..", "package.json"),
+      // ESM: __dirname = .../src/utils or .../dist/utils
+      (0, import_path4.join)(__dirname2, "..", "..", "package.json"),
+      // tsup bundled: __dirname = .../dist
+      (0, import_path4.join)(__dirname2, "..", "package.json"),
+      // Current working directory
       (0, import_path4.join)(process.cwd(), "package.json")
     ];
     for (const pkgPath of possiblePaths) {
@@ -83600,7 +83607,7 @@ var import_node_crypto = require("crypto");
 init_types2();
 var import_raw_body = __toESM(require_raw_body2(), 1);
 var import_content_type = __toESM(require_content_type(), 1);
-var import_url = require("url");
+var import_url2 = require("url");
 var MAXIMUM_MESSAGE_SIZE = "4mb";
 var SSEServerTransport = class {
   /**
@@ -83649,7 +83656,7 @@ var SSEServerTransport = class {
       Connection: "keep-alive"
     });
     const dummyBase = "http://localhost";
-    const endpointUrl = new import_url.URL(this._endpoint, dummyBase);
+    const endpointUrl = new import_url2.URL(this._endpoint, dummyBase);
     endpointUrl.searchParams.set("sessionId", this._sessionId);
     const relativeUrlWithSession = endpointUrl.pathname + endpointUrl.search + endpointUrl.hash;
     this.res.write(`event: endpoint
@@ -83847,11 +83854,11 @@ var WebServer = class {
    * 支援多種執行環境：開發模式、打包模式、npx 執行模式
    */
   getStaticAssetsPath() {
-    const __filename2 = (0, import_url2.fileURLToPath)(importMetaUrl);
-    const __dirname3 = import_path6.default.dirname(__filename2);
+    const __filename3 = (0, import_url3.fileURLToPath)(importMetaUrl);
+    const __dirname4 = import_path6.default.dirname(__filename3);
     const candidates = [];
-    candidates.push(import_path6.default.resolve(__dirname3, "static"));
-    const projectRoot = import_path6.default.resolve(__dirname3, "..", "..");
+    candidates.push(import_path6.default.resolve(__dirname4, "static"));
+    const projectRoot = import_path6.default.resolve(__dirname4, "..", "..");
     candidates.push(import_path6.default.resolve(projectRoot, "dist/static"));
     candidates.push(import_path6.default.resolve(projectRoot, "src/static"));
     candidates.push(import_path6.default.resolve(process.cwd(), "dist/static"));
@@ -86697,6 +86704,26 @@ var MCPServer = class {
 // src/config/index.ts
 init_cjs_shims();
 var import_dotenv = __toESM(require_main2(), 1);
+
+// src/shared/ipc-constants.ts
+init_cjs_shims();
+var SUPERVISOR_DEFAULTS = {
+  MAX_RESTART_ATTEMPTS: 5,
+  RESTART_DELAY_MS: 2e3,
+  HEALTH_CHECK_INTERVAL_MS: 3e4,
+  HEALTH_CHECK_TIMEOUT_MS: 5e3,
+  REQUEST_TIMEOUT_MS: 3e4,
+  CONSECUTIVE_FAILURES_BEFORE_RESTART: 3
+};
+var SUPERVISOR_ENV_KEYS = {
+  ENABLED: "SUPERVISOR_ENABLED",
+  MAX_RESTART_ATTEMPTS: "SUPERVISOR_MAX_RESTART_ATTEMPTS",
+  RESTART_DELAY_MS: "SUPERVISOR_RESTART_DELAY_MS",
+  HEALTH_CHECK_INTERVAL_MS: "SUPERVISOR_HEALTH_CHECK_INTERVAL_MS",
+  HEALTH_CHECK_TIMEOUT_MS: "SUPERVISOR_HEALTH_CHECK_TIMEOUT_MS"
+};
+
+// src/config/index.ts
 (0, import_dotenv.config)();
 function getEnvVar(key, defaultValue) {
   return process.env[key] || defaultValue;
@@ -86718,6 +86745,27 @@ function getEnvBoolean(key, defaultValue) {
   const value = process.env[key];
   if (!value) return defaultValue;
   return value.toLowerCase() === "true";
+}
+function createSupervisorConfig() {
+  return {
+    enabled: getEnvBoolean(SUPERVISOR_ENV_KEYS.ENABLED, false),
+    maxRestartAttempts: getEnvNumber(
+      SUPERVISOR_ENV_KEYS.MAX_RESTART_ATTEMPTS,
+      SUPERVISOR_DEFAULTS.MAX_RESTART_ATTEMPTS
+    ),
+    restartDelayMs: getEnvNumber(
+      SUPERVISOR_ENV_KEYS.RESTART_DELAY_MS,
+      SUPERVISOR_DEFAULTS.RESTART_DELAY_MS
+    ),
+    healthCheckIntervalMs: getEnvNumber(
+      SUPERVISOR_ENV_KEYS.HEALTH_CHECK_INTERVAL_MS,
+      SUPERVISOR_DEFAULTS.HEALTH_CHECK_INTERVAL_MS
+    ),
+    healthCheckTimeoutMs: getEnvNumber(
+      SUPERVISOR_ENV_KEYS.HEALTH_CHECK_TIMEOUT_MS,
+      SUPERVISOR_DEFAULTS.HEALTH_CHECK_TIMEOUT_MS
+    )
+  };
 }
 function createDefaultConfig() {
   return {
@@ -86753,7 +86801,9 @@ function createDefaultConfig() {
     mcpTransport: getEnvVar("MCP_TRANSPORT", "stdio"),
     // Self-Probe (Keep-Alive) 設定
     enableSelfProbe: getEnvBoolean("MCP_ENABLE_SELF_PROBE", false),
-    selfProbeIntervalSeconds: getEnvNumber("MCP_SELF_PROBE_INTERVAL", 300)
+    selfProbeIntervalSeconds: getEnvNumber("MCP_SELF_PROBE_INTERVAL", 300),
+    // Supervisor 配置
+    supervisor: createSupervisorConfig()
   };
 }
 function validateConfig(config) {
@@ -86795,6 +86845,33 @@ function validateConfig(config) {
       throw new MCPError(
         `Invalid self-probe interval: ${config.selfProbeIntervalSeconds}. Must be between 60 and 600 seconds.`,
         "INVALID_SELF_PROBE_INTERVAL"
+      );
+    }
+  }
+  if (config.supervisor) {
+    const sup = config.supervisor;
+    if (sup.maxRestartAttempts < 0 || sup.maxRestartAttempts > 20) {
+      throw new MCPError(
+        `Invalid supervisor max restart attempts: ${sup.maxRestartAttempts}. Must be between 0 and 20.`,
+        "INVALID_SUPERVISOR_CONFIG"
+      );
+    }
+    if (sup.restartDelayMs < 100 || sup.restartDelayMs > 3e4) {
+      throw new MCPError(
+        `Invalid supervisor restart delay: ${sup.restartDelayMs}. Must be between 100ms and 30000ms.`,
+        "INVALID_SUPERVISOR_CONFIG"
+      );
+    }
+    if (sup.healthCheckIntervalMs < 5e3 || sup.healthCheckIntervalMs > 3e5) {
+      throw new MCPError(
+        `Invalid supervisor health check interval: ${sup.healthCheckIntervalMs}. Must be between 5s and 300s.`,
+        "INVALID_SUPERVISOR_CONFIG"
+      );
+    }
+    if (sup.healthCheckTimeoutMs < 1e3 || sup.healthCheckTimeoutMs > 3e4) {
+      throw new MCPError(
+        `Invalid supervisor health check timeout: ${sup.healthCheckTimeoutMs}. Must be between 1s and 30s.`,
+        "INVALID_SUPERVISOR_CONFIG"
       );
     }
   }

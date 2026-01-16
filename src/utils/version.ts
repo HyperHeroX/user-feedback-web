@@ -4,12 +4,20 @@
 
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export function getPackageVersion(): string {
   try {
     // Try multiple strategies to find package.json
     const possiblePaths = [
+      // ESM: __dirname = .../src/utils or .../dist/utils
       join(__dirname, '..', '..', 'package.json'),
+      // tsup bundled: __dirname = .../dist
+      join(__dirname, '..', 'package.json'),
+      // Current working directory
       join(process.cwd(), 'package.json'),
     ];
     

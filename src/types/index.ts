@@ -36,6 +36,8 @@ export interface Config {
   // Self-Probe (Keep-Alive) 設定
   enableSelfProbe?: boolean | undefined;           // 啟用自我探查功能
   selfProbeIntervalSeconds?: number | undefined;   // 自我探查間隔（秒），範圍 60-600
+  // Supervisor 設定
+  supervisor?: SupervisorConfig | undefined;       // Supervisor 配置
 }
 
 // 回饋資料類型
@@ -757,6 +759,40 @@ export interface SelfProbeStats {
   probeCount: number;
   isRunning: boolean;
 }
+
+// ============ Supervisor Types ============
+
+// Supervisor 配置
+export interface SupervisorConfig {
+  enabled: boolean;
+  maxRestartAttempts: number;
+  restartDelayMs: number;
+  healthCheckIntervalMs: number;
+  healthCheckTimeoutMs: number;
+}
+
+// Re-export shared IPC types for convenience
+export type {
+  IPCMessage,
+  IPCRequest,
+  IPCResponse,
+  IPCEvent,
+  IPCError,
+  WorkerState,
+  WorkerStatus,
+  HealthStatus,
+  HealthCheckRequest,
+  HealthCheckResponse,
+  MCPToolRequest,
+  MCPToolResponse,
+  ShutdownRequest,
+  ReadyEvent,
+  ErrorEvent,
+  SelfTestResult,
+  SelfTestHealthInfo,
+  AutoRepairInfo,
+  DiagnosticsInfo,
+} from '../shared/ipc-types.js';
 
 // ============ AI Provider Types ============
 export * from './ai-provider.js';
