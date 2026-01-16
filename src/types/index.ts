@@ -33,6 +33,11 @@ export interface Config {
   forceNewInstance?: boolean | undefined;    // 強制啟動新實例
   // MCP Server 傳輸模式設定
   mcpTransport?: MCPServerTransportMode | undefined;  // MCP Server 傳輸模式
+  // Self-Probe (Keep-Alive) 設定
+  enableSelfProbe?: boolean | undefined;           // 啟用自我探查功能
+  selfProbeIntervalSeconds?: number | undefined;   // 自我探查間隔（秒），範圍 60-600
+  // Supervisor 設定
+  supervisor?: SupervisorConfig | undefined;       // Supervisor 配置
 }
 
 // 回饋資料類型
@@ -729,6 +734,65 @@ export interface CLIDetectionResponse {
   timestamp?: string;
   error?: string;
 }
+
+// ============ Self-Probe Settings Types ============
+
+// Self-Probe 設定
+export interface SelfProbeSettings {
+  id: number;
+  enabled: boolean;
+  intervalSeconds: number;
+  updatedAt: string;
+}
+
+// Self-Probe 設定請求
+export interface SelfProbeSettingsRequest {
+  enabled?: boolean;
+  intervalSeconds?: number;
+}
+
+// Self-Probe 狀態統計
+export interface SelfProbeStats {
+  enabled: boolean;
+  intervalSeconds: number;
+  lastProbeTime: Date | null;
+  probeCount: number;
+  isRunning: boolean;
+}
+
+// ============ Supervisor Types ============
+
+// Supervisor 配置
+export interface SupervisorConfig {
+  enabled: boolean;
+  maxRestartAttempts: number;
+  restartDelayMs: number;
+  healthCheckIntervalMs: number;
+  healthCheckTimeoutMs: number;
+}
+
+// Re-export shared IPC types for convenience
+export type {
+  IPCMessage,
+  IPCRequest,
+  IPCResponse,
+  IPCEvent,
+  IPCError,
+  WorkerState,
+  WorkerStatus,
+  HealthStatus,
+  HealthCheckRequest,
+  HealthCheckResponse,
+  MCPToolRequest,
+  MCPToolResponse,
+  ShutdownRequest,
+  ReadyEvent,
+  ErrorEvent,
+  SelfTestResult,
+  SelfTestHealthInfo,
+  AutoRepairInfo,
+  DiagnosticsInfo,
+} from '../shared/ipc-types.js';
 
 // ============ AI Provider Types ============
 export * from './ai-provider.js';

@@ -3,7 +3,8 @@
  */
 
 import { config as dotenvConfig } from 'dotenv';
-import { Config, MCPError } from '../types/index.js';
+import { Config, MCPError, SupervisorConfig } from '../types/index.js';
+import { SUPERVISOR_DEFAULTS, SUPERVISOR_ENV_KEYS } from '../shared/ipc-constants.js';
 
 // 加载环境变量
 dotenvConfig();
@@ -49,6 +50,31 @@ function getEnvBoolean(key: string, defaultValue: boolean): boolean {
 }
 
 /**
+ * 創建 Supervisor 配置
+ */
+export function createSupervisorConfig(): SupervisorConfig {
+  return {
+    enabled: getEnvBoolean(SUPERVISOR_ENV_KEYS.ENABLED, false),
+    maxRestartAttempts: getEnvNumber(
+      SUPERVISOR_ENV_KEYS.MAX_RESTART_ATTEMPTS,
+      SUPERVISOR_DEFAULTS.MAX_RESTART_ATTEMPTS
+    ),
+    restartDelayMs: getEnvNumber(
+      SUPERVISOR_ENV_KEYS.RESTART_DELAY_MS,
+      SUPERVISOR_DEFAULTS.RESTART_DELAY_MS
+    ),
+    healthCheckIntervalMs: getEnvNumber(
+      SUPERVISOR_ENV_KEYS.HEALTH_CHECK_INTERVAL_MS,
+      SUPERVISOR_DEFAULTS.HEALTH_CHECK_INTERVAL_MS
+    ),
+    healthCheckTimeoutMs: getEnvNumber(
+      SUPERVISOR_ENV_KEYS.HEALTH_CHECK_TIMEOUT_MS,
+      SUPERVISOR_DEFAULTS.HEALTH_CHECK_TIMEOUT_MS
+    ),
+  };
+}
+
+/**
  * 创建默认配置
  */
 export function createDefaultConfig(): Config {
@@ -78,7 +104,12 @@ export function createDefaultConfig(): Config {
     healthCheckTimeout: getEnvNumber('MCP_HEALTH_CHECK_TIMEOUT', 3000),
     forceNewInstance: getEnvBoolean('MCP_FORCE_NEW_INSTANCE', false),
     // MCP Server 傳輸模式
-    mcpTransport: (getEnvVar('MCP_TRANSPORT', 'stdio') as 'stdio' | 'sse' | 'streamable-http')
+    mcpTransport: (getEnvVar('MCP_TRANSPORT', 'stdio') as 'stdio' | 'sse' | 'streamable-http'),
+    // Self-Probe (Keep-Alive) 設定
+    enableSelfProbe: getEnvBoolean('MCP_ENABLE_SELF_PROBE', false),
+    selfProbeIntervalSeconds: getEnvNumber('MCP_SELF_PROBE_INTERVAL', 300),
+    // Supervisor 配置
+    supervisor: createSupervisorConfig(),
   };
 }
 
@@ -128,6 +159,45 @@ export function validateConfig(config: Config): void {
       'INVALID_LOG_LEVEL'
     );
   }
+
+  // 驗證 Self-Probe 間隔
+  if (config.selfProbeIntervalSeconds !== undefined) {
+    if (config.selfProbeIntervalSeconds < 60 || config.selfProbeIntervalSeconds > 600) {
+      throw new MCPError(
+        `Invalid self-probe interval: ${config.selfProbeIntervalSeconds}. Must be between 60 and 600 seconds.`,
+        'INVALID_SELF_PROBE_INTERVAL'
+      );
+    }
+  }
+
+  // 驗證 Supervisor 配置
+  if (config.supervisor) {
+    const sup = config.supervisor;
+    if (sup.maxRestartAttempts < 0 || sup.maxRestartAttempts > 20) {
+      throw new MCPError(
+        `Invalid supervisor max restart attempts: ${sup.maxRestartAttempts}. Must be between 0 and 20.`,
+        'INVALID_SUPERVISOR_CONFIG'
+      );
+    }
+    if (sup.restartDelayMs < 100 || sup.restartDelayMs > 30000) {
+      throw new MCPError(
+        `Invalid supervisor restart delay: ${sup.restartDelayMs}. Must be between 100ms and 30000ms.`,
+        'INVALID_SUPERVISOR_CONFIG'
+      );
+    }
+    if (sup.healthCheckIntervalMs < 5000 || sup.healthCheckIntervalMs > 300000) {
+      throw new MCPError(
+        `Invalid supervisor health check interval: ${sup.healthCheckIntervalMs}. Must be between 5s and 300s.`,
+        'INVALID_SUPERVISOR_CONFIG'
+      );
+    }
+    if (sup.healthCheckTimeoutMs < 1000 || sup.healthCheckTimeoutMs > 30000) {
+      throw new MCPError(
+        `Invalid supervisor health check timeout: ${sup.healthCheckTimeoutMs}. Must be between 1s and 30s.`,
+        'INVALID_SUPERVISOR_CONFIG'
+      );
+    }
+  }
 }
 
 /**
@@ -162,4 +232,18 @@ export function displayConfig(config: Config): void {
   console.log(`  Image To Text: ${config.enableImageToText ? 'enabled' : 'disabled'}`);
   console.log(`  Image To Text Prompt: ${config.imageToTextPrompt ? config.imageToTextPrompt.substring(0, 50) + '...' : 'default'}`);
   console.log(`  MCP Transport: ${config.mcpTransport || 'stdio'}`);
+  console.log(`  Self-Probe: ${config.enableSelfProbe ? 'enabled' : 'disabled'}`);
+  if (config.enableSelfProbe) {
+    console.log(`  Self-Probe Interval: ${config.selfProbeIntervalSeconds || 300}s`);
+  }
+  // Supervisor 配置
+  if (config.supervisor) {
+    console.log(`  Supervisor: ${config.supervisor.enabled ? 'enabled' : 'disabled'}`);
+    if (config.supervisor.enabled) {
+      console.log(`    Max Restart Attempts: ${config.supervisor.maxRestartAttempts}`);
+      console.log(`    Restart Delay: ${config.supervisor.restartDelayMs}ms`);
+      console.log(`    Health Check Interval: ${config.supervisor.healthCheckIntervalMs}ms`);
+      console.log(`    Health Check Timeout: ${config.supervisor.healthCheckTimeoutMs}ms`);
+    }
+  }
 }

@@ -12,6 +12,7 @@ import { MCPError } from './types/index.js';
 import { getPackageVersion } from './utils/version.js';
 import { InstanceLock } from './utils/instance-lock.js';
 import { PortManager } from './utils/port-manager.js';
+import { startSupervisorMode } from './supervisor/index.js';
 
 const VERSION = getPackageVersion();
 
@@ -51,10 +52,21 @@ async function startMCPServer(options: {
   config?: string;
   debug?: boolean;
   forceNew?: boolean;
+  supervisor?: boolean;
 }): Promise<void> {
   try {
     // 載入設定
     const config = getConfig();
+
+    // 檢查是否啟用 Supervisor 模式
+    const useSupervisor = options.supervisor !== false && config.supervisor?.enabled;
+    
+    if (useSupervisor && !options.web) {
+      // Supervisor 模式
+      logger.info('使用 Supervisor 模式啟動...');
+      await startSupervisorMode();
+      return;
+    }
 
     if (!isMCPMode) {
       // 交互模式：顯示歡迎資訊和設定日誌級別
@@ -197,6 +209,7 @@ program
   .option('-d, --debug', '啟用除錯模式（顯示詳細的MCP通訊日誌）')
   .option('--mcp-mode', '強制啟用MCP模式（用於除錯）')
   .option('-f, --force-new', '強制啟動新實例（忽略已運行的實例）')
+  .option('--no-supervisor', '禁用 Supervisor 模式（直接啟動傳統模式）')
   .action(startMCPServer);
 
 // 健康檢查命令

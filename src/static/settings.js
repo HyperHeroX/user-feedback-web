@@ -63,6 +63,15 @@
     confirmBeforeSubmit: document.getElementById("confirmBeforeSubmit"),
     defaultLanguage: document.getElementById("defaultLanguage"),
     savePreferencesBtn: document.getElementById("savePreferencesBtn"),
+    // Self-Probe Settings
+    enableSelfProbe: document.getElementById("enableSelfProbe"),
+    selfProbeInterval: document.getElementById("selfProbeInterval"),
+    selfProbeIntervalGroup: document.getElementById("selfProbeIntervalGroup"),
+    selfProbeStatus: document.getElementById("selfProbeStatus"),
+    selfProbeRunning: document.getElementById("selfProbeRunning"),
+    selfProbeCount: document.getElementById("selfProbeCount"),
+    selfProbeLastTime: document.getElementById("selfProbeLastTime"),
+    saveSelfProbeBtn: document.getElementById("saveSelfProbeBtn"),
     toastContainer: document.getElementById("toastContainer"),
   };
 
@@ -76,6 +85,7 @@
     loadAISettings();
     loadCLISettings();
     loadPreferences();
+    loadSelfProbeSettings();
   }
 
   function setupEventListeners() {
@@ -92,6 +102,21 @@
 
     // User Preferences
     elements.savePreferencesBtn.addEventListener("click", savePreferences);
+
+    // Self-Probe Settings
+    if (elements.enableSelfProbe) {
+      elements.enableSelfProbe.addEventListener("change", handleSelfProbeToggle);
+    }
+    if (elements.saveSelfProbeBtn) {
+      elements.saveSelfProbeBtn.addEventListener("click", saveSelfProbeSettings);
+    }
+  }
+
+  function handleSelfProbeToggle() {
+    const isEnabled = elements.enableSelfProbe.checked;
+    if (elements.selfProbeIntervalGroup) {
+      elements.selfProbeIntervalGroup.style.opacity = isEnabled ? "1" : "0.5";
+    }
   }
 
   function handleAIModeChange() {
@@ -394,6 +419,99 @@
     } finally {
       elements.savePreferencesBtn.disabled = false;
       elements.savePreferencesBtn.textContent = "儲存偏好設定";
+    }
+  }
+
+  // ============ Self-Probe Settings ============
+
+  async function loadSelfProbeSettings() {
+    try {
+      const response = await fetch(`${API_BASE}/api/settings/self-probe`);
+      const data = await response.json();
+
+      if (data.success) {
+        const settings = data.settings || {};
+        const stats = data.stats || {};
+
+        if (elements.enableSelfProbe) {
+          elements.enableSelfProbe.checked = settings.enabled || false;
+        }
+        if (elements.selfProbeInterval) {
+          elements.selfProbeInterval.value = settings.intervalSeconds || 300;
+        }
+
+        // 更新狀態資訊
+        updateSelfProbeStatus(stats);
+        handleSelfProbeToggle();
+      }
+    } catch (error) {
+      console.error("Failed to load Self-Probe settings:", error);
+    }
+  }
+
+  function updateSelfProbeStatus(stats) {
+    if (!elements.selfProbeStatus) return;
+
+    if (stats.enabled) {
+      elements.selfProbeStatus.style.display = "block";
+      
+      if (elements.selfProbeRunning) {
+        elements.selfProbeRunning.textContent = `執行狀態: ${stats.isRunning ? "✅ 運行中" : "⏸️ 已停止"}`;
+      }
+      if (elements.selfProbeCount) {
+        elements.selfProbeCount.textContent = `探查次數: ${stats.probeCount || 0}`;
+      }
+      if (elements.selfProbeLastTime) {
+        const lastTime = stats.lastProbeTime 
+          ? new Date(stats.lastProbeTime).toLocaleString() 
+          : "尚未執行";
+        elements.selfProbeLastTime.textContent = `上次探查: ${lastTime}`;
+      }
+    } else {
+      elements.selfProbeStatus.style.display = "none";
+    }
+  }
+
+  async function saveSelfProbeSettings() {
+    const settings = {
+      enabled: elements.enableSelfProbe?.checked || false,
+      intervalSeconds: parseInt(elements.selfProbeInterval?.value) || 300,
+    };
+
+    // 驗證間隔
+    if (settings.intervalSeconds < 60 || settings.intervalSeconds > 600) {
+      showToast("探查間隔必須在 60-600 秒之間", "error");
+      return;
+    }
+
+    if (elements.saveSelfProbeBtn) {
+      elements.saveSelfProbeBtn.disabled = true;
+      elements.saveSelfProbeBtn.textContent = "儲存中...";
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/settings/self-probe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        showToast("Self-Probe 設定已儲存", "success");
+        updateSelfProbeStatus(data.stats);
+      } else {
+        showToast(`儲存失敗: ${data.error || "未知錯誤"}`, "error");
+      }
+    } catch (error) {
+      console.error("Save Self-Probe settings failed:", error);
+      showToast("儲存失敗", "error");
+    } finally {
+      if (elements.saveSelfProbeBtn) {
+        elements.saveSelfProbeBtn.disabled = false;
+        elements.saveSelfProbeBtn.textContent = "儲存設定";
+      }
     }
   }
 
