@@ -80788,7 +80788,7 @@ function detectPlatformBinary({ [platform]: platformBinary }, { wsl }) {
   }
   return detectArchBinary(platformBinary);
 }
-var import_node_process8, import_node_buffer3, import_node_path3, import_node_url2, import_node_child_process4, import_promises, import_node_fs5, import_is_wsl, __dirname3, localXdgOpenPath, platform, arch, getWslDrivesMountPoint, pTryEach, baseOpen, open, openApp, apps, open_default;
+var import_node_process8, import_node_buffer3, import_node_path3, import_node_url2, import_node_child_process4, import_promises, import_node_fs5, import_is_wsl, __dirname2, localXdgOpenPath, platform, arch, getWslDrivesMountPoint, pTryEach, baseOpen, open, openApp, apps, open_default;
 var init_open = __esm({
   "node_modules/open/index.js"() {
     "use strict";
@@ -80804,8 +80804,8 @@ var init_open = __esm({
     init_define_lazy_prop();
     init_default_browser();
     init_is_inside_container();
-    __dirname3 = import_node_path3.default.dirname((0, import_node_url2.fileURLToPath)(importMetaUrl));
-    localXdgOpenPath = import_node_path3.default.join(__dirname3, "xdg-open");
+    __dirname2 = import_node_path3.default.dirname((0, import_node_url2.fileURLToPath)(importMetaUrl));
+    localXdgOpenPath = import_node_path3.default.join(__dirname2, "xdg-open");
     ({ platform, arch } = import_node_process8.default);
     getWslDrivesMountPoint = /* @__PURE__ */ (() => {
       const defaultMountPoint = "/mnt/";
@@ -80952,7 +80952,7 @@ var init_open = __esm({
         if (app) {
           command = app;
         } else {
-          const isBundled = !__dirname3 || __dirname3 === "/";
+          const isBundled = !__dirname2 || __dirname2 === "/";
           let exeLocalXdgOpen = false;
           try {
             await import_promises.default.access(localXdgOpenPath, import_node_fs5.constants.X_OK);
@@ -86269,27 +86269,79 @@ init_cjs_shims();
 var import_fs4 = require("fs");
 var import_path4 = require("path");
 var import_url = require("url");
-var __filename2 = (0, import_url.fileURLToPath)(importMetaUrl);
-var __dirname2 = (0, import_path4.dirname)(__filename2);
+var import_meta = {};
+function getDirname() {
+  try {
+    if (typeof import_meta !== "undefined" && importMetaUrl) {
+      return (0, import_path4.dirname)((0, import_url.fileURLToPath)(importMetaUrl));
+    }
+  } catch {
+  }
+  if (typeof __dirname !== "undefined") {
+    return __dirname;
+  }
+  return process.cwd();
+}
+function findPackageJson(startPath) {
+  let currentPath = startPath;
+  const root = process.platform === "win32" ? currentPath.split("\\")[0] + "\\" : "/";
+  while (currentPath !== root) {
+    const pkgPath = (0, import_path4.join)(currentPath, "package.json");
+    if ((0, import_fs4.existsSync)(pkgPath)) {
+      return pkgPath;
+    }
+    const parentPath = (0, import_path4.dirname)(currentPath);
+    if (parentPath === currentPath) {
+      break;
+    }
+    currentPath = parentPath;
+  }
+  return null;
+}
 function getPackageVersion() {
   try {
-    const possiblePaths = [
-      // ESM: __dirname = .../src/utils or .../dist/utils
-      (0, import_path4.join)(__dirname2, "..", "..", "package.json"),
-      // tsup bundled: __dirname = .../dist
-      (0, import_path4.join)(__dirname2, "..", "package.json"),
-      // Current working directory
-      (0, import_path4.join)(process.cwd(), "package.json")
-    ];
-    for (const pkgPath of possiblePaths) {
+    const currentDir = getDirname();
+    const pkgPath1 = findPackageJson(currentDir);
+    if (pkgPath1) {
       try {
-        const pkgContent = (0, import_fs4.readFileSync)(pkgPath, "utf-8");
+        const pkgContent = (0, import_fs4.readFileSync)(pkgPath1, "utf-8");
         const pkg = JSON.parse(pkgContent);
         if (pkg.version) {
           return pkg.version;
         }
       } catch {
-        continue;
+      }
+    }
+    const cwd = process.cwd();
+    if (cwd !== currentDir) {
+      const pkgPath2 = findPackageJson(cwd);
+      if (pkgPath2) {
+        try {
+          const pkgContent = (0, import_fs4.readFileSync)(pkgPath2, "utf-8");
+          const pkg = JSON.parse(pkgContent);
+          if (pkg.version) {
+            return pkg.version;
+          }
+        } catch {
+        }
+      }
+    }
+    const possiblePaths = [
+      (0, import_path4.join)(currentDir, "..", "..", "package.json"),
+      (0, import_path4.join)(currentDir, "..", "package.json"),
+      (0, import_path4.join)(process.cwd(), "package.json")
+    ];
+    for (const pkgPath of possiblePaths) {
+      if ((0, import_fs4.existsSync)(pkgPath)) {
+        try {
+          const pkgContent = (0, import_fs4.readFileSync)(pkgPath, "utf-8");
+          const pkg = JSON.parse(pkgContent);
+          if (pkg.version) {
+            return pkg.version;
+          }
+        } catch {
+          continue;
+        }
       }
     }
     return "0.0.0";
@@ -86837,11 +86889,11 @@ var WebServer = class {
    * 支援多種執行環境：開發模式、打包模式、npx 執行模式
    */
   getStaticAssetsPath() {
-    const __filename4 = (0, import_url3.fileURLToPath)(importMetaUrl);
-    const __dirname5 = import_path6.default.dirname(__filename4);
+    const __filename3 = (0, import_url3.fileURLToPath)(importMetaUrl);
+    const __dirname4 = import_path6.default.dirname(__filename3);
     const candidates = [];
-    candidates.push(import_path6.default.resolve(__dirname5, "static"));
-    const projectRoot = import_path6.default.resolve(__dirname5, "..", "..");
+    candidates.push(import_path6.default.resolve(__dirname4, "static"));
+    const projectRoot = import_path6.default.resolve(__dirname4, "..", "..");
     candidates.push(import_path6.default.resolve(projectRoot, "dist/static"));
     candidates.push(import_path6.default.resolve(projectRoot, "src/static"));
     candidates.push(import_path6.default.resolve(process.cwd(), "dist/static"));
@@ -90520,13 +90572,13 @@ var MCPProxyHandler = class {
 
 // src/supervisor/index.ts
 init_logger();
-var __filename3 = (0, import_url4.fileURLToPath)(importMetaUrl);
-var __dirname4 = path9.dirname(__filename3);
+var __filename2 = (0, import_url4.fileURLToPath)(importMetaUrl);
+var __dirname3 = path9.dirname(__filename2);
 async function startSupervisorMode() {
   logger.info("Starting in Supervisor mode...");
   const config = getConfig();
   const supervisorConfig = createSupervisorConfig();
-  const workerScript = path9.resolve(__dirname4, "../worker/index.js");
+  const workerScript = path9.resolve(__dirname3, "../worker/index.js");
   const serviceConfig = {
     ...supervisorConfig,
     workerScript,

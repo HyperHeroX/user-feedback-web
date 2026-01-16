@@ -1,6 +1,6 @@
 # 🎯 MCP 使用者反饋收集器
 
-[![npm version](https://badge.fury.io/js/user-web-feedback.svg)](https://www.npmjs.com/package/user-web-feedback)
+[![npm version](https://badge.fury.io/js/%40hirohsu%2Fuser-web-feedback.svg)](https://www.npmjs.com/package/@hirohsu/user-web-feedback)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 
@@ -88,7 +88,7 @@ http://localhost:3000/index.html
 
 ## ✨ 標準版特性
 
-- 🚀 **一鍵啟動**：使用 `npx user-web-feedback` 直接運行
+- 🚀 **一鍵啟動**：使用 `npx @hirohsu/user-web-feedback` 直接運行
 - 🎨 **現代界面**：VS Code 深色主題風格的 Web 界面
 - 🔧 **MCP 整合**：完整支援 Model Context Protocol
 - 💬 **AI 對話功能**：整合 AI 助手，支援文字和圖片對話
@@ -113,11 +113,10 @@ http://localhost:3000/index.html
 
 ```bash
 # 直接運行（推薦）
-npx user-web-feedback
+npx @hirohsu/user-web-feedback
 
 # 或者全局安裝
-npm install -g user-web-feedback
-npm install -g user-web-feedback --registry=http://192.168.160.113:34873/
+npm install -g @hirohsu/user-web-feedback
 user-web-feedback
 
 # 檢查版本
@@ -132,30 +131,30 @@ user-web-feedback --version
 
 ```bash
 # 全局安裝（推薦）
-npm install -g user-web-feedback
+npm install -g @hirohsu/user-web-feedback
 
 # 專案內安裝
-npm install user-web-feedback
+npm install @hirohsu/user-web-feedback
 ```
 
 ### 使用 npx 運行（無需安裝）
 
 ```bash
 # 運行最新版本
-npx user-web-feedback
+npx @hirohsu/user-web-feedback
 
 # 指定版本
-npx user-web-feedback@2.2.0
+npx @hirohsu/user-web-feedback@2.2.0
 
 # 帶參數運行
-npx user-web-feedback --port 8080
+npx @hirohsu/user-web-feedback --port 8080
 ```
 
 ### 程式化使用
 
 ```javascript
 // ESM 模組
-import { MCPServer, getConfig } from 'user-web-feedback';
+import { MCPServer, getConfig } from '@hirohsu/user-web-feedback';
 
 const config = getConfig();
 const server = new MCPServer(config);
@@ -210,25 +209,25 @@ MCP_CLEANUP_PORT_ON_START="true"   # 啟動時清理端口 (預設: true)
 
 ```bash
 # 啟動服務器（預設）
-user-web-feedback
+npx @hirohsu/user-web-feedback
 
 # 指定端口
-user-web-feedback --port 8080
+npx @hirohsu/user-web-feedback --port 8080
 
 # 僅 Web 模式
-user-web-feedback --web
+npx @hirohsu/user-web-feedback --web
 
 # 測試 collect_feedback 功能
-user-web-feedback test-feedback
+npx @hirohsu/user-web-feedback test-feedback
 
 # 自訂測試內容
-user-web-feedback test-feedback -m "我的工作匯報" -t 120
+npx @hirohsu/user-web-feedback test-feedback -m "我的工作匯報" -t 120
 
 # 健康檢查
-user-web-feedback health
+npx @hirohsu/user-web-feedback health
 
 # 顯示配置
-user-web-feedback config
+npx @hirohsu/user-web-feedback config
 ```
 
 ---
@@ -244,7 +243,7 @@ user-web-feedback config
   "mcpServers": {
     "user-web-feedback": {
       "command": "npx",
-      "args": ["-y", "user-web-feedback@latest"],
+      "args": ["-y", "@hirohsu/user-web-feedback@latest"],
       "env": {
         "MCP_API_KEY": "your_api_key_here",
         "MCP_API_BASE_URL": "https://api.ssopen.top",
@@ -266,7 +265,7 @@ user-web-feedback config
   "mcpServers": {
     "user-web-feedback": {
       "command": "npx",
-      "args": ["-y", "@hiro-tools/user-web-feedback@latest", "--register", "http://localhost:5050"],
+      "args": ["-y", "@hirohsu/user-web-feedback@latest", "--register", "http://localhost:5050"],
       "env": {
         "MCP_API_KEY": "your_api_key_here",
         "MCP_API_BASE_URL": "https://api.ssopen.top",
@@ -378,7 +377,7 @@ Whenever you're about to complete a user request, call the MCP instead of simply
 
 - **不要在 args 中添加 `--debug` 參數**，這會導致 JSON 解析失敗
 - Cursor/Claude Desktop 要求極其純淨的 JSON 輸出
-- 如需除錯，請在命令行中單獨使用：`npx user-web-feedback --debug`
+- 如需除錯，請在命令行中單獨使用：`npx @hirohsu/user-web-feedback --debug`
 
 ### 💡 API 服務推薦
 
@@ -406,10 +405,10 @@ Whenever you're about to complete a user request, call the MCP instead of simply
 
 ```bash
 # 使用 SSE 傳輸模式
-npx user-web-feedback --transport sse
+npx @hirohsu/user-web-feedback --transport sse
 
 # 使用 Streamable HTTP 傳輸模式
-npx user-web-feedback --transport streamable-http
+npx @hirohsu/user-web-feedback --transport streamable-http
 ```
 
 #### 環境變數配置
@@ -762,7 +761,7 @@ collect_feedback("我已經完成了程式碼重構工作，主要改進了效�
 #### 1. WebSocket 連接失敗
 ```bash
 # 檢查服務器狀態
-user-web-feedback health
+npx @hirohsu/user-web-feedback health
 
 # 訪問測試頁面
 http://localhost:5000/test.html
@@ -776,13 +775,13 @@ http://localhost:5000/test.html
 netstat -an | grep :5000
 
 # 使用其他端口
-user-web-feedback --port 5001
+npx @hirohsu/user-web-feedback --port 5001
 ```
 
 #### 3. API 密鑰錯誤
 ```bash
 # 檢查配置
-user-web-feedback config
+npx @hirohsu/user-web-feedback config
 
 # 設定環境變數
 export MCP_API_KEY="your_key_here"
@@ -791,7 +790,7 @@ export MCP_API_KEY="your_key_here"
 #### 4. 權限問題
 ```bash
 # 使用 npx 避免全域安裝權限問題
-npx user-web-feedback
+npx @hirohsu/user-web-feedback
 ```
 
 詳細的故障排除指南請參考：[TROUBLESHOOTING.md](.docs/TROUBLESHOOTING.md)
@@ -927,7 +926,7 @@ MIT License - 詳見 [LICENSE](LICENSE) 檔案
 ## 🔗 相關連結
 
 - **原始專案主頁**：[GitHub Repository](hhttps://github.com/sanshao85/mcp-feedback-collector-web)
-- **原始NPM 套件**：[user-web-feedback](https://www.npmjs.com/package/mcp-feedback-collector-web)
+- **NPM 套件**：[@hirohsu/user-web-feedback](https://www.npmjs.com/package/@hirohsu/user-web-feedback)
 - **Model Context Protocol**：[官方網站](https://modelcontextprotocol.io)
 - **MCP 規範**：[技術規範](https://spec.modelcontextprotocol.io)
 - **Claude Desktop**：[下載地址](https://claude.ai/desktop)

@@ -1,10 +1,7 @@
 {
-  "name": "@hiro-tools/user-web-feedback",
-  "version": "2.6.0",
+  "name": "@hirohsu/user-web-feedback",
+  "version": "2.6.10",
   "description": "基於Node.js的MCP回饋收集器 - 支持AI工作彙報和用戶回饋收集",
-  "publishConfig": {
-    "registry": "http://192.168.160.113:34873/"
-  },
   "main": "dist/index.cjs",
   "bin": {
     "user-web-feedback": "dist/cli.cjs"
@@ -27,11 +24,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sanshao85/user-web-feedback-web.git"
+    "url": "git+https://github.com/HyperHeroX/user-feedback-web.git"
   },
-  "homepage": "https://github.com/sanshao85/user-web-feedback-web#readme",
+  "homepage": "https://github.com/HyperHeroX/user-feedback-web#readme",
   "bugs": {
-    "url": "https://github.com/sanshao85/user-web-feedback-web/issues"
+    "url": "https://github.com/HyperHeroX/user-feedback-web/issues"
   },
   "scripts": {
     "build": "tsup",
@@ -45,7 +42,7 @@
     "lint:fix": "eslint src/ --ext .ts --fix",
     "clean": "node -e \"const fs=require('fs'); if(fs.existsSync('dist')){fs.rmSync('dist', {recursive: true, force: true})}\"",
     "prepare-release": "node scripts/prepare-release.cjs",
-    "prepublishOnly": "npm run clean && npm run build"
+    "prepublishOnly": "npm run clean && npm run build && node scripts/remove-sourcemaps.cjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.4.1"

@@ -75,11 +75,12 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 **進行任何 Git Commit 之前，必須確認以下所有條件均已達成：**
 
-1. ✅ **編譯無錯誤** - 後端 `dotnet build` 和前端 `npm run build` 均成功
-2. ✅ **單元測試無錯誤** - 所有後端單元測試通過
-3. ✅ **前端 UI 測試無錯誤** - 前端元件測試通過
-4. ✅ **瀏覽器 UI 測試無錯誤** - 使用 Browser Automation Tools 進行 E2E 測試
-5. ✅ **Jest 測試無異步洩漏** - 測試完成後不得出現 `Jest did not exit one second after the test run has completed` 警告，若出現必須立即修復
+1. ✅ **版本號必須增加** - **每次簽入必須增加版本尾號（patch version）**，例如 `2.6.0` → `2.6.1`
+2. ✅ **編譯無錯誤** - 後端 `dotnet build` 和前端 `npm run build` 均成功
+3. ✅ **單元測試無錯誤** - 所有後端單元測試通過
+4. ✅ **前端 UI 測試無錯誤** - 前端元件測試通過
+5. ✅ **瀏覽器 UI 測試無錯誤** - 使用 Browser Automation Tools 進行 E2E 測試
+6. ✅ **Jest 測試無異步洩漏** - 測試完成後不得出現 `Jest did not exit one second after the test run has completed` 警告，若出現必須立即修復
 
 ### 7. 程式碼品質規範 (禁止事項)
 

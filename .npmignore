@@ -3,6 +3,10 @@ src/
 *.ts
 !dist/**/*.d.ts
 
+# Source maps (exclude from npm package to reduce size)
+*.map
+dist/**/*.map
+
 # Development files
 .env
 .env.*
