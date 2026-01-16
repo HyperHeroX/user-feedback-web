@@ -161,6 +161,138 @@
             background: rgba(239, 68, 68, 0.1);
             color: #ef4444;
         }
+
+        /* Prompt Config Styles */
+        .prompt-config-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .prompt-config-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+        }
+
+        .prompt-config-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .prompt-config-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .prompt-config-controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .prompt-config-controls label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .prompt-config-controls input[type="number"] {
+            width: 60px;
+            padding: 4px 8px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .prompt-config-controls input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .prompt-config-content {
+            margin-top: 12px;
+        }
+
+        .prompt-config-content textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            resize: vertical;
+        }
+
+        .prompt-config-content.collapsed {
+            display: none;
+        }
+
+        .toggle-content-btn {
+            background: none;
+            border: none;
+            color: var(--accent-blue);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 4px 8px;
+        }
+
+        .toggle-content-btn:hover {
+            text-decoration: underline;
+        }
+
+        /* Provider Tabs */
+        .provider-tabs {
+            display: flex;
+            gap: 8px;
+        }
+
+        .provider-tab {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+
+        .provider-tab:hover {
+            border-color: var(--accent-blue);
+        }
+
+        .provider-tab.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: white;
+        }
+
+        .provider-settings {
+            margin-top: 16px;
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-muted);
+        }
     </style>
 </head>
 <body>
@@ -376,6 +508,104 @@
 
             <div class="form-actions">
                 <button id="saveSelfProbeBtn" class="btn btn-primary">儲存設定</button>
+            </div>
+        </section>
+
+        <!-- 提示詞設定 -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <span class="icon">📝</span>
+                AI 提示詞設定
+            </h2>
+            <p class="form-help" style="margin-bottom: 16px;">
+                自定義 AI 回覆時使用的提示詞順序。第一次順序用於首次 AI 呼叫，第二次順序用於後續呼叫。
+                順序為 0 表示不使用該組件。
+            </p>
+            
+            <div id="promptConfigList" class="prompt-config-list">
+                <div class="loading-state">正在載入提示詞配置...</div>
+            </div>
+
+            <div class="form-actions">
+                <button id="resetPromptsBtn" class="btn btn-secondary">恢復預設</button>
+                <button id="savePromptsBtn" class="btn btn-primary">儲存提示詞設定</button>
+            </div>
+        </section>
+
+        <!-- API 提供商設定 -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <span class="icon">🔌</span>
+                擴展 API 提供商
+            </h2>
+            <p class="form-help" style="margin-bottom: 16px;">
+                配置額外的 AI API 提供商（NVIDIA、Z.AI 等）。這些設定與主要 AI 設定分開管理。
+            </p>
+            
+            <div class="form-group">
+                <label class="form-label">選擇提供商</label>
+                <div class="provider-tabs" style="display: flex; gap: 8px; margin-bottom: 16px;">
+                    <button class="provider-tab active" data-provider="nvidia">NVIDIA</button>
+                    <button class="provider-tab" data-provider="zai">Z.AI (Zhipu AI)</button>
+                </div>
+            </div>
+
+            <!-- NVIDIA 設定 -->
+            <div id="nvidiaSettings" class="provider-settings">
+                <div class="form-group">
+                    <label class="form-label" for="nvidiaEndpoint">API Endpoint</label>
+                    <input type="url" id="nvidiaEndpoint" class="form-input" 
+                           value="https://integrate.api.nvidia.com/v1" readonly>
+                    <p class="form-help">/chat/completions 後綴會自動添加</p>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="nvidiaApiKey">API Key</label>
+                    <input type="password" id="nvidiaApiKey" class="form-input" 
+                           placeholder="輸入 NVIDIA API Key">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="nvidiaModel">Model ID</label>
+                    <input type="text" id="nvidiaModel" class="form-input" 
+                           placeholder="nvidia/llama-3.1-nemotron-70b-instruct">
+                    <p class="form-help">例如: nvidia/llama-3.1-nemotron-70b-instruct</p>
+                </div>
+
+                <div class="form-actions">
+                    <button id="testNvidiaBtn" class="btn btn-secondary">測試連接</button>
+                    <button id="saveNvidiaBtn" class="btn btn-primary">儲存 NVIDIA 設定</button>
+                </div>
+            </div>
+
+            <!-- Z.AI 設定 -->
+            <div id="zaiSettings" class="provider-settings" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label" for="zaiRegion">地區</label>
+                    <select id="zaiRegion" class="form-select">
+                        <option value="international">國際版 (api.z.ai)</option>
+                        <option value="china">中國版 (bigmodel.cn)</option>
+                    </select>
+                    <p class="form-help">選擇您的服務區域</p>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="zaiApiKey">API Key</label>
+                    <input type="password" id="zaiApiKey" class="form-input" 
+                           placeholder="輸入 Z.AI API Key">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label" for="zaiModel">Model ID</label>
+                    <input type="text" id="zaiModel" class="form-input" 
+                           placeholder="glm-4">
+                    <p class="form-help">例如: glm-4, glm-4-plus, glm-4-flash</p>
+                </div>
+
+                <div class="form-actions">
+                    <button id="testZaiBtn" class="btn btn-secondary">測試連接</button>
+                    <button id="saveZaiBtn" class="btn btn-primary">儲存 Z.AI 設定</button>
+                </div>
             </div>
         </section>
     </div>

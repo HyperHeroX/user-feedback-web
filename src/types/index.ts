@@ -277,6 +277,7 @@ export interface AIReplyRequest {
   toolResults?: string;
   projectName?: string;
   projectPath?: string;
+  isFirstCall?: boolean;
 }
 
 // AI 回覆響應類型

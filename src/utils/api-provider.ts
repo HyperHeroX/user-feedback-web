@@ -70,7 +70,8 @@ export class APIProvider implements IAIProvider {
         }
       }
 
-      const context = aggregator.buildContextSync(request, settings, cliSettings, mcpTools);
+      const isFirstCall = request.isFirstCall !== false;
+      const context = aggregator.buildContextSync(request, settings, cliSettings, mcpTools, isFirstCall);
       context.mode = 'api';
 
       const aggregated = aggregator.aggregate(context);

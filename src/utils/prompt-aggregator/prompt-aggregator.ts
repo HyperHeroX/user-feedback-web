@@ -10,7 +10,8 @@ import type {
     PromptMetadata,
     PromptPreviewResult,
     AIProviderMode,
-    McpTool
+    McpTool,
+    PromptConfig
 } from '../../types/ai-provider.js';
 import type { AIReplyRequest, AISettings, CLISettings } from '../../types/index.js';
 import {
@@ -22,9 +23,22 @@ import {
     AIMessageComponent,
     ClosingPromptComponent
 } from './components/index.js';
-import { getAISettings, getCLISettings } from '../database.js';
+import { getAISettings, getCLISettings, getPromptConfigs } from '../database.js';
 import { mcpClientManager } from '../mcp-client-manager.js';
 import { logger } from '../logger.js';
+
+/**
+ * 組件 ID 到組件名稱的映射
+ */
+const COMPONENT_NAME_MAP: Record<string, string> = {
+    'system_prompt': 'SystemPrompt',
+    'mcp_tools': 'MCPTools',
+    'user_context': 'UserContext',
+    'tool_results': 'ToolResults',
+    'closing': 'ClosingPrompt',
+    'pinned_prompts': 'PinnedPrompts',
+    'ai_message': 'AIMessage'
+};
 
 export class PromptAggregator {
     private static instance: PromptAggregator;
@@ -66,13 +80,39 @@ export class PromptAggregator {
         const sections: PromptSection[] = [];
         const promptParts: string[] = [];
 
-        for (const component of this.components) {
+        // 獲取資料庫中的提示詞配置
+        const promptConfigs = this.getPromptConfigsWithDefaults();
+        const isFirstCall = context.isFirstCall !== false; // 預設為 true
+        const orderField = isFirstCall ? 'firstOrder' : 'secondOrder';
+
+        // 構建組件順序映射
+        const componentOrderMap = new Map<string, { order: number; enabled: boolean }>();
+        for (const config of promptConfigs) {
+            const componentName = COMPONENT_NAME_MAP[config.id] || config.name;
+            const order = isFirstCall ? config.firstOrder : config.secondOrder;
+            componentOrderMap.set(componentName, { order, enabled: config.enabled });
+        }
+
+        // 根據配置排序和過濾組件
+        const sortedComponents = [...this.components]
+            .map(component => {
+                const config = componentOrderMap.get(component.getName());
+                return {
+                    component,
+                    order: config?.order ?? component.getOrder(),
+                    enabled: config?.enabled ?? true
+                };
+            })
+            .filter(item => item.enabled && item.order > 0)
+            .sort((a, b) => a.order - b.order);
+
+        for (const { component, order } of sortedComponents) {
             const content = component.build(context);
             if (content) {
                 sections.push({
                     name: component.getName(),
                     content,
-                    order: component.getOrder()
+                    order
                 });
                 promptParts.push(content);
             }
@@ -105,6 +145,29 @@ export class PromptAggregator {
         }
 
         return { fullPrompt, sections, metadata };
+    }
+
+    /**
+     * 獲取提示詞配置（帶預設值）
+     */
+    private getPromptConfigsWithDefaults(): PromptConfig[] {
+        try {
+            const configs = getPromptConfigs();
+            if (configs && configs.length > 0) {
+                return configs;
+            }
+        } catch (error) {
+            logger.warn('[PromptAggregator] 無法獲取提示詞配置，使用預設值', error);
+        }
+
+        // 返回預設配置
+        return [
+            { id: 'system_prompt', name: 'SystemPrompt', displayName: '系統提示詞', content: null, firstOrder: 10, secondOrder: 10, enabled: true, editable: true },
+            { id: 'mcp_tools', name: 'MCPTools', displayName: 'MCP 工具說明', content: null, firstOrder: 20, secondOrder: 0, enabled: true, editable: true },
+            { id: 'user_context', name: 'UserContext', displayName: '用戶上下文', content: null, firstOrder: 30, secondOrder: 20, enabled: true, editable: true },
+            { id: 'tool_results', name: 'ToolResults', displayName: '工具執行結果', content: null, firstOrder: 40, secondOrder: 30, enabled: true, editable: true },
+            { id: 'closing', name: 'ClosingPrompt', displayName: '結尾提示', content: null, firstOrder: 100, secondOrder: 100, enabled: true, editable: true }
+        ];
     }
 
     async preview(request: AIReplyRequest): Promise<PromptPreviewResult> {
@@ -166,10 +229,11 @@ export class PromptAggregator {
         request: AIReplyRequest,
         settings: AISettings | null,
         cliSettings: CLISettings | null,
-        mcpTools: McpTool[] = []
+        mcpTools: McpTool[] = [],
+        isFirstCall: boolean = true
     ): PromptContext {
         const mode: AIProviderMode = cliSettings?.aiMode === 'cli' ? 'cli' : 'api';
-        return { request, settings, cliSettings, mode, mcpTools };
+        return { request, settings, cliSettings, mode, mcpTools, isFirstCall };
     }
 
     private estimateTokens(text: string): number {

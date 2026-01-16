@@ -455,6 +455,25 @@ function createTables(): void {
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+    // Prompt 配置表（AI 提示詞自定義）
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS prompt_configs (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      content TEXT,
+      first_order INTEGER DEFAULT 0,
+      second_order INTEGER DEFAULT 0,
+      enabled INTEGER DEFAULT 1,
+      editable INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+    // 初始化預設提示詞配置
+    initDefaultPromptConfigs();
 }
 
 /**
@@ -2374,4 +2393,277 @@ export function saveSelfProbeSettings(settings: SelfProbeSettingsRequest): SelfP
     }
 
     return getSelfProbeSettings()!;
+}
+
+// ==================== Prompt Config Settings ====================
+
+import type { PromptConfig, PromptConfigRequest } from '../types/ai-provider.js';
+
+/**
+ * 預設提示詞配置
+ */
+const DEFAULT_PROMPT_CONFIGS: Omit<PromptConfig, 'createdAt' | 'updatedAt'>[] = [
+    {
+        id: 'system_prompt',
+        name: 'SystemPrompt',
+        displayName: '系統提示詞',
+        content: null,
+        firstOrder: 10,
+        secondOrder: 10,
+        enabled: true,
+        editable: true
+    },
+    {
+        id: 'mcp_tools',
+        name: 'MCPTools',
+        displayName: 'MCP 工具說明',
+        content: null,
+        firstOrder: 20,
+        secondOrder: 0,
+        enabled: true,
+        editable: true
+    },
+    {
+        id: 'user_context',
+        name: 'UserContext',
+        displayName: '用戶上下文',
+        content: null,
+        firstOrder: 30,
+        secondOrder: 20,
+        enabled: true,
+        editable: true
+    },
+    {
+        id: 'tool_results',
+        name: 'ToolResults',
+        displayName: '工具執行結果',
+        content: null,
+        firstOrder: 40,
+        secondOrder: 30,
+        enabled: true,
+        editable: true
+    },
+    {
+        id: 'closing',
+        name: 'ClosingPrompt',
+        displayName: '結尾提示',
+        content: null,
+        firstOrder: 100,
+        secondOrder: 100,
+        enabled: true,
+        editable: true
+    }
+];
+
+/**
+ * 初始化預設提示詞配置
+ */
+function initDefaultPromptConfigs(): void {
+    const db = tryGetDb();
+    if (!db) return;
+
+    const existingCount = db.prepare('SELECT COUNT(*) as count FROM prompt_configs').get() as { count: number };
+    
+    if (existingCount.count === 0) {
+        const now = new Date().toISOString();
+        const stmt = db.prepare(`
+            INSERT INTO prompt_configs (id, name, display_name, content, first_order, second_order, enabled, editable, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        for (const config of DEFAULT_PROMPT_CONFIGS) {
+            stmt.run(
+                config.id,
+                config.name,
+                config.displayName,
+                config.content,
+                config.firstOrder,
+                config.secondOrder,
+                config.enabled ? 1 : 0,
+                config.editable ? 1 : 0,
+                now,
+                now
+            );
+        }
+    }
+}
+
+/**
+ * 獲取所有提示詞配置
+ */
+export function getPromptConfigs(): PromptConfig[] {
+    const db = tryGetDb();
+    if (!db) return [];
+
+    const rows = db.prepare(`
+        SELECT 
+            id,
+            name,
+            display_name as displayName,
+            content,
+            first_order as firstOrder,
+            second_order as secondOrder,
+            enabled,
+            editable,
+            created_at as createdAt,
+            updated_at as updatedAt
+        FROM prompt_configs
+        ORDER BY first_order ASC
+    `).all() as Array<{
+        id: string;
+        name: string;
+        displayName: string;
+        content: string | null;
+        firstOrder: number;
+        secondOrder: number;
+        enabled: number;
+        editable: number;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+
+    return rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        displayName: row.displayName,
+        content: row.content,
+        firstOrder: row.firstOrder,
+        secondOrder: row.secondOrder,
+        enabled: row.enabled === 1,
+        editable: row.editable === 1,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt
+    }));
+}
+
+/**
+ * 獲取單一提示詞配置
+ */
+export function getPromptConfigById(id: string): PromptConfig | null {
+    const db = tryGetDb();
+    if (!db) return null;
+
+    const row = db.prepare(`
+        SELECT 
+            id,
+            name,
+            display_name as displayName,
+            content,
+            first_order as firstOrder,
+            second_order as secondOrder,
+            enabled,
+            editable,
+            created_at as createdAt,
+            updated_at as updatedAt
+        FROM prompt_configs
+        WHERE id = ?
+    `).get(id) as {
+        id: string;
+        name: string;
+        displayName: string;
+        content: string | null;
+        firstOrder: number;
+        secondOrder: number;
+        enabled: number;
+        editable: number;
+        createdAt: string;
+        updatedAt: string;
+    } | undefined;
+
+    if (!row) return null;
+
+    return {
+        id: row.id,
+        name: row.name,
+        displayName: row.displayName,
+        content: row.content,
+        firstOrder: row.firstOrder,
+        secondOrder: row.secondOrder,
+        enabled: row.enabled === 1,
+        editable: row.editable === 1,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt
+    };
+}
+
+/**
+ * 更新提示詞配置
+ */
+export function updatePromptConfigs(request: PromptConfigRequest): boolean {
+    const db = tryGetDb();
+    if (!db) return false;
+
+    const now = new Date().toISOString();
+
+    for (const config of request.prompts) {
+        if (!config.id) continue;
+
+        const existing = getPromptConfigById(config.id);
+        if (!existing) continue;
+
+        const updates: string[] = [];
+        const params: (string | number | null)[] = [];
+
+        if (config.content !== undefined) {
+            updates.push('content = ?');
+            params.push(config.content);
+        }
+        if (config.firstOrder !== undefined) {
+            updates.push('first_order = ?');
+            params.push(config.firstOrder);
+        }
+        if (config.secondOrder !== undefined) {
+            updates.push('second_order = ?');
+            params.push(config.secondOrder);
+        }
+        if (config.enabled !== undefined) {
+            updates.push('enabled = ?');
+            params.push(config.enabled ? 1 : 0);
+        }
+
+        if (updates.length > 0) {
+            updates.push('updated_at = ?');
+            params.push(now);
+            params.push(config.id);
+
+            db.prepare(`
+                UPDATE prompt_configs SET ${updates.join(', ')} WHERE id = ?
+            `).run(...params);
+        }
+    }
+
+    return true;
+}
+
+/**
+ * 重置提示詞配置為預設值
+ */
+export function resetPromptConfigs(): PromptConfig[] {
+    const db = tryGetDb();
+    if (!db) return [];
+
+    db.prepare('DELETE FROM prompt_configs').run();
+
+    const now = new Date().toISOString();
+    const stmt = db.prepare(`
+        INSERT INTO prompt_configs (id, name, display_name, content, first_order, second_order, enabled, editable, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const config of DEFAULT_PROMPT_CONFIGS) {
+        stmt.run(
+            config.id,
+            config.name,
+            config.displayName,
+            config.content,
+            config.firstOrder,
+            config.secondOrder,
+            config.enabled ? 1 : 0,
+            config.editable ? 1 : 0,
+            now,
+            now
+        );
+    }
+
+    return getPromptConfigs();
 }

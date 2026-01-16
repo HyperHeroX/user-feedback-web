@@ -72,8 +72,28 @@
     selfProbeCount: document.getElementById("selfProbeCount"),
     selfProbeLastTime: document.getElementById("selfProbeLastTime"),
     saveSelfProbeBtn: document.getElementById("saveSelfProbeBtn"),
+    // Prompt Config Settings
+    promptConfigList: document.getElementById("promptConfigList"),
+    resetPromptsBtn: document.getElementById("resetPromptsBtn"),
+    savePromptsBtn: document.getElementById("savePromptsBtn"),
+    // Extended Provider Settings
+    nvidiaSettings: document.getElementById("nvidiaSettings"),
+    nvidiaEndpoint: document.getElementById("nvidiaEndpoint"),
+    nvidiaApiKey: document.getElementById("nvidiaApiKey"),
+    nvidiaModel: document.getElementById("nvidiaModel"),
+    testNvidiaBtn: document.getElementById("testNvidiaBtn"),
+    saveNvidiaBtn: document.getElementById("saveNvidiaBtn"),
+    zaiSettings: document.getElementById("zaiSettings"),
+    zaiRegion: document.getElementById("zaiRegion"),
+    zaiApiKey: document.getElementById("zaiApiKey"),
+    zaiModel: document.getElementById("zaiModel"),
+    testZaiBtn: document.getElementById("testZaiBtn"),
+    saveZaiBtn: document.getElementById("saveZaiBtn"),
     toastContainer: document.getElementById("toastContainer"),
   };
+
+  // 提示詞配置緩存
+  let promptConfigs = [];
 
   // CLI 工具檢測結果緩存
   let cliDetectionResult = null;
@@ -86,6 +106,8 @@
     loadCLISettings();
     loadPreferences();
     loadSelfProbeSettings();
+    loadPromptConfigs();
+    setupProviderTabs();
   }
 
   function setupEventListeners() {
@@ -95,8 +117,18 @@
     elements.saveAiBtn.addEventListener("click", saveAISettings);
 
     // CLI Settings
-    elements.aiModeApi.addEventListener("change", handleAIModeChange);
-    elements.aiModeCli.addEventListener("change", handleAIModeChange);
+    if (elements.aiModeApi) elements.aiModeApi.addEventListener("change", handleAIModeChange);
+    if (elements.aiModeCli) elements.aiModeCli.addEventListener("change", handleAIModeChange);
+    
+    // Prompt Config Settings
+    if (elements.resetPromptsBtn) elements.resetPromptsBtn.addEventListener("click", resetPromptConfigs);
+    if (elements.savePromptsBtn) elements.savePromptsBtn.addEventListener("click", savePromptConfigs);
+    
+    // Extended Provider Settings
+    if (elements.testNvidiaBtn) elements.testNvidiaBtn.addEventListener("click", testNvidiaConnection);
+    if (elements.saveNvidiaBtn) elements.saveNvidiaBtn.addEventListener("click", saveNvidiaSettings);
+    if (elements.testZaiBtn) elements.testZaiBtn.addEventListener("click", testZaiConnection);
+    if (elements.saveZaiBtn) elements.saveZaiBtn.addEventListener("click", saveZaiSettings);
     elements.detectCliBtn.addEventListener("click", detectCLITools);
     elements.saveCliBtn.addEventListener("click", saveCLISettings);
 
@@ -512,6 +544,272 @@
         elements.saveSelfProbeBtn.disabled = false;
         elements.saveSelfProbeBtn.textContent = "儲存設定";
       }
+    }
+  }
+
+  // ========== Prompt Config Functions ==========
+
+  async function loadPromptConfigs() {
+    if (!elements.promptConfigList) return;
+
+    try {
+      const response = await fetch(`${API_BASE}/api/settings/prompts`);
+      const data = await response.json();
+
+      if (data.success && data.prompts) {
+        promptConfigs = data.prompts;
+        renderPromptConfigs();
+      } else {
+        elements.promptConfigList.innerHTML = '<div class="loading-state">無法載入提示詞配置</div>';
+      }
+    } catch (error) {
+      console.error("Load prompt configs failed:", error);
+      elements.promptConfigList.innerHTML = '<div class="loading-state">載入失敗</div>';
+    }
+  }
+
+  function renderPromptConfigs() {
+    if (!elements.promptConfigList || !promptConfigs.length) return;
+
+    elements.promptConfigList.innerHTML = promptConfigs.map(config => `
+      <div class="prompt-config-item" data-id="${config.id}">
+        <div class="prompt-config-header">
+          <span class="prompt-config-name">${config.displayName}</span>
+          <div class="prompt-config-controls">
+            <label>
+              第一次順序:
+              <input type="number" class="first-order" value="${config.firstOrder}" min="0" max="1000" step="10">
+            </label>
+            <label>
+              第二次順序:
+              <input type="number" class="second-order" value="${config.secondOrder}" min="0" max="1000" step="10">
+            </label>
+            <label>
+              <input type="checkbox" class="prompt-enabled" ${config.enabled ? 'checked' : ''}>
+              啟用
+            </label>
+            <button class="toggle-content-btn" onclick="togglePromptContent('${config.id}')">展開編輯</button>
+          </div>
+        </div>
+        <div class="prompt-config-content collapsed" id="content-${config.id}">
+          <textarea placeholder="自定義提示詞內容（留空使用預設）">${config.content || ''}</textarea>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  window.togglePromptContent = function(id) {
+    const content = document.getElementById(`content-${id}`);
+    const btn = content.parentElement.querySelector('.toggle-content-btn');
+    
+    if (content.classList.contains('collapsed')) {
+      content.classList.remove('collapsed');
+      btn.textContent = '收起';
+    } else {
+      content.classList.add('collapsed');
+      btn.textContent = '展開編輯';
+    }
+  };
+
+  async function savePromptConfigs() {
+    if (!elements.savePromptsBtn) return;
+
+    elements.savePromptsBtn.disabled = true;
+    elements.savePromptsBtn.textContent = "儲存中...";
+
+    try {
+      const items = document.querySelectorAll('.prompt-config-item');
+      const updates = [];
+
+      items.forEach(item => {
+        const id = item.dataset.id;
+        const firstOrder = parseInt(item.querySelector('.first-order').value) || 0;
+        const secondOrder = parseInt(item.querySelector('.second-order').value) || 0;
+        const enabled = item.querySelector('.prompt-enabled').checked;
+        const content = item.querySelector('textarea')?.value || null;
+
+        updates.push({ id, firstOrder, secondOrder, enabled, content: content || null });
+      });
+
+      const response = await fetch(`${API_BASE}/api/settings/prompts`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompts: updates })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast("提示詞配置已儲存", "success");
+        if (data.prompts) {
+          promptConfigs = data.prompts;
+        }
+      } else {
+        showToast(`儲存失敗: ${data.error || "未知錯誤"}`, "error");
+      }
+    } catch (error) {
+      console.error("Save prompt configs failed:", error);
+      showToast("儲存失敗", "error");
+    } finally {
+      elements.savePromptsBtn.disabled = false;
+      elements.savePromptsBtn.textContent = "儲存提示詞設定";
+    }
+  }
+
+  async function resetPromptConfigs() {
+    if (!confirm("確定要重置為預設提示詞配置？")) return;
+
+    if (!elements.resetPromptsBtn) return;
+
+    elements.resetPromptsBtn.disabled = true;
+    elements.resetPromptsBtn.textContent = "重置中...";
+
+    try {
+      const response = await fetch(`${API_BASE}/api/settings/prompts/reset`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showToast("已重置為預設配置", "success");
+        if (data.prompts) {
+          promptConfigs = data.prompts;
+          renderPromptConfigs();
+        }
+      } else {
+        showToast(`重置失敗: ${data.error || "未知錯誤"}`, "error");
+      }
+    } catch (error) {
+      console.error("Reset prompt configs failed:", error);
+      showToast("重置失敗", "error");
+    } finally {
+      elements.resetPromptsBtn.disabled = false;
+      elements.resetPromptsBtn.textContent = "恢復預設";
+    }
+  }
+
+  // ========== Provider Tab Functions ==========
+
+  function setupProviderTabs() {
+    const tabs = document.querySelectorAll('.provider-tab');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const provider = tab.dataset.provider;
+        
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        
+        if (elements.nvidiaSettings) {
+          elements.nvidiaSettings.style.display = provider === 'nvidia' ? 'block' : 'none';
+        }
+        if (elements.zaiSettings) {
+          elements.zaiSettings.style.display = provider === 'zai' ? 'block' : 'none';
+        }
+      });
+    });
+  }
+
+  // ========== NVIDIA Provider Functions ==========
+
+  async function testNvidiaConnection() {
+    if (!elements.testNvidiaBtn) return;
+
+    const apiKey = elements.nvidiaApiKey?.value;
+    const model = elements.nvidiaModel?.value;
+
+    if (!apiKey) {
+      showToast("請輸入 NVIDIA API Key", "error");
+      return;
+    }
+
+    elements.testNvidiaBtn.disabled = true;
+    elements.testNvidiaBtn.textContent = "測試中...";
+
+    try {
+      showToast("NVIDIA API 測試功能尚未實作", "info");
+    } catch (error) {
+      console.error("Test NVIDIA connection failed:", error);
+      showToast("測試失敗", "error");
+    } finally {
+      elements.testNvidiaBtn.disabled = false;
+      elements.testNvidiaBtn.textContent = "測試連接";
+    }
+  }
+
+  async function saveNvidiaSettings() {
+    if (!elements.saveNvidiaBtn) return;
+
+    elements.saveNvidiaBtn.disabled = true;
+    elements.saveNvidiaBtn.textContent = "儲存中...";
+
+    try {
+      const settings = {
+        provider: 'nvidia',
+        apiKey: elements.nvidiaApiKey?.value || '',
+        model: elements.nvidiaModel?.value || ''
+      };
+
+      localStorage.setItem('nvidia_settings', JSON.stringify(settings));
+      showToast("NVIDIA 設定已儲存至本地", "success");
+    } catch (error) {
+      console.error("Save NVIDIA settings failed:", error);
+      showToast("儲存失敗", "error");
+    } finally {
+      elements.saveNvidiaBtn.disabled = false;
+      elements.saveNvidiaBtn.textContent = "儲存 NVIDIA 設定";
+    }
+  }
+
+  // ========== Z.AI Provider Functions ==========
+
+  async function testZaiConnection() {
+    if (!elements.testZaiBtn) return;
+
+    const apiKey = elements.zaiApiKey?.value;
+    const model = elements.zaiModel?.value;
+
+    if (!apiKey) {
+      showToast("請輸入 Z.AI API Key", "error");
+      return;
+    }
+
+    elements.testZaiBtn.disabled = true;
+    elements.testZaiBtn.textContent = "測試中...";
+
+    try {
+      showToast("Z.AI API 測試功能尚未實作", "info");
+    } catch (error) {
+      console.error("Test Z.AI connection failed:", error);
+      showToast("測試失敗", "error");
+    } finally {
+      elements.testZaiBtn.disabled = false;
+      elements.testZaiBtn.textContent = "測試連接";
+    }
+  }
+
+  async function saveZaiSettings() {
+    if (!elements.saveZaiBtn) return;
+
+    elements.saveZaiBtn.disabled = true;
+    elements.saveZaiBtn.textContent = "儲存中...";
+
+    try {
+      const settings = {
+        provider: 'zai',
+        region: elements.zaiRegion?.value || 'international',
+        apiKey: elements.zaiApiKey?.value || '',
+        model: elements.zaiModel?.value || ''
+      };
+
+      localStorage.setItem('zai_settings', JSON.stringify(settings));
+      showToast("Z.AI 設定已儲存至本地", "success");
+    } catch (error) {
+      console.error("Save Z.AI settings failed:", error);
+      showToast("儲存失敗", "error");
+    } finally {
+      elements.saveZaiBtn.disabled = false;
+      elements.saveZaiBtn.textContent = "儲存 Z.AI 設定";
     }
   }
 

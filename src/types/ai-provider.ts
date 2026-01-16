@@ -66,6 +66,7 @@ export interface PromptContext {
   cliSettings?: import('./index.js').CLISettings | null;
   mode: AIProviderMode;
   mcpTools?: McpTool[];
+  isFirstCall?: boolean;
 }
 
 /**
@@ -160,4 +161,83 @@ export interface CLIHandlerResult {
   toolResults: MCPToolResult[];
   iterations: number;
   maxIterationsReached: boolean;
+}
+
+// ============================================
+// Prompt Customization Types
+// ============================================
+
+/**
+ * 提示詞配置
+ */
+export interface PromptConfig {
+  id: string;
+  name: string;
+  displayName: string;
+  content: string | null;
+  firstOrder: number;
+  secondOrder: number;
+  enabled: boolean;
+  editable: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * 提示詞配置請求
+ */
+export interface PromptConfigRequest {
+  prompts: Partial<PromptConfig>[];
+}
+
+/**
+ * 提示詞配置回應
+ */
+export interface PromptConfigResponse {
+  success: boolean;
+  prompts?: PromptConfig[];
+  message?: string;
+  error?: string;
+}
+
+// ============================================
+// Extended API Provider Types
+// ============================================
+
+/**
+ * API 提供商類型
+ */
+export type APIProviderType = 'openai' | 'anthropic' | 'google' | 'nvidia' | 'zai';
+
+/**
+ * NVIDIA API 配置
+ */
+export interface NVIDIAConfig {
+  provider: 'nvidia';
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}
+
+/**
+ * Z.AI API 配置
+ */
+export interface ZAIConfig {
+  provider: 'zai';
+  apiKey: string;
+  region: 'international' | 'china';
+  model: string;
+}
+
+/**
+ * 擴展的 API 配置
+ */
+export interface ExtendedAPIConfig {
+  provider: APIProviderType;
+  apiKey: string;
+  model: string;
+  baseUrl?: string;
+  region?: 'international' | 'china';
+  temperature?: number;
+  maxTokens?: number;
 }

@@ -146,6 +146,110 @@ collect_feedback("工作汇报内容")
 }
 ```
 
+## 📝 提示詞自定義配置
+
+### 功能說明
+
+提示詞自定義功能允許用戶自定義 AI 回覆時使用的提示詞順序。系統支援兩種順序配置：
+- **第一次順序** - 首次 AI 呼叫時使用的順序
+- **第二次順序** - 後續 AI 呼叫時使用的順序
+
+### 可配置的提示詞組件
+
+| 組件 ID | 預設名稱 | 說明 |
+|---------|----------|------|
+| `system_prompt` | 系統提示詞 | 系統級指令 |
+| `mcp_tools` | MCP 工具說明 | MCP 工具使用說明 |
+| `user_context` | 用戶上下文 | 用戶提供的上下文 |
+| `tool_results` | 工具執行結果 | MCP 工具執行結果 |
+| `closing` | 結尾提示 | 結尾指令 |
+
+### API 端點
+
+```bash
+# 獲取所有提示詞配置
+GET /api/settings/prompts
+
+# 更新提示詞配置
+PUT /api/settings/prompts
+Content-Type: application/json
+{
+  "prompts": [
+    { "id": "system_prompt", "firstOrder": 10, "secondOrder": 10, "enabled": true }
+  ]
+}
+
+# 重置為預設配置
+POST /api/settings/prompts/reset
+```
+
+### 使用方式
+
+1. 訪問 設定頁面 → AI 提示詞設定
+2. 調整各組件的第一次/第二次順序
+3. 啟用/停用特定組件
+4. 點擊「儲存提示詞設定」
+
+## 🔌 擴展 API 提供商配置
+
+### NVIDIA API 配置
+
+NVIDIA 提供 OpenAI-compatible API，可用於 LLaMA、Nemotron 等模型。
+
+```json
+{
+  "provider": "nvidia",
+  "apiKey": "your-nvidia-api-key",
+  "baseUrl": "https://integrate.api.nvidia.com/v1",
+  "model": "nvidia/llama-3.1-nemotron-70b-instruct"
+}
+```
+
+**支援的模型**（部分）：
+- `nvidia/llama-3.1-nemotron-70b-instruct`
+- `nvidia/llama-3.1-405b-instruct`
+
+### Z.AI (Zhipu AI) API 配置
+
+Z.AI（智譜 AI）提供 GLM 系列模型。支援國際版和中國版。
+
+**國際版配置**：
+```json
+{
+  "provider": "zai",
+  "region": "international",
+  "apiKey": "your-zai-api-key",
+  "model": "glm-4"
+}
+```
+
+**中國版配置**：
+```json
+{
+  "provider": "zai",
+  "region": "china",
+  "apiKey": "your-bigmodel-api-key",
+  "model": "glm-4"
+}
+```
+
+**API Endpoints**：
+- 國際版：`https://api.z.ai/api/paas/v4`
+- 中國版：`https://open.bigmodel.cn/api/paas/v4`
+
+**支援的模型**：
+- `glm-4`
+- `glm-4-plus`
+- `glm-4-flash`
+
+### 使用方式
+
+1. 訪問 設定頁面 → 擴展 API 提供商
+2. 選擇 NVIDIA 或 Z.AI 標籤
+3. 填入 API Key 和 Model ID
+4. 點擊「測試連接」驗證設定
+5. 點擊「儲存設定」
+
 ## 📄 图片转文字功能配置
 
 ### 功能说明
