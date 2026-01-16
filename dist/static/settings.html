@@ -342,6 +342,42 @@
                 <button id="savePreferencesBtn" class="btn btn-primary">儲存偏好設定</button>
             </div>
         </section>
+
+        <!-- Self-Probe 設定 -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <span class="icon">💓</span>
+                自我探查 (Keep-Alive)
+            </h2>
+            
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="enableSelfProbe" />
+                    <label for="enableSelfProbe">啟用自我探查</label>
+                </div>
+                <p class="form-help">定期檢查服務狀態，防止因閒置被系統回收</p>
+            </div>
+
+            <div class="form-group" id="selfProbeIntervalGroup">
+                <label class="form-label" for="selfProbeInterval">探查間隔（秒）</label>
+                <input type="number" id="selfProbeInterval" class="form-input" 
+                       min="60" max="600" step="30" value="300">
+                <p class="form-help">60-600 秒，預設 300 秒（5 分鐘）</p>
+            </div>
+
+            <div class="form-group" id="selfProbeStatus" style="display: none;">
+                <label class="form-label">狀態資訊</label>
+                <div class="status-info" style="font-size: 13px; color: var(--text-muted); padding: 8px; background: var(--bg-secondary); border-radius: var(--radius-sm);">
+                    <div id="selfProbeRunning">執行狀態: --</div>
+                    <div id="selfProbeCount">探查次數: --</div>
+                    <div id="selfProbeLastTime">上次探查: --</div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button id="saveSelfProbeBtn" class="btn btn-primary">儲存設定</button>
+            </div>
+        </section>
     </div>
 
     <!-- Toast Container -->

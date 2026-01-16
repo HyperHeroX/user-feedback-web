@@ -78,7 +78,10 @@ export function createDefaultConfig(): Config {
     healthCheckTimeout: getEnvNumber('MCP_HEALTH_CHECK_TIMEOUT', 3000),
     forceNewInstance: getEnvBoolean('MCP_FORCE_NEW_INSTANCE', false),
     // MCP Server 傳輸模式
-    mcpTransport: (getEnvVar('MCP_TRANSPORT', 'stdio') as 'stdio' | 'sse' | 'streamable-http')
+    mcpTransport: (getEnvVar('MCP_TRANSPORT', 'stdio') as 'stdio' | 'sse' | 'streamable-http'),
+    // Self-Probe (Keep-Alive) 設定
+    enableSelfProbe: getEnvBoolean('MCP_ENABLE_SELF_PROBE', false),
+    selfProbeIntervalSeconds: getEnvNumber('MCP_SELF_PROBE_INTERVAL', 300)
   };
 }
 
@@ -128,6 +131,16 @@ export function validateConfig(config: Config): void {
       'INVALID_LOG_LEVEL'
     );
   }
+
+  // 驗證 Self-Probe 間隔
+  if (config.selfProbeIntervalSeconds !== undefined) {
+    if (config.selfProbeIntervalSeconds < 60 || config.selfProbeIntervalSeconds > 600) {
+      throw new MCPError(
+        `Invalid self-probe interval: ${config.selfProbeIntervalSeconds}. Must be between 60 and 600 seconds.`,
+        'INVALID_SELF_PROBE_INTERVAL'
+      );
+    }
+  }
 }
 
 /**
@@ -162,4 +175,8 @@ export function displayConfig(config: Config): void {
   console.log(`  Image To Text: ${config.enableImageToText ? 'enabled' : 'disabled'}`);
   console.log(`  Image To Text Prompt: ${config.imageToTextPrompt ? config.imageToTextPrompt.substring(0, 50) + '...' : 'default'}`);
   console.log(`  MCP Transport: ${config.mcpTransport || 'stdio'}`);
+  console.log(`  Self-Probe: ${config.enableSelfProbe ? 'enabled' : 'disabled'}`);
+  if (config.enableSelfProbe) {
+    console.log(`  Self-Probe Interval: ${config.selfProbeIntervalSeconds || 300}s`);
+  }
 }

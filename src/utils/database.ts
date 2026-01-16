@@ -26,7 +26,9 @@ import type {
     UpdateMCPServerRequest,
     MCPTransportType,
     MCPServerLog,
-    MCPServerLogType
+    MCPServerLogType,
+    SelfProbeSettings,
+    SelfProbeSettingsRequest
 } from '../types/index.js';
 
 const DB_DIR = path.join(process.cwd(), 'data');
@@ -443,6 +445,16 @@ function createTables(): void {
     } catch {
         // 忽略遷移錯誤
     }
+
+    // Self-Probe 設定表
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS self_probe_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      enabled INTEGER DEFAULT 0,
+      interval_seconds INTEGER DEFAULT 300,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 }
 
 /**
@@ -2297,4 +2309,69 @@ export function cleanupOldCLIExecutionLogs(daysToKeep: number = 7): number {
     `).run(cutoffDate.toISOString());
 
     return result.changes;
+}
+
+// ==================== Self-Probe Settings ====================
+
+/**
+ * 獲取 Self-Probe 設定
+ */
+export function getSelfProbeSettings(): SelfProbeSettings | undefined {
+    const db = tryGetDb();
+    if (!db) return undefined;
+
+    const row = db.prepare(`
+        SELECT 
+            id,
+            enabled,
+            interval_seconds as intervalSeconds,
+            updated_at as updatedAt
+        FROM self_probe_settings
+        WHERE id = 1
+    `).get() as { id: number; enabled: number; intervalSeconds: number; updatedAt: string } | undefined;
+
+    if (!row) return undefined;
+
+    return {
+        id: row.id,
+        enabled: row.enabled === 1,
+        intervalSeconds: row.intervalSeconds,
+        updatedAt: row.updatedAt
+    };
+}
+
+/**
+ * 儲存 Self-Probe 設定
+ */
+export function saveSelfProbeSettings(settings: SelfProbeSettingsRequest): SelfProbeSettings {
+    const db = tryGetDb();
+    if (!db) throw new Error('Database not initialized');
+
+    const existing = getSelfProbeSettings();
+    const now = new Date().toISOString();
+
+    if (existing) {
+        db.prepare(`
+            UPDATE self_probe_settings
+            SET enabled = COALESCE(?, enabled),
+                interval_seconds = COALESCE(?, interval_seconds),
+                updated_at = ?
+            WHERE id = 1
+        `).run(
+            settings.enabled !== undefined ? (settings.enabled ? 1 : 0) : null,
+            settings.intervalSeconds ?? null,
+            now
+        );
+    } else {
+        db.prepare(`
+            INSERT INTO self_probe_settings (id, enabled, interval_seconds, updated_at)
+            VALUES (1, ?, ?, ?)
+        `).run(
+            settings.enabled ? 1 : 0,
+            settings.intervalSeconds ?? 300,
+            now
+        );
+    }
+
+    return getSelfProbeSettings()!;
 }

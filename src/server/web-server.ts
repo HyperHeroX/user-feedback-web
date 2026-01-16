@@ -23,7 +23,8 @@ import { getPackageVersion } from '../utils/version.js';
 import { InstanceLock } from '../utils/instance-lock.js';
 
 const VERSION = getPackageVersion();
-import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled, getToolEnableConfigs, setToolEnabled, batchSetToolEnabled, queryMCPServerLogs, getRecentMCPServerErrors, cleanupOldMCPServerLogs, getCLISettings, updateCLISettings, getCLITerminals, getCLITerminalById, deleteCLITerminal, getCLIExecutionLogs, cleanupOldCLIExecutionLogs, logAPIRequest, logAPIError, queryAPILogs, queryAPIErrorLogs, cleanupOldAPILogs, clearAllAPILogs } from '../utils/database.js';
+import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled, getToolEnableConfigs, setToolEnabled, batchSetToolEnabled, queryMCPServerLogs, getRecentMCPServerErrors, cleanupOldMCPServerLogs, getCLISettings, updateCLISettings, getCLITerminals, getCLITerminalById, deleteCLITerminal, getCLIExecutionLogs, cleanupOldCLIExecutionLogs, logAPIRequest, logAPIError, queryAPILogs, queryAPIErrorLogs, cleanupOldAPILogs, clearAllAPILogs, getSelfProbeSettings, saveSelfProbeSettings } from '../utils/database.js';
+import { SelfProbeService } from '../utils/self-probe-service.js';
 import { maskApiKey } from '../utils/crypto-helper.js';
 import { generateAIReply, validateAPIKey } from '../utils/ai-service.js';
 import { mcpClientManager } from '../utils/mcp-client-manager.js';
@@ -51,6 +52,7 @@ export class WebServer {
   private sseTransports: Map<string, SSEServerTransport> = new Map();
   private sseTransportsList: Array<{ key: symbol; transport: SSEServerTransport; res: express.Response }> = [];
   private dbInitialized = false;
+  private selfProbeService: SelfProbeService;
 
   /**
    * 延遲載入 ImageProcessor
@@ -96,6 +98,7 @@ export class WebServer {
     this.config = config;
     this.portManager = new PortManager();
     this.sessionStorage = new SessionStorage();
+    this.selfProbeService = new SelfProbeService(config);
 
     // 建立Express應用程式
     this.app = express();
@@ -472,6 +475,7 @@ export class WebServer {
 
     // 健康檢查路由 (新 API 路徑，用於 Single Instance 檢測)
     this.app.get('/api/health', (req, res) => {
+      const selfProbeStats = this.selfProbeService.getStats();
       res.json({
         status: 'ok',
         pid: process.pid,
@@ -479,7 +483,14 @@ export class WebServer {
         uptime: process.uptime(),
         version: VERSION,
         activeSessions: this.sessionStorage.getSessionCount(),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        selfProbe: {
+          enabled: selfProbeStats.enabled,
+          isRunning: selfProbeStats.isRunning,
+          probeCount: selfProbeStats.probeCount,
+          lastProbeTime: selfProbeStats.lastProbeTime?.toISOString() ?? null,
+          intervalSeconds: selfProbeStats.intervalSeconds
+        }
       });
     });
 
@@ -1121,6 +1132,55 @@ export class WebServer {
           error: error instanceof Error ? error.message : '更新使用者偏好設定失敗',
           details: error instanceof Error ? (error as any).details || null : null,
           stack: error instanceof Error ? error.stack : undefined
+        });
+      }
+    });
+
+    // ============ Self-Probe 設定 API ============
+
+    // 獲取 Self-Probe 設定
+    this.app.get('/api/settings/self-probe', (req, res) => {
+      try {
+        const settings = getSelfProbeSettings();
+        const stats = this.selfProbeService.getStats();
+        res.json({
+          success: true,
+          settings: settings ?? { enabled: false, intervalSeconds: 300 },
+          stats
+        });
+      } catch (error) {
+        logger.error('獲取 Self-Probe 設定失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取 Self-Probe 設定失敗'
+        });
+      }
+    });
+
+    // 更新 Self-Probe 設定
+    this.app.post('/api/settings/self-probe', (req, res) => {
+      try {
+        const { enabled, intervalSeconds } = req.body;
+
+        if (intervalSeconds !== undefined && (intervalSeconds < 60 || intervalSeconds > 600)) {
+          res.status(400).json({
+            success: false,
+            error: 'Interval must be between 60 and 600 seconds'
+          });
+          return;
+        }
+
+        this.selfProbeService.updateSettings({ enabled, intervalSeconds });
+        const settings = getSelfProbeSettings();
+        const stats = this.selfProbeService.getStats();
+
+        logger.info(`Self-Probe 設定已更新: enabled=${enabled}, interval=${intervalSeconds}s`);
+        res.json({ success: true, settings, stats });
+      } catch (error) {
+        logger.error('更新 Self-Probe 設定失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '更新 Self-Probe 設定失敗'
         });
       }
     });
@@ -2820,6 +2880,15 @@ export class WebServer {
       // 自動啟動已啟用的 MCP Servers
       await this.autoStartMCPServers();
 
+      // 啟動 Self-Probe 服務
+      this.selfProbeService.setContext({
+        getSocketIOConnectionCount: () => this.io.sockets.sockets.size,
+        getMCPServerStatus: () => this.mcpServerRef?.getStatus(),
+        getSessionCount: () => this.sessionStorage.getSessionCount(),
+        cleanupExpiredSessions: () => this.sessionStorage.cleanupExpiredSessions()
+      });
+      this.selfProbeService.start();
+
     } catch (error) {
       logger.error('Web伺服器啟動失敗:', error);
       throw new MCPError(
@@ -3065,6 +3134,9 @@ export class WebServer {
         }
       }
 
+      // 停止 Self-Probe 服務
+      this.selfProbeService.stop();
+
       // 清理所有活躍會話
       this.sessionStorage.clear();
       this.sessionStorage.stopCleanupTimer();
@@ -3121,5 +3193,26 @@ export class WebServer {
    */
   getPort(): number {
     return this.port;
+  }
+
+  /**
+   * 取得 Self-Probe 服務實例
+   */
+  getSelfProbeService(): SelfProbeService {
+    return this.selfProbeService;
+  }
+
+  /**
+   * 取得 Socket.IO 伺服器實例
+   */
+  getIO(): SocketIOServer {
+    return this.io;
+  }
+
+  /**
+   * 取得 Session Storage 實例
+   */
+  getSessionStorage(): SessionStorage {
+    return this.sessionStorage;
   }
 }

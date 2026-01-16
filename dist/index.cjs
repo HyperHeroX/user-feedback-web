@@ -11959,6 +11959,7 @@ __export(database_exports, {
   getPinnedPrompts: () => getPinnedPrompts,
   getPromptById: () => getPromptById,
   getRecentMCPServerErrors: () => getRecentMCPServerErrors,
+  getSelfProbeSettings: () => getSelfProbeSettings,
   getToolEnableConfigs: () => getToolEnableConfigs,
   getUserPreferences: () => getUserPreferences,
   initDatabase: () => initDatabase,
@@ -11974,6 +11975,7 @@ __export(database_exports, {
   queryLogs: () => queryLogs,
   queryMCPServerLogs: () => queryMCPServerLogs,
   reorderPrompts: () => reorderPrompts,
+  saveSelfProbeSettings: () => saveSelfProbeSettings,
   setToolEnabled: () => setToolEnabled,
   toggleMCPServerEnabled: () => toggleMCPServerEnabled,
   togglePromptPin: () => togglePromptPin,
@@ -12272,6 +12274,14 @@ function createTables() {
     }
   } catch {
   }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS self_probe_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      enabled INTEGER DEFAULT 0,
+      interval_seconds INTEGER DEFAULT 300,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 }
 function initDefaultSettings() {
   if (!db) throw new Error("Database not initialized");
@@ -13616,6 +13626,55 @@ function cleanupOldCLIExecutionLogs(daysToKeep = 7) {
         DELETE FROM cli_execution_logs WHERE created_at < ?
     `).run(cutoffDate.toISOString());
   return result.changes;
+}
+function getSelfProbeSettings() {
+  const db2 = tryGetDb();
+  if (!db2) return void 0;
+  const row = db2.prepare(`
+        SELECT 
+            id,
+            enabled,
+            interval_seconds as intervalSeconds,
+            updated_at as updatedAt
+        FROM self_probe_settings
+        WHERE id = 1
+    `).get();
+  if (!row) return void 0;
+  return {
+    id: row.id,
+    enabled: row.enabled === 1,
+    intervalSeconds: row.intervalSeconds,
+    updatedAt: row.updatedAt
+  };
+}
+function saveSelfProbeSettings(settings) {
+  const db2 = tryGetDb();
+  if (!db2) throw new Error("Database not initialized");
+  const existing = getSelfProbeSettings();
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  if (existing) {
+    db2.prepare(`
+            UPDATE self_probe_settings
+            SET enabled = COALESCE(?, enabled),
+                interval_seconds = COALESCE(?, interval_seconds),
+                updated_at = ?
+            WHERE id = 1
+        `).run(
+      settings.enabled !== void 0 ? settings.enabled ? 1 : 0 : null,
+      settings.intervalSeconds ?? null,
+      now
+    );
+  } else {
+    db2.prepare(`
+            INSERT INTO self_probe_settings (id, enabled, interval_seconds, updated_at)
+            VALUES (1, ?, ?, ?)
+        `).run(
+      settings.enabled ? 1 : 0,
+      settings.intervalSeconds ?? 300,
+      now
+    );
+  }
+  return getSelfProbeSettings();
 }
 var import_better_sqlite3, import_path2, import_fs2, import_crypto2, DB_DIR, DB_PATH, db, SYSTEM_PROMPT_VERSIONS, CURRENT_PROMPT_VERSION;
 var init_database = __esm({
@@ -65296,7 +65355,7 @@ var init_dist2 = __esm({
   }
 });
 
-// node_modules/@modelcontextprotocol/sdk/node_modules/eventsource/dist/index.js
+// node_modules/eventsource/dist/index.js
 function syntaxError(message) {
   const DomException = globalThis.DOMException;
   return typeof DomException == "function" ? new DomException(message, "SyntaxError") : new SyntaxError(message);
@@ -65320,7 +65379,7 @@ function getBaseURL() {
 }
 var ErrorEvent, __typeError, __accessCheck, __privateGet, __privateAdd, __privateSet, __privateMethod, _readyState, _url, _redirectUrl, _withCredentials, _fetch, _reconnectInterval, _reconnectTimer, _lastEventId, _controller, _parser, _onError, _onMessage, _onOpen, _EventSource_instances, connect_fn, _onFetchResponse, _onFetchError, getRequestOptions_fn, _onEvent, _onRetryChange, failConnection_fn, scheduleReconnect_fn, _reconnect, EventSource;
 var init_dist3 = __esm({
-  "node_modules/@modelcontextprotocol/sdk/node_modules/eventsource/dist/index.js"() {
+  "node_modules/eventsource/dist/index.js"() {
     "use strict";
     init_cjs_shims();
     init_dist2();
@@ -79096,7 +79155,6 @@ init_cjs_shims();
 
 // node_modules/zod-to-json-schema/dist/esm/selectParser.js
 init_cjs_shims();
-init_zod();
 
 // node_modules/zod-to-json-schema/dist/esm/parsers/any.js
 init_cjs_shims();
@@ -79117,7 +79175,6 @@ function parseAnyDef(refs) {
 
 // node_modules/zod-to-json-schema/dist/esm/parsers/array.js
 init_cjs_shims();
-init_zod();
 function parseArrayDef(def, refs) {
   const res = {
     type: "array"
@@ -79361,7 +79418,6 @@ init_cjs_shims();
 
 // node_modules/zod-to-json-schema/dist/esm/parsers/record.js
 init_cjs_shims();
-init_zod();
 
 // node_modules/zod-to-json-schema/dist/esm/parsers/string.js
 init_cjs_shims();
@@ -83412,6 +83468,127 @@ var InstanceLock = class {
 
 // src/server/web-server.ts
 init_database();
+
+// src/utils/self-probe-service.ts
+init_cjs_shims();
+init_logger();
+init_database();
+var SelfProbeService = class {
+  constructor(config) {
+    this.config = config;
+    this.enabled = config.enableSelfProbe ?? false;
+    this.intervalSeconds = config.selfProbeIntervalSeconds ?? 300;
+  }
+  timer = null;
+  lastProbeTime = null;
+  probeCount = 0;
+  enabled = false;
+  intervalSeconds = 300;
+  context = null;
+  setContext(context) {
+    this.context = context;
+  }
+  start() {
+    if (this.timer) {
+      this.stop();
+    }
+    const dbSettings = getSelfProbeSettings();
+    if (dbSettings) {
+      this.enabled = dbSettings.enabled;
+      this.intervalSeconds = dbSettings.intervalSeconds;
+    }
+    if (!this.enabled) {
+      logger.debug("Self-probe is disabled, not starting");
+      return;
+    }
+    const intervalMs = this.intervalSeconds * 1e3;
+    this.timer = setInterval(() => this.probe(), intervalMs);
+    logger.info(`Self-probe started with interval: ${this.intervalSeconds}s`);
+  }
+  stop() {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+      logger.info("Self-probe stopped");
+    }
+  }
+  restart() {
+    this.stop();
+    this.start();
+  }
+  updateSettings(settings) {
+    if (settings.enabled !== void 0) {
+      this.enabled = settings.enabled;
+    }
+    if (settings.intervalSeconds !== void 0) {
+      if (settings.intervalSeconds < 60 || settings.intervalSeconds > 600) {
+        throw new Error("Interval must be between 60 and 600 seconds");
+      }
+      this.intervalSeconds = settings.intervalSeconds;
+    }
+    saveSelfProbeSettings(settings);
+    if (this.enabled) {
+      this.restart();
+    } else {
+      this.stop();
+    }
+  }
+  async probe() {
+    this.lastProbeTime = /* @__PURE__ */ new Date();
+    this.probeCount++;
+    try {
+      if (this.context) {
+        this.checkSocketIO();
+        this.checkMCPStatus();
+        this.triggerSessionCleanup();
+      }
+      logger.debug(`Self-probe #${this.probeCount} completed`);
+    } catch (error) {
+      logger.warn("Self-probe encountered an issue:", error);
+    }
+  }
+  checkSocketIO() {
+    if (!this.context) return;
+    const connectedSockets = this.context.getSocketIOConnectionCount();
+    logger.debug(`Self-probe: Socket.IO connected clients: ${connectedSockets}`);
+  }
+  checkMCPStatus() {
+    if (!this.context) return;
+    const mcpStatus = this.context.getMCPServerStatus();
+    logger.debug(`Self-probe: MCP Server running: ${mcpStatus?.running ?? "N/A"}`);
+  }
+  triggerSessionCleanup() {
+    if (!this.context) return;
+    const sessionCount = this.context.getSessionCount();
+    if (sessionCount > 0) {
+      this.context.cleanupExpiredSessions();
+      logger.debug(`Self-probe: Triggered session cleanup, active sessions: ${sessionCount}`);
+    }
+  }
+  getStats() {
+    return {
+      enabled: this.enabled,
+      intervalSeconds: this.intervalSeconds,
+      lastProbeTime: this.lastProbeTime,
+      probeCount: this.probeCount,
+      isRunning: this.timer !== null
+    };
+  }
+  isEnabled() {
+    return this.enabled;
+  }
+  isRunning() {
+    return this.timer !== null;
+  }
+  getProbeCount() {
+    return this.probeCount;
+  }
+  getLastProbeTime() {
+    return this.lastProbeTime;
+  }
+};
+
+// src/server/web-server.ts
 init_crypto_helper();
 init_ai_service();
 init_mcp_client_manager();
@@ -83587,6 +83764,7 @@ var WebServer = class {
   sseTransports = /* @__PURE__ */ new Map();
   sseTransportsList = [];
   dbInitialized = false;
+  selfProbeService;
   /**
    * 延遲載入 ImageProcessor
    */
@@ -83628,6 +83806,7 @@ var WebServer = class {
     this.config = config;
     this.portManager = new PortManager();
     this.sessionStorage = new SessionStorage();
+    this.selfProbeService = new SelfProbeService(config);
     this.app = (0, import_express.default)();
     this.server = (0, import_http.createServer)(this.app);
     this.io = new Server2(this.server, {
@@ -83892,6 +84071,7 @@ var WebServer = class {
       });
     });
     this.app.get("/api/health", (req, res) => {
+      const selfProbeStats = this.selfProbeService.getStats();
       res.json({
         status: "ok",
         pid: process.pid,
@@ -83899,7 +84079,14 @@ var WebServer = class {
         uptime: process.uptime(),
         version: VERSION,
         activeSessions: this.sessionStorage.getSessionCount(),
-        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        selfProbe: {
+          enabled: selfProbeStats.enabled,
+          isRunning: selfProbeStats.isRunning,
+          probeCount: selfProbeStats.probeCount,
+          lastProbeTime: selfProbeStats.lastProbeTime?.toISOString() ?? null,
+          intervalSeconds: selfProbeStats.intervalSeconds
+        }
       });
     });
     this.app.get("/api/dashboard/overview", (req, res) => {
@@ -84424,6 +84611,46 @@ var WebServer = class {
           error: error instanceof Error ? error.message : "\u66F4\u65B0\u4F7F\u7528\u8005\u504F\u597D\u8A2D\u5B9A\u5931\u6557",
           details: error instanceof Error ? error.details || null : null,
           stack: error instanceof Error ? error.stack : void 0
+        });
+      }
+    });
+    this.app.get("/api/settings/self-probe", (req, res) => {
+      try {
+        const settings = getSelfProbeSettings();
+        const stats = this.selfProbeService.getStats();
+        res.json({
+          success: true,
+          settings: settings ?? { enabled: false, intervalSeconds: 300 },
+          stats
+        });
+      } catch (error) {
+        logger.error("\u7372\u53D6 Self-Probe \u8A2D\u5B9A\u5931\u6557:", error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : "\u7372\u53D6 Self-Probe \u8A2D\u5B9A\u5931\u6557"
+        });
+      }
+    });
+    this.app.post("/api/settings/self-probe", (req, res) => {
+      try {
+        const { enabled, intervalSeconds } = req.body;
+        if (intervalSeconds !== void 0 && (intervalSeconds < 60 || intervalSeconds > 600)) {
+          res.status(400).json({
+            success: false,
+            error: "Interval must be between 60 and 600 seconds"
+          });
+          return;
+        }
+        this.selfProbeService.updateSettings({ enabled, intervalSeconds });
+        const settings = getSelfProbeSettings();
+        const stats = this.selfProbeService.getStats();
+        logger.info(`Self-Probe \u8A2D\u5B9A\u5DF2\u66F4\u65B0: enabled=${enabled}, interval=${intervalSeconds}s`);
+        res.json({ success: true, settings, stats });
+      } catch (error) {
+        logger.error("\u66F4\u65B0 Self-Probe \u8A2D\u5B9A\u5931\u6557:", error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : "\u66F4\u65B0 Self-Probe \u8A2D\u5B9A\u5931\u6557"
         });
       }
     });
@@ -85784,6 +86011,13 @@ var WebServer = class {
       }
       logger.mcpServerStarted(this.port, serverUrl);
       await this.autoStartMCPServers();
+      this.selfProbeService.setContext({
+        getSocketIOConnectionCount: () => this.io.sockets.sockets.size,
+        getMCPServerStatus: () => this.mcpServerRef?.getStatus(),
+        getSessionCount: () => this.sessionStorage.getSessionCount(),
+        cleanupExpiredSessions: () => this.sessionStorage.cleanupExpiredSessions()
+      });
+      this.selfProbeService.start();
     } catch (error) {
       logger.error("Web\u4F3A\u670D\u5668\u555F\u52D5\u5931\u6557:", error);
       throw new MCPError(
@@ -85960,6 +86194,7 @@ var WebServer = class {
           logger.warn("\u7B49\u5F85\u6D3B\u8E8D\u6703\u8A71\u5B8C\u6210\u6642\u767C\u751F\u932F\u8AA4\u6216\u8D85\u6642\uFF0C\u5C07\u7E7C\u7E8C\u505C\u6B62\u6D41\u7A0B", waitErr);
         }
       }
+      this.selfProbeService.stop();
       this.sessionStorage.clear();
       this.sessionStorage.stopCleanupTimer();
       this.io.disconnectSockets(true);
@@ -86002,6 +86237,24 @@ var WebServer = class {
    */
   getPort() {
     return this.port;
+  }
+  /**
+   * 取得 Self-Probe 服務實例
+   */
+  getSelfProbeService() {
+    return this.selfProbeService;
+  }
+  /**
+   * 取得 Socket.IO 伺服器實例
+   */
+  getIO() {
+    return this.io;
+  }
+  /**
+   * 取得 Session Storage 實例
+   */
+  getSessionStorage() {
+    return this.sessionStorage;
   }
 };
 
@@ -86497,7 +86750,10 @@ function createDefaultConfig() {
     healthCheckTimeout: getEnvNumber("MCP_HEALTH_CHECK_TIMEOUT", 3e3),
     forceNewInstance: getEnvBoolean("MCP_FORCE_NEW_INSTANCE", false),
     // MCP Server 傳輸模式
-    mcpTransport: getEnvVar("MCP_TRANSPORT", "stdio")
+    mcpTransport: getEnvVar("MCP_TRANSPORT", "stdio"),
+    // Self-Probe (Keep-Alive) 設定
+    enableSelfProbe: getEnvBoolean("MCP_ENABLE_SELF_PROBE", false),
+    selfProbeIntervalSeconds: getEnvNumber("MCP_SELF_PROBE_INTERVAL", 300)
   };
 }
 function validateConfig(config) {
@@ -86533,6 +86789,14 @@ function validateConfig(config) {
       `Invalid log level: ${config.logLevel}. Must be one of: ${validLogLevels.join(", ")}`,
       "INVALID_LOG_LEVEL"
     );
+  }
+  if (config.selfProbeIntervalSeconds !== void 0) {
+    if (config.selfProbeIntervalSeconds < 60 || config.selfProbeIntervalSeconds > 600) {
+      throw new MCPError(
+        `Invalid self-probe interval: ${config.selfProbeIntervalSeconds}. Must be between 60 and 600 seconds.`,
+        "INVALID_SELF_PROBE_INTERVAL"
+      );
+    }
   }
 }
 function getConfig() {
