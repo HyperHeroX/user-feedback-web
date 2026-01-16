@@ -134,5 +134,4 @@ development-*.html
 data/
 
 .playwright-mcp/
-openspec/
 ai-config-*.zip
