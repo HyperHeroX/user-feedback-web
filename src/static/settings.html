@@ -192,12 +192,21 @@
                 </select>
             </div>
 
-            <!-- 擴展提供商專用設定 -->
-            <div id="nvidiaExtSettings" class="form-group" style="display: none;">
-                <label class="form-label">API Endpoint</label>
-                <input type="url" class="form-input" value="https://integrate.api.nvidia.com/v1" readonly>
+            <div class="form-group">
+                <label class="form-label" for="apiUrl">API Endpoint</label>
+                <input type="url" id="apiUrl" class="form-input" placeholder="API 端點 URL">
+                <p class="form-help">可自定義 API 端點，留空使用預設值</p>
             </div>
-            
+
+            <div class="form-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="openaiCompatible" />
+                    <label for="openaiCompatible">OpenAI 相容模式</label>
+                </div>
+                <p class="form-help">啟用後使用 OpenAI API 格式（適用於自建或第三方相容服務）</p>
+            </div>
+
+            <!-- Z.AI 專用設定 -->
             <div id="zaiExtSettings" class="form-group" style="display: none;">
                 <label class="form-label" for="zaiRegion">地區</label>
                 <select id="zaiRegion" class="form-select">

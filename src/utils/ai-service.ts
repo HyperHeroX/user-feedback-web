@@ -590,10 +590,42 @@ export function clearAICache(): void {
  * 驗證 API Key
  * @param apiKey API Key
  * @param model 模型名稱
+ * @param apiUrl API 端點（可選）
+ * @param openaiCompatible 是否使用 OpenAI 相容模式（可選）
  * @returns 驗證結果
  */
-export async function validateAPIKey(apiKey: string, model: string): Promise<{ valid: boolean; error?: string }> {
+export async function validateAPIKey(
+    apiKey: string,
+    model: string,
+    apiUrl?: string,
+    openaiCompatible?: boolean
+): Promise<{ valid: boolean; error?: string }> {
     try {
+        // 根據 API URL 判斷提供商
+        const provider = getProviderFromUrl(apiUrl);
+        
+        // 如果是 OpenAI 相容模式或特定提供商，使用 OpenAI 客戶端
+        if (openaiCompatible || provider === 'openai' || provider === 'nvidia' || provider === 'zai') {
+            const OpenAI = (await import('openai')).default;
+            const client = new OpenAI({
+                apiKey,
+                baseURL: apiUrl || 'https://api.openai.com/v1'
+            });
+
+            // 發送測試請求
+            const response = await client.chat.completions.create({
+                model,
+                messages: [{ role: 'user', content: 'Hello' }],
+                max_tokens: 10
+            });
+
+            if (response.choices && response.choices.length > 0) {
+                return { valid: true };
+            }
+            return { valid: false, error: '無法生成回應' };
+        }
+        
+        // 使用 Google Generative AI
         const genAI = new GoogleGenerativeAI(apiKey);
         const generativeModel = genAI.getGenerativeModel({ model });
 
@@ -613,6 +645,20 @@ export async function validateAPIKey(apiKey: string, model: string): Promise<{ v
             error: error instanceof Error ? error.message : '未知錯誤'
         };
     }
+}
+
+/**
+ * 從 API URL 取得提供商類型
+ */
+function getProviderFromUrl(apiUrl?: string): string {
+    if (!apiUrl) return 'google';
+    const normalizedUrl = apiUrl.toLowerCase();
+    if (normalizedUrl.includes('api.openai.com')) return 'openai';
+    if (normalizedUrl.includes('api.anthropic.com')) return 'anthropic';
+    if (normalizedUrl.includes('generativelanguage.googleapis.com')) return 'google';
+    if (normalizedUrl.includes('nvidia.com')) return 'nvidia';
+    if (normalizedUrl.includes('bigmodel.cn') || normalizedUrl.includes('z.ai')) return 'zai';
+    return 'openai'; // 預設使用 OpenAI 相容模式
 }
 
 /**
