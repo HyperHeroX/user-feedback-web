@@ -1,6 +1,6 @@
 {
   "name": "@hirohsu/user-web-feedback",
-  "version": "2.8.0",
+  "version": "2.8.1",
   "description": "基於Node.js的MCP回饋收集器 - 支持AI工作彙報和用戶回饋收集",
   "main": "dist/index.cjs",
   "bin": {
@@ -80,7 +80,7 @@
     "ts-jest": "^29.1.1",
     "tslib": "^2.6.2",
     "tsup": "^8.5.1",
-    "tsx": "^3.14.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.2.2",
     "zod": "^3.25.76"
   },
