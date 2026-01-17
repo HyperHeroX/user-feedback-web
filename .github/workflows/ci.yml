@@ -3,8 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  # 只允許手動觸發 workflow（保留以便需要時手動執行）
+  workflow_dispatch: {}
 
 jobs:
   test:
