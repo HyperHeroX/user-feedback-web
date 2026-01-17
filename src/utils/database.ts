@@ -455,6 +455,25 @@ function createTables(): void {
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+    // Prompt Config 設定表
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS prompt_configs (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      content TEXT,
+      first_order INTEGER DEFAULT 0,
+      second_order INTEGER DEFAULT 0,
+      enabled INTEGER DEFAULT 1,
+      editable INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+    // 初始化預設提示詞配置
+    initDefaultPromptConfigs();
 }
 
 /**
@@ -2374,4 +2393,148 @@ export function saveSelfProbeSettings(settings: SelfProbeSettingsRequest): SelfP
     }
 
     return getSelfProbeSettings()!;
+}
+
+// ============================================
+// Prompt Config Functions
+// ============================================
+
+import type { PromptConfig, PromptConfigRequest } from '../types/ai-provider.js';
+
+const DEFAULT_PROMPT_CONFIGS: Omit<PromptConfig, 'createdAt' | 'updatedAt'>[] = [
+    { id: 'system_prompt', name: 'System Prompt', displayName: '系統提示詞', content: null, firstOrder: 10, secondOrder: 10, enabled: true, editable: true },
+    { id: 'mcp_tools', name: 'MCP Tools', displayName: 'MCP 工具說明', content: null, firstOrder: 20, secondOrder: 0, enabled: true, editable: true },
+    { id: 'mcp_tools_detailed', name: 'MCP Tools Detailed', displayName: 'MCP 工具詳細列表', content: null, firstOrder: 25, secondOrder: 15, enabled: true, editable: false },
+    { id: 'user_context', name: 'User Context', displayName: '用戶上下文', content: null, firstOrder: 30, secondOrder: 20, enabled: true, editable: false },
+    { id: 'tool_results', name: 'Tool Results', displayName: '工具執行結果', content: null, firstOrder: 0, secondOrder: 30, enabled: true, editable: false },
+    { id: 'closing', name: 'Closing', displayName: '結尾提示', content: null, firstOrder: 100, secondOrder: 100, enabled: true, editable: true }
+];
+
+function initDefaultPromptConfigs(): void {
+    const db = tryGetDb();
+    if (!db) return;
+
+    const now = new Date().toISOString();
+    const existingIds = (db.prepare('SELECT id FROM prompt_configs').all() as Array<{ id: string }>)
+        .map(row => row.id);
+
+    const stmt = db.prepare(`
+        INSERT INTO prompt_configs (id, name, display_name, content, first_order, second_order, enabled, editable, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (const config of DEFAULT_PROMPT_CONFIGS) {
+        if (!existingIds.includes(config.id)) {
+            stmt.run(
+                config.id,
+                config.name,
+                config.displayName,
+                config.content,
+                config.firstOrder,
+                config.secondOrder,
+                config.enabled ? 1 : 0,
+                config.editable ? 1 : 0,
+                now,
+                now
+            );
+            logger.info(`Added missing prompt config: ${config.id}`);
+        }
+    }
+}
+
+export function getPromptConfigs(): PromptConfig[] {
+    const db = tryGetDb();
+    if (!db) return [];
+
+    const rows = db.prepare(`
+        SELECT id, name, display_name as displayName, content,
+               first_order as firstOrder, second_order as secondOrder,
+               enabled, editable, created_at as createdAt, updated_at as updatedAt
+        FROM prompt_configs
+        ORDER BY first_order ASC
+    `).all() as Array<{
+        id: string;
+        name: string;
+        displayName: string;
+        content: string | null;
+        firstOrder: number;
+        secondOrder: number;
+        enabled: number;
+        editable: number;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+
+    const aiSettings = getAISettings();
+
+    return rows.map(row => {
+        let content = row.content;
+        if (row.id === 'system_prompt' && !content && aiSettings.systemPrompt) {
+            content = aiSettings.systemPrompt;
+        } else if (row.id === 'mcp_tools' && !content && aiSettings.mcpToolsPrompt) {
+            content = aiSettings.mcpToolsPrompt;
+        }
+        return {
+            ...row,
+            content,
+            enabled: row.enabled === 1,
+            editable: row.editable === 1
+        };
+    });
+}
+
+export function updatePromptConfigs(request: PromptConfigRequest): boolean {
+    const db = tryGetDb();
+    if (!db) return false;
+
+    const now = new Date().toISOString();
+
+    for (const prompt of request.prompts) {
+        const updates: string[] = [];
+        const values: (string | number | null)[] = [];
+
+        if (prompt.firstOrder !== undefined) {
+            updates.push('first_order = ?');
+            values.push(prompt.firstOrder);
+        }
+        if (prompt.secondOrder !== undefined) {
+            updates.push('second_order = ?');
+            values.push(prompt.secondOrder);
+        }
+        if (prompt.enabled !== undefined) {
+            updates.push('enabled = ?');
+            values.push(prompt.enabled ? 1 : 0);
+        }
+        if (prompt.content !== undefined) {
+            updates.push('content = ?');
+            values.push(prompt.content);
+
+            if (prompt.id === 'system_prompt') {
+                db.prepare('UPDATE ai_settings SET system_prompt = ?, updated_at = ? WHERE id = 1')
+                    .run(prompt.content || '', now);
+            } else if (prompt.id === 'mcp_tools') {
+                db.prepare('UPDATE ai_settings SET mcp_tools_prompt = ?, updated_at = ? WHERE id = 1')
+                    .run(prompt.content || '', now);
+            }
+        }
+
+        if (updates.length > 0) {
+            updates.push('updated_at = ?');
+            values.push(now);
+            values.push(prompt.id);
+
+            db.prepare(`UPDATE prompt_configs SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+        }
+    }
+
+    return true;
+}
+
+export function resetPromptConfigs(): PromptConfig[] {
+    const db = tryGetDb();
+    if (!db) return [];
+
+    db.prepare('DELETE FROM prompt_configs').run();
+    initDefaultPromptConfigs();
+    return getPromptConfigs();
 }

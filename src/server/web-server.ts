@@ -23,7 +23,7 @@ import { getPackageVersion } from '../utils/version.js';
 import { InstanceLock } from '../utils/instance-lock.js';
 
 const VERSION = getPackageVersion();
-import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled, getToolEnableConfigs, setToolEnabled, batchSetToolEnabled, queryMCPServerLogs, getRecentMCPServerErrors, cleanupOldMCPServerLogs, getCLISettings, updateCLISettings, getCLITerminals, getCLITerminalById, deleteCLITerminal, getCLIExecutionLogs, cleanupOldCLIExecutionLogs, logAPIRequest, logAPIError, queryAPILogs, queryAPIErrorLogs, cleanupOldAPILogs, clearAllAPILogs, getSelfProbeSettings, saveSelfProbeSettings } from '../utils/database.js';
+import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled, getToolEnableConfigs, setToolEnabled, batchSetToolEnabled, queryMCPServerLogs, getRecentMCPServerErrors, cleanupOldMCPServerLogs, getCLISettings, updateCLISettings, getCLITerminals, getCLITerminalById, deleteCLITerminal, getCLIExecutionLogs, cleanupOldCLIExecutionLogs, logAPIRequest, logAPIError, queryAPILogs, queryAPIErrorLogs, cleanupOldAPILogs, clearAllAPILogs, getSelfProbeSettings, saveSelfProbeSettings, getPromptConfigs, updatePromptConfigs, resetPromptConfigs } from '../utils/database.js';
 import { SelfProbeService } from '../utils/self-probe-service.js';
 import { maskApiKey } from '../utils/crypto-helper.js';
 import { generateAIReply, validateAPIKey } from '../utils/ai-service.js';
@@ -1181,6 +1181,76 @@ export class WebServer {
         res.status(500).json({
           success: false,
           error: error instanceof Error ? error.message : '更新 Self-Probe 設定失敗'
+        });
+      }
+    });
+
+    // ============ Prompt Config API ============
+
+    this.app.get('/api/settings/prompts', (req, res) => {
+      try {
+        const prompts = getPromptConfigs();
+        res.json({ success: true, prompts });
+      } catch (error) {
+        logger.error('獲取提示詞配置失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '獲取提示詞配置失敗'
+        });
+      }
+    });
+
+    this.app.put('/api/settings/prompts', (req, res) => {
+      try {
+        const { prompts } = req.body;
+
+        if (!prompts || !Array.isArray(prompts)) {
+          res.status(400).json({ success: false, error: 'prompts 必須是陣列' });
+          return;
+        }
+
+        for (const prompt of prompts) {
+          if (!prompt.id) {
+            res.status(400).json({ success: false, error: '每個配置必須包含 id' });
+            return;
+          }
+          if (prompt.firstOrder !== undefined && (prompt.firstOrder < 0 || prompt.firstOrder > 1000)) {
+            res.status(400).json({ success: false, error: 'firstOrder 必須在 0-1000 之間' });
+            return;
+          }
+          if (prompt.secondOrder !== undefined && (prompt.secondOrder < 0 || prompt.secondOrder > 1000)) {
+            res.status(400).json({ success: false, error: 'secondOrder 必須在 0-1000 之間' });
+            return;
+          }
+        }
+
+        const success = updatePromptConfigs({ prompts });
+        if (success) {
+          const updatedPrompts = getPromptConfigs();
+          logger.info(`提示詞配置已更新: ${prompts.length} 項`);
+          res.json({ success: true, prompts: updatedPrompts });
+        } else {
+          res.status(500).json({ success: false, error: '更新失敗' });
+        }
+      } catch (error) {
+        logger.error('更新提示詞配置失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '更新提示詞配置失敗'
+        });
+      }
+    });
+
+    this.app.post('/api/settings/prompts/reset', (req, res) => {
+      try {
+        const prompts = resetPromptConfigs();
+        logger.info('提示詞配置已重置為預設值');
+        res.json({ success: true, prompts });
+      } catch (error) {
+        logger.error('重置提示詞配置失敗:', error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : '重置提示詞配置失敗'
         });
       }
     });

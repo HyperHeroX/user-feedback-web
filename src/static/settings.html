@@ -187,6 +187,22 @@
                     <option value="openai">OpenAI</option>
                     <option value="anthropic">Anthropic (Claude)</option>
                     <option value="google">Google (Gemini)</option>
+                    <option value="nvidia">NVIDIA</option>
+                    <option value="zai">Z.AI (Zhipu AI)</option>
+                </select>
+            </div>
+
+            <!-- 擴展提供商專用設定 -->
+            <div id="nvidiaExtSettings" class="form-group" style="display: none;">
+                <label class="form-label">API Endpoint</label>
+                <input type="url" class="form-input" value="https://integrate.api.nvidia.com/v1" readonly>
+            </div>
+            
+            <div id="zaiExtSettings" class="form-group" style="display: none;">
+                <label class="form-label" for="zaiRegion">地區</label>
+                <select id="zaiRegion" class="form-select">
+                    <option value="international">國際版 (api.z.ai)</option>
+                    <option value="china">中國版 (bigmodel.cn)</option>
                 </select>
             </div>
 
@@ -204,17 +220,6 @@
                 <input type="text" id="aiModel" class="form-input" placeholder="例如: gpt-4-turbo, claude-3-opus">
             </div>
 
-            <div class="form-group">
-                <label class="form-label" for="systemPrompt">系統提示詞</label>
-                <textarea id="systemPrompt" class="form-textarea" placeholder="自定義系統提示詞..."></textarea>
-                <p class="form-help">留空將使用預設提示詞</p>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label" for="mcpToolsPrompt">MCP 工具提示詞</label>
-                <textarea id="mcpToolsPrompt" class="form-textarea" placeholder="設定 MCP 工具的使用說明..."></textarea>
-                <p class="form-help">定義 AI 如何使用 MCP 工具。{project_name} 和 {project_path} 會被替換為實際值</p>
-            </div>
 
             <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                 <div class="form-group">
@@ -378,6 +383,27 @@
                 <button id="saveSelfProbeBtn" class="btn btn-primary">儲存設定</button>
             </div>
         </section>
+
+        <!-- AI 提示詞設定 -->
+        <section class="settings-section">
+            <h2 class="section-title">
+                <span class="icon">📝</span>
+                AI 提示詞設定
+            </h2>
+            <p class="form-help" style="margin-bottom: 16px;">
+                自定義 AI 回覆時使用的提示詞順序。第一次順序用於首次呼叫，第二次順序用於後續呼叫。順序為 0 表示不使用該組件。
+            </p>
+
+            <div id="promptConfigList" style="display: flex; flex-direction: column; gap: 16px;">
+                <div style="text-align: center; padding: 20px; color: var(--text-muted);">正在載入...</div>
+            </div>
+
+            <div class="form-actions" style="margin-top: 16px;">
+                <button id="resetPromptsBtn" class="btn btn-secondary">恢復預設</button>
+                <button id="savePromptsBtn" class="btn btn-primary">儲存提示詞設定</button>
+            </div>
+        </section>
+
     </div>
 
     <!-- Toast Container -->
