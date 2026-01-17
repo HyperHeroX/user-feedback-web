@@ -53,9 +53,7 @@
 
         .logs-table-container {
             background: var(--bg-primary);
-            border: 1px solid var(--border-color);
             border-radius: var(--radius-md);
-            overflow: hidden;
         }
 
         .logs-table {
@@ -178,15 +176,17 @@
             display: flex;
             flex-direction: column;
             min-height: 0;
-            overflow: hidden;
+            overflow: visible;
         }
 
         .logs-table-wrapper {
             flex: 1;
             overflow-y: auto;
+            overflow-x: hidden;
             border: 1px solid var(--border-color);
             border-radius: 8px;
             margin-bottom: 16px;
+            max-height: calc(100vh - 350px);
         }
 
         .logs-table-wrapper::-webkit-scrollbar {

@@ -17,14 +17,25 @@ import {
     SystemPromptComponent,
     PinnedPromptsComponent,
     MCPToolsPromptComponent,
+    MCPToolsDetailedComponent,
     UserContextComponent,
     ToolResultsComponent,
     AIMessageComponent,
     ClosingPromptComponent
 } from './components/index.js';
-import { getAISettings, getCLISettings } from '../database.js';
+import { getAISettings, getCLISettings, getPromptConfigs } from '../database.js';
 import { mcpClientManager } from '../mcp-client-manager.js';
 import { logger } from '../logger.js';
+import type { PromptConfig } from '../../types/ai-provider.js';
+
+const COMPONENT_NAME_MAP: Record<string, string> = {
+    'system_prompt': 'SystemPrompt',
+    'mcp_tools': 'MCPToolsPrompt',
+    'mcp_tools_detailed': 'MCPToolsDetailed',
+    'user_context': 'UserContext',
+    'tool_results': 'ToolResults',
+    'closing': 'ClosingPrompt'
+};
 
 export class PromptAggregator {
     private static instance: PromptAggregator;
@@ -47,6 +58,7 @@ export class PromptAggregator {
         this.register(new SystemPromptComponent());
         this.register(new PinnedPromptsComponent());
         this.register(new MCPToolsPromptComponent());
+        this.register(new MCPToolsDetailedComponent());
         this.register(new UserContextComponent());
         this.register(new ToolResultsComponent());
         this.register(new AIMessageComponent());
@@ -66,14 +78,28 @@ export class PromptAggregator {
         const sections: PromptSection[] = [];
         const promptParts: string[] = [];
 
-        for (const component of this.components) {
+        const configs = this.getPromptConfigsWithDefaults();
+        const isFirstCall = (context as { isFirstCall?: boolean }).isFirstCall !== false;
+
+        const configuredComponents = this.components
+            .map(component => {
+                const configId = Object.entries(COMPONENT_NAME_MAP).find(
+                    ([, name]) => name === component.getName()
+                )?.[0];
+                const config = configId ? configs.find(c => c.id === configId) : null;
+                const order = config
+                    ? (isFirstCall ? config.firstOrder : config.secondOrder)
+                    : component.getOrder();
+                const enabled = config ? config.enabled : true;
+                return { component, order, enabled };
+            })
+            .filter(item => item.enabled && item.order > 0)
+            .sort((a, b) => a.order - b.order);
+
+        for (const { component, order } of configuredComponents) {
             const content = component.build(context);
             if (content) {
-                sections.push({
-                    name: component.getName(),
-                    content,
-                    order: component.getOrder()
-                });
+                sections.push({ name: component.getName(), content, order });
                 promptParts.push(content);
             }
         }
@@ -182,6 +208,22 @@ export class PromptAggregator {
 
     getComponentNames(): string[] {
         return this.components.map(c => c.getName());
+    }
+
+    private getPromptConfigsWithDefaults(): PromptConfig[] {
+        try {
+            const configs = getPromptConfigs();
+            if (configs.length > 0) return configs;
+        } catch {
+            logger.warn('[PromptAggregator] 無法從資料庫獲取提示詞配置，使用預設值');
+        }
+        return [
+            { id: 'system_prompt', name: 'System Prompt', displayName: '系統提示詞', content: null, firstOrder: 10, secondOrder: 10, enabled: true, editable: false, createdAt: '', updatedAt: '' },
+            { id: 'mcp_tools', name: 'MCP Tools', displayName: 'MCP 工具說明', content: null, firstOrder: 20, secondOrder: 0, enabled: true, editable: true, createdAt: '', updatedAt: '' },
+            { id: 'user_context', name: 'User Context', displayName: '用戶上下文', content: null, firstOrder: 30, secondOrder: 20, enabled: true, editable: true, createdAt: '', updatedAt: '' },
+            { id: 'tool_results', name: 'Tool Results', displayName: '工具執行結果', content: null, firstOrder: 0, secondOrder: 30, enabled: true, editable: false, createdAt: '', updatedAt: '' },
+            { id: 'closing', name: 'Closing', displayName: '結尾提示', content: null, firstOrder: 40, secondOrder: 40, enabled: true, editable: true, createdAt: '', updatedAt: '' }
+        ];
     }
 }
 

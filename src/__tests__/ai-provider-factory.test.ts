@@ -13,6 +13,7 @@ jest.unstable_mockModule('../utils/database.js', () => ({
   updateCLITerminal: jest.fn(),
   getCLITerminalById: jest.fn(),
   getPinnedPrompts: jest.fn(() => []),
+  getPromptConfigs: jest.fn(() => []),
 }));
 
 jest.unstable_mockModule('../utils/cli-detector.js', () => ({

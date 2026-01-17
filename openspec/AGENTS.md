@@ -88,6 +88,7 @@ openspec/
 
 | Change ID | Status | Summary |
 |-----------|--------|---------|
+| add-prompt-customization-ui | ✅ Completed | AI 提示詞自定義 + 擴展 API 提供商 (NVIDIA, Z.AI) |
 | add-mcp-supervisor | In Progress | MCP Supervisor 架構 - 永遠存活的 MCP wrapper (T001-T011 完成) |
 | add-ai-conversation-ui | Draft | AI 對話視窗 UI 改進 |
 | add-terminal-cli-mode | Draft | 終端 CLI 模式支援 |

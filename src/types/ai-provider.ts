@@ -161,3 +161,46 @@ export interface CLIHandlerResult {
   iterations: number;
   maxIterationsReached: boolean;
 }
+
+// ============================================
+// Prompt Config Types
+// ============================================
+
+/**
+ * 提示詞配置
+ */
+export interface PromptConfig {
+  id: string;
+  name: string;
+  displayName: string;
+  content: string | null;
+  firstOrder: number;
+  secondOrder: number;
+  enabled: boolean;
+  editable: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 提示詞配置請求
+ */
+export interface PromptConfigRequest {
+  prompts: Array<{
+    id: string;
+    firstOrder?: number;
+    secondOrder?: number;
+    enabled?: boolean;
+    content?: string | null;
+  }>;
+}
+
+/**
+ * 提示詞配置響應
+ */
+export interface PromptConfigResponse {
+  success: boolean;
+  prompts?: PromptConfig[];
+  error?: string;
+  message?: string;
+}
