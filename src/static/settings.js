@@ -574,7 +574,7 @@
   function renderPromptConfigs() {
     if (!elements.promptConfigList || !promptConfigs.length) return;
 
-    const showEditor = (id) => id !== 'user_context' && id !== 'tool_results';
+    const showEditor = (id) => id !== 'user_context' && id !== 'tool_results' && id !== 'mcp_tools_detailed';
 
     elements.promptConfigList.innerHTML = promptConfigs.map(config => `
       <div class="prompt-config-item" data-id="${config.id}" style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px;">

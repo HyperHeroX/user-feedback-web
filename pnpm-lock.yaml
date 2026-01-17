@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@hirohsu/user-web-feedback':
-        specifier: ^2.8.1
-        version: 2.8.1
+        specifier: ^2.8.2
+        version: 2.8.2
       better-sqlite3:
         specifier: ^12.4.1
         version: 12.5.0
@@ -593,8 +593,8 @@ packages:
     resolution: {integrity: sha512-MqO+MLfM6kjxcKoy0p1wRzG3b4ZZXtPI+z2IE26UogS2Cm/XHO+7gGRBh6gcJsOiIVoH93UwKvW4HdgiOZCy9Q==}
     engines: {node: '>=18.0.0'}
 
-  '@hirohsu/user-web-feedback@2.8.1':
-    resolution: {integrity: sha512-o9jJ3ABx70XrlHZSxAH8k5ip0WBjhMR9CSof/jK2QkS+4RasdcnkuKgbWLbAHRYFewVcq5LINVqLveyPaoi/2A==}
+  '@hirohsu/user-web-feedback@2.8.2':
+    resolution: {integrity: sha512-A4iyzBar0dNVmbAvv/a0KbhOmn+pAmQHiWuNnvomCvcebVQF6TapI/dpDRgSEOUQihoaGiaVv/k0uN2F3snmfQ==}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
@@ -3680,7 +3680,7 @@ snapshots:
   '@google/generative-ai@0.24.1':
     optional: true
 
-  '@hirohsu/user-web-feedback@2.8.1':
+  '@hirohsu/user-web-feedback@2.8.2':
     dependencies:
       better-sqlite3: 12.5.0
     optionalDependencies:
