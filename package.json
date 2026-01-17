@@ -45,7 +45,6 @@
     "prepublishOnly": "npm run clean && npm run build && node scripts/remove-sourcemaps.cjs"
   },
   "dependencies": {
-    "@hirohsu/user-web-feedback": "^2.8.0",
     "better-sqlite3": "^12.4.1"
   },
   "optionalDependencies": {
