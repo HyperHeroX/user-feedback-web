@@ -1,6 +1,6 @@
 {
   "name": "@hirohsu/user-web-feedback",
-  "version": "2.8.2",
+  "version": "2.8.8",
   "description": "基於Node.js的MCP回饋收集器 - 支持AI工作彙報和用戶回饋收集",
   "main": "dist/index.cjs",
   "bin": {
@@ -34,7 +34,8 @@
     "build": "tsup",
     "dev": "tsx watch --clear-screen=false src/cli.ts",
     "start": "node dist/cli.js",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --maxWorkers=50%",
+    "test:ci": "node --experimental-vm-modules node_modules/jest/bin/jest.js --maxWorkers=1 --forceExit",
     "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js src/__tests__/integration.test.ts --testPathIgnorePatterns=[] --forceExit",
     "test:all": "npm run test && npm run test:integration",
     "test:watch": "jest --watch",
@@ -45,8 +46,9 @@
     "prepublishOnly": "npm run clean && npm run build && node scripts/remove-sourcemaps.cjs"
   },
   "dependencies": {
-    "@hirohsu/user-web-feedback": "^2.8.1",
-    "better-sqlite3": "^12.4.1"
+    "@hirohsu/user-web-feedback": "^2.8.2",
+    "better-sqlite3": "^12.4.1",
+    "openai": "^6.16.0"
   },
   "optionalDependencies": {
     "@google/generative-ai": "^0.24.1",

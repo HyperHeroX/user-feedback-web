@@ -21,7 +21,8 @@
     const normalizedUrl = apiUrl.toLowerCase();
     if (normalizedUrl.includes("generativelanguage.googleapis.com")) return "google";
     if (normalizedUrl.includes("api.anthropic.com")) return "anthropic";
-    if (normalizedUrl.includes("localhost") || normalizedUrl.includes("127.0.0.1")) return "local";
+    if (normalizedUrl.includes("nvidia.com")) return "nvidia";
+    if (normalizedUrl.includes("bigmodel.cn") || normalizedUrl.includes("z.ai")) return "zai";
     if (normalizedUrl.includes("api.openai.com")) return "openai";
     return "openai"; // 預設
   }
@@ -34,6 +35,8 @@
   const elements = {
     // AI Settings
     aiProvider: document.getElementById("aiProvider"),
+    apiUrl: document.getElementById("apiUrl"),
+    openaiCompatible: document.getElementById("openaiCompatible"),
     apiKey: document.getElementById("apiKey"),
     toggleApiKey: document.getElementById("toggleApiKey"),
     aiModel: document.getElementById("aiModel"),
@@ -75,7 +78,6 @@
     resetPromptsBtn: document.getElementById("resetPromptsBtn"),
     savePromptsBtn: document.getElementById("savePromptsBtn"),
     // Extended Provider Settings (integrated into AI settings)
-    nvidiaExtSettings: document.getElementById("nvidiaExtSettings"),
     zaiExtSettings: document.getElementById("zaiExtSettings"),
     zaiRegion: document.getElementById("zaiRegion"),
     toastContainer: document.getElementById("toastContainer"),
@@ -102,6 +104,9 @@
     elements.saveAiBtn.addEventListener("click", saveAISettings);
     if (elements.aiProvider) {
       elements.aiProvider.addEventListener("change", handleAIProviderChange);
+    }
+    if (elements.zaiRegion) {
+      elements.zaiRegion.addEventListener("change", handleZaiRegionChange);
     }
 
     // CLI Settings
@@ -130,22 +135,43 @@
     }
   }
 
-  function handleAIProviderChange() {
+  const DEFAULT_API_URLS = {
+    openai: 'https://api.openai.com/v1',
+    anthropic: 'https://api.anthropic.com/v1',
+    google: 'https://generativelanguage.googleapis.com/v1beta',
+    nvidia: 'https://integrate.api.nvidia.com/v1',
+    zai: 'https://api.z.ai/api/coding/paas/v4',
+    'zai-china': 'https://open.bigmodel.cn/api/paas/v4'
+  };
+
+  function handleAIProviderChange(updateUrl = true) {
     const provider = elements.aiProvider?.value || 'google';
-    
-    // 隱藏所有擴展設定
-    if (elements.nvidiaExtSettings) {
-      elements.nvidiaExtSettings.style.display = 'none';
-    }
+
+    // Z.AI 專用設定
     if (elements.zaiExtSettings) {
-      elements.zaiExtSettings.style.display = 'none';
+      elements.zaiExtSettings.style.display = provider === 'zai' ? 'block' : 'none';
     }
-    
-    // 顯示對應的擴展設定
-    if (provider === 'nvidia' && elements.nvidiaExtSettings) {
-      elements.nvidiaExtSettings.style.display = 'block';
-    } else if (provider === 'zai' && elements.zaiExtSettings) {
-      elements.zaiExtSettings.style.display = 'block';
+
+    // 更新預設 API URL（僅當 updateUrl 為 true 時）
+    if (updateUrl && elements.apiUrl) {
+      let defaultUrl;
+      if (provider === 'zai') {
+        const region = elements.zaiRegion?.value || 'international';
+        defaultUrl = region === 'china' ? DEFAULT_API_URLS['zai-china'] : DEFAULT_API_URLS.zai;
+      } else {
+        defaultUrl = DEFAULT_API_URLS[provider] || '';
+      }
+      elements.apiUrl.value = defaultUrl;
+      elements.apiUrl.placeholder = defaultUrl || 'API 端點 URL';
+    }
+  }
+
+  function handleZaiRegionChange() {
+    const region = elements.zaiRegion?.value || 'international';
+    if (elements.apiUrl) {
+      const defaultUrl = region === 'china' ? DEFAULT_API_URLS['zai-china'] : DEFAULT_API_URLS.zai;
+      elements.apiUrl.value = defaultUrl;
+      elements.apiUrl.placeholder = defaultUrl || 'API 端點 URL';
     }
   }
 
@@ -182,6 +208,14 @@
         // 從 apiUrl 反向推斷 provider
         const provider = getProviderFromApiUrl(data.settings.apiUrl);
         elements.aiProvider.value = provider;
+        // 設置 API URL
+        if (elements.apiUrl) {
+          elements.apiUrl.value = data.settings.apiUrl || DEFAULT_API_URLS[provider] || '';
+        }
+        // OpenAI 相容模式
+        if (elements.openaiCompatible) {
+          elements.openaiCompatible.checked = data.settings.openaiCompatible || false;
+        }
         // API 返回的是 apiKeyMasked（遮罩後的 key），顯示給用戶看
         originalApiKeyMasked = data.settings.apiKeyMasked || "";
         elements.apiKey.value = originalApiKeyMasked;
@@ -192,6 +226,8 @@
         elements.autoReplyTimerSeconds.value = data.settings.autoReplyTimerSeconds ?? 300;
         elements.maxToolRounds.value = data.settings.maxToolRounds ?? 5;
         elements.debugMode.checked = data.settings.debugMode || false;
+        // 更新 UI（不更新 URL，因為已經從資料庫載入）
+        handleAIProviderChange(false);
       }
     } catch (error) {
       console.error("Failed to load AI settings:", error);
@@ -326,6 +362,8 @@
   async function testAIConnection() {
     const apiKey = elements.apiKey.value;
     const model = elements.aiModel.value;
+    const provider = elements.aiProvider.value;
+    const apiUrl = elements.apiUrl?.value || DEFAULT_API_URLS[provider] || '';
 
     // 如果 API key 是遮罩值，表示用戶沒有修改，將使用資料庫中的 key
     const apiKeyChanged = apiKey !== originalApiKeyMasked;
@@ -344,8 +382,12 @@
     elements.testAiBtn.textContent = "測試中...";
 
     try {
-      // 如果用戶修改了 API key 就傳送新的 key，否則不傳送（後端會使用資料庫中的）
-      const payload = { model };
+      // 傳送當前表單的設定值進行測試
+      const payload = { 
+        model,
+        apiUrl,
+        openaiCompatible: elements.openaiCompatible?.checked || false
+      };
       if (apiKeyChanged) {
         payload.apiKey = apiKey;
       }
@@ -375,18 +417,22 @@
   async function saveAISettings() {
     const provider = elements.aiProvider.value;
     const currentApiKey = elements.apiKey.value;
-    
+
     // 只有當用戶真的修改了 API key 才傳送（不是遮罩值）
     const apiKeyChanged = currentApiKey !== originalApiKeyMasked;
-    
+
+    // 使用表單中的 API URL，若為空則使用預設值
+    const apiUrl = elements.apiUrl?.value || DEFAULT_API_URLS[provider] || '';
+
     const settings = {
-      apiUrl: getApiUrlFromProvider(provider),
+      apiUrl: apiUrl,
       model: elements.aiModel.value,
       temperature: parseFloat(elements.temperature.value) || 0.7,
       maxTokens: parseInt(elements.maxTokens.value) || 1000,
       autoReplyTimerSeconds: parseInt(elements.autoReplyTimerSeconds.value) || 300,
       maxToolRounds: parseInt(elements.maxToolRounds.value) || 5,
       debugMode: elements.debugMode.checked,
+      openaiCompatible: elements.openaiCompatible?.checked || false,
     };
 
     // 只有修改了 API key 才加入
@@ -574,7 +620,7 @@
   function renderPromptConfigs() {
     if (!elements.promptConfigList || !promptConfigs.length) return;
 
-    const showEditor = (id) => id !== 'user_context' && id !== 'tool_results';
+    const showEditor = (id) => id !== 'user_context' && id !== 'tool_results' && id !== 'mcp_tools_detailed';
 
     elements.promptConfigList.innerHTML = promptConfigs.map(config => `
       <div class="prompt-config-item" data-id="${config.id}" style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px;">
@@ -680,7 +726,20 @@
   function showToast(message, type = "info") {
     const toast = document.createElement("div");
     toast.className = `toast toast-${type}`;
-    toast.textContent = message;
+    
+    const messageSpan = document.createElement("span");
+    messageSpan.textContent = message;
+    toast.appendChild(messageSpan);
+
+    // 添加關閉按鈕
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "×";
+    closeBtn.style.cssText = "margin-left: 12px; background: none; border: none; color: inherit; font-size: 18px; cursor: pointer; padding: 0 4px;";
+    closeBtn.onclick = () => {
+      toast.classList.remove("show");
+      setTimeout(() => toast.remove(), 300);
+    };
+    toast.appendChild(closeBtn);
 
     elements.toastContainer.appendChild(toast);
 
@@ -688,12 +747,15 @@
       toast.classList.add("show");
     }, 10);
 
-    setTimeout(() => {
-      toast.classList.remove("show");
+    // 錯誤訊息不自動關閉，其他類型 3 秒後關閉
+    if (type !== "error") {
       setTimeout(() => {
-        toast.remove();
-      }, 300);
-    }, 3000);
+        toast.classList.remove("show");
+        setTimeout(() => {
+          toast.remove();
+        }, 300);
+      }, 3000);
+    }
   }
 
   if (document.readyState === "loading") {

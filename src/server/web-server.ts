@@ -939,7 +939,7 @@ export class WebServer {
     this.app.post('/api/ai-settings/validate', async (req, res) => {
       const startTime = Date.now();
       try {
-        let { apiKey } = req.body;
+        let { apiKey, apiUrl, openaiCompatible } = req.body;
         const { model } = req.body;
 
         if (!model) {
@@ -961,6 +961,7 @@ export class WebServer {
         }
 
         let usingDatabaseKey = false;
+        let usingDatabaseUrl = false;
 
         // 如果沒有提供 API Key，則從資料庫獲取並解密
         if (!apiKey) {
@@ -986,6 +987,11 @@ export class WebServer {
           // getAISettings() 已經自動解密了 API Key
           apiKey = settings.apiKey;
           usingDatabaseKey = true;
+          // 如果沒有提供 apiUrl，也從資料庫獲取
+          if (!apiUrl) {
+            apiUrl = settings.apiUrl;
+            usingDatabaseUrl = true;
+          }
           logger.info('使用資料庫中解密的 API Key 進行驗證');
           logger.debug(`解密後的 API Key 長度: ${apiKey.length}, 前綴: ${apiKey.substring(0, 3)}...`);
         } else {
@@ -993,7 +999,8 @@ export class WebServer {
           logger.debug(`新輸入的 API Key 長度: ${apiKey.length}, 前綴: ${apiKey.substring(0, 3)}...`);
         }
 
-        const result = await validateAPIKey(apiKey, model);
+        logger.info(`驗證使用 API URL: ${apiUrl} (資料庫: ${usingDatabaseUrl}), OpenAI 相容: ${openaiCompatible}`);
+        const result = await validateAPIKey(apiKey, model, apiUrl, openaiCompatible);
 
         if (result.valid) {
           logger.info(`API Key 驗證成功 (${usingDatabaseKey ? '資料庫' : '新輸入'})`);
