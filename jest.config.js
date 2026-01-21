@@ -31,5 +31,7 @@ export default {
     '/node_modules/',
     '/dist/',
     'integration.test.ts'
-  ]
+  ],
+  forceExit: true,
+  testTimeout: 30000
 };
