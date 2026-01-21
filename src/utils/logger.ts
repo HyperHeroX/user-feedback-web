@@ -116,6 +116,11 @@ class Logger {
       this.flushToDatabase();
     }, this.FLUSH_INTERVAL_MS);
 
+    // 使用 unref() 確保計時器不會阻止程式退出
+    if (this.flushInterval.unref) {
+      this.flushInterval.unref();
+    }
+
     // 確保程式退出時刷新緩衝區
     process.on('beforeExit', () => {
       this.flushToDatabase();
