@@ -57,7 +57,7 @@ jobs:
         run: pnpm build
 
       - name: Test
-        run: pnpm test
+        run: pnpm test:ci
 
   lint:
     runs-on: ubuntu-latest
