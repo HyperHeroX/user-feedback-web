@@ -87,9 +87,35 @@ export class MCPServer {
     this.mcpServer.registerTool(
       'collect_feedback',
       {
-        description: 'Collect feedback from users about AI work summary. This tool opens a web interface for users to provide feedback on the AI\'s work.',
+        description: `Collect feedback from users about AI work. This tool opens a web interface for users to provide feedback.
+
+CRITICAL: The 'work_summary' field is the PRIMARY and ONLY content displayed to users in the feedback UI. You MUST include ALL relevant information in this field as a comprehensive Markdown-formatted report. The UI renders Markdown, so use headings, tables, code blocks, and lists for better readability.`,
         inputSchema: {
-          work_summary: z.string().describe('AI工作匯報內容，描述AI完成的工作和結果'),
+          work_summary: z.string().describe(`【CRITICAL - THIS IS THE ONLY CONTENT SHOWN TO USERS】
+
+Include a COMPLETE Markdown report with ALL of the following sections:
+
+## Required Sections:
+1. **📋 Task Summary** - Brief description of what was requested and accomplished
+2. **📁 Implementation Details** - Files created/modified with:
+   - Full file paths
+   - Key code snippets in fenced code blocks
+   - Explanation of changes
+3. **✅ Status Table** - Markdown table showing completion status:
+   | Item | Status | Notes |
+   |------|--------|-------|
+   | Feature A | ✅ Done | ... |
+4. **🧪 Test Results** - Build/test command outputs and outcomes
+5. **➡️ Next Steps** - Actionable options in A/B/C format for user decision:
+   - Option A: [action] - [description]
+   - Option B: [action] - [description]
+6. **🏗️ Architecture** (if applicable) - ASCII diagrams or Mermaid code blocks
+
+## Format Requirements:
+- Use Markdown: ## headings, \`code\`, **bold**, tables
+- Minimum 500 characters for non-trivial tasks
+- Be specific with file paths and code examples
+- Include ALL information user needs to make decisions`),
           project_name: z.string().optional().describe('專案名稱（用於 Dashboard 分組顯示）'),
           project_path: z.string().optional().describe('專案路徑（用於唯一識別專案）')
         }
