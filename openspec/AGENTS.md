@@ -91,6 +91,7 @@ openspec/
 | add-mcp-supervisor | In Progress | MCP Supervisor 架構 - 永遠存活的 MCP wrapper (T001-T011 完成) |
 | add-ai-conversation-ui | Draft | AI 對話視窗 UI 改進 |
 | add-terminal-cli-mode | Draft | 終端 CLI 模式支援 |
+| add-conversation-image-preview | In Progress | 對話頁面圖片區塊預覽功能 (T001-T007 完成) |
 
 ## Archived Changes (2026-01-17)
 

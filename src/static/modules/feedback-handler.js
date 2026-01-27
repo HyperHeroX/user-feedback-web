@@ -152,10 +152,12 @@ export async function generateAIReply() {
     }
 
     const modeLabel = currentMode === "cli" ? `CLI (${currentCliTool})` : currentMode === "api" ? "API" : "準備中";
+    const currentImages = getCurrentImages();
     addConversationEntry(ConversationEntryType.PROMPT, fullPrompt, {
       title: `提示詞 (${modeLabel})`,
       collapsed: false,
       timestamp: Date.now(),
+      images: currentImages.length > 0 ? currentImages : undefined,
     });
 
     updateConversationMode(currentMode, currentCliTool);
@@ -878,10 +880,12 @@ export async function generateAIReplyWithTools() {
       }
 
       const modeLabel = currentMode === "cli" ? `CLI (${currentCliTool})` : currentMode === "api" ? "API" : "準備中";
+      const promptImages = round === 1 ? getCurrentImages() : [];
       addConversationEntry(ConversationEntryType.PROMPT, fullPrompt, {
         title: `提示詞 (第 ${round} 輪) - ${modeLabel}`,
         collapsed: false,
         timestamp: Date.now(),
+        images: promptImages.length > 0 ? promptImages : undefined,
       });
 
       updateConversationMode(currentMode, currentCliTool);
@@ -1074,10 +1078,12 @@ export async function triggerAutoAIReply() {
       }
 
       const modeLabel = currentMode === "cli" ? `CLI (${currentCliTool})` : currentMode === "api" ? "API" : "準備中";
+      const autoImages = getCurrentImages();
       addConversationEntry(ConversationEntryType.PROMPT, fullPrompt, {
         title: `提示詞 (${modeLabel})`,
         collapsed: false,
         timestamp: Date.now(),
+        images: autoImages.length > 0 ? autoImages : undefined,
       });
 
       updateConversationMode(currentMode, currentCliTool);
@@ -1197,10 +1203,12 @@ export async function triggerAutoAIReply() {
       }
 
       const modeLabel = currentMode === "cli" ? `CLI (${currentCliTool})` : currentMode === "api" ? "API" : "準備中";
+      const autoToolImages = round === 1 ? getCurrentImages() : [];
       addConversationEntry(ConversationEntryType.PROMPT, fullPrompt, {
         title: `提示詞 (第 ${round} 輪) - ${modeLabel}`,
         collapsed: false,
         timestamp: Date.now(),
+        images: autoToolImages.length > 0 ? autoToolImages : undefined,
       });
 
       updateConversationMode(currentMode, currentCliTool);

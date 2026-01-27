@@ -32,6 +32,13 @@ import {
 
 import { updateCharCount as updateCharCountImpl } from "./ui-helpers.js";
 
+import {
+  openImageLightbox as openImageLightboxImpl,
+  closeLightbox as closeLightboxImpl,
+  nextLightboxImage as nextLightboxImageImpl,
+  prevLightboxImage as prevLightboxImageImpl,
+} from "./image-lightbox.js";
+
 /**
  * 載入初始資料
  */
@@ -111,6 +118,20 @@ export const removeImage = removeImageImpl;
 export const clearImages = clearImagesImpl;
 export const updateCharCount = updateCharCountImpl;
 
+// Lightbox 功能導出並掛載到全域
+export const openImageLightbox = openImageLightboxImpl;
+export const closeLightbox = closeLightboxImpl;
+export const nextLightboxImage = nextLightboxImageImpl;
+export const prevLightboxImage = prevLightboxImageImpl;
+
+// 掛載 Lightbox 函數到全域 (供 onclick 使用)
+if (typeof window !== 'undefined') {
+  window.openImageLightbox = openImageLightboxImpl;
+  window.closeLightbox = closeLightboxImpl;
+  window.nextLightboxImage = nextLightboxImageImpl;
+  window.prevLightboxImage = prevLightboxImageImpl;
+}
+
 export default {
   loadInitialData,
   handleUserActivity,
@@ -121,4 +142,8 @@ export default {
   removeImage,
   clearImages,
   updateCharCount,
+  openImageLightbox,
+  closeLightbox,
+  nextLightboxImage,
+  prevLightboxImage,
 };

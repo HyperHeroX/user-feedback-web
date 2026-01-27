@@ -89,7 +89,46 @@ export function createConversationPanel() {
 }
 
 /**
+ * 渲染對話條目圖片縮略圖
+ * @param {Array} images - 圖片陣列 [{type, data}, ...]
+ * @param {number} maxThumbnails - 最大顯示數量
+ * @returns {string} HTML 字串
+ */
+function renderEntryImages(images, maxThumbnails = 4) {
+  if (!images || images.length === 0) return '';
+
+  const displayImages = images.slice(0, maxThumbnails);
+  const remainingCount = images.length - maxThumbnails;
+
+  const thumbnails = displayImages.map((img, index) => `
+    <div class="entry-image-thumb" 
+         data-index="${index}" 
+         onclick="window.openImageLightbox(${index}, this)">
+      <img src="data:${img.type};base64,${img.data}" 
+           alt="圖片 ${index + 1}" 
+           loading="lazy">
+    </div>
+  `).join('');
+
+  const moreIndicator = remainingCount > 0
+    ? `<div class="entry-image-more" onclick="window.openImageLightbox(${maxThumbnails}, this.parentElement.querySelector('.entry-image-thumb'))">+${remainingCount}</div>`
+    : '';
+
+  const imagesJson = JSON.stringify(images).replace(/'/g, '&#39;');
+
+  return `
+    <div class="entry-images" data-images='${imagesJson}'>
+      ${thumbnails}
+      ${moreIndicator}
+    </div>
+  `;
+}
+
+/**
  * 建立對話條目元素
+ * @param {string} type - 條目類型
+ * @param {string|object} content - 條目內容
+ * @param {object} options - 選項 {title, collapsed, timestamp, badge, images}
  */
 export function createConversationEntry(type, content, options = {}) {
   const config = entryConfig[type] || entryConfig.ai;
@@ -108,6 +147,9 @@ export function createConversationEntry(type, content, options = {}) {
     contentHtml = `<pre class="entry-content">${escapeHtml(JSON.stringify(content, null, 2))}</pre>`;
   }
 
+  // 渲染圖片縮略圖
+  const imagesHtml = renderEntryImages(options.images);
+
   entry.innerHTML = `
     <details ${collapsed ? '' : 'open'}>
       <summary class="entry-summary">
@@ -115,9 +157,11 @@ export function createConversationEntry(type, content, options = {}) {
         <span class="entry-title">${titleText}</span>
         ${timestamp ? `<span class="entry-timestamp">${timestamp}</span>` : ''}
         ${options.badge ? `<span class="entry-badge">${options.badge}</span>` : ''}
+        ${options.images && options.images.length > 0 ? `<span class="entry-badge">🖼️ ${options.images.length}</span>` : ''}
       </summary>
       <div class="entry-body">
         ${contentHtml}
+        ${imagesHtml}
       </div>
     </details>
   `;
