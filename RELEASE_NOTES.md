@@ -408,16 +408,11 @@ Whenever you're about to complete a user request, call the MCP instead of simply
   "mcpServers": {
     "user-web-feedback": {
       "command": "npx",
-      "args": ["-y", "user-web-feedback"],
-      "env": {
-        "MCP_API_KEY": "your_api_key",
-        "MCP_API_BASE_URL": "https://api.ssopen.top",
-        "MCP_DEFAULT_MODEL": "grok-3",
-        "MCP_SERVER_HOST": "your-server-ip",
-        "MCP_SERVER_BASE_URL": "http://your-server-ip:5000",
-        "MCP_DIALOG_TIMEOUT": "600"
-      }
-    }
+      "args": [
+        "-y",
+        "@hirohsu/user-web-feedback@latest"
+      ]
+    },
   }
 }
 ```
