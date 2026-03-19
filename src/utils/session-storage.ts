@@ -15,6 +15,7 @@ export interface SessionData {
   reject?: (error: Error) => void;
   projectId?: string;     // 關聯的專案 ID
   projectName?: string;   // 專案名稱（快取）
+  resolved?: boolean;     // resolve() 已被呼叫，用於重試補償快取判斷
 }
 
 export class SessionStorage {

@@ -1,5 +1,56 @@
 # 📋 user-feedback MCP Tools - 版本发布说明
 
+## 🚀 v2.8.11 (2026-03-20)
+
+### 🐛 修復：MCP Client 等待回覆但未收到（連線已斷）— 深度修復
+
+**問題描述**: v2.8.10 加入的 `pendingDeliveryCache` 仍無法可靠補償，原因是：
+- `session.resolve()` 後設定 5 秒延遲刪除 session，但快取的 check 條件是 `!sessionStorage.getSession()`
+- 若 MCP Client 在 5 秒內重試（通常是毫秒級），session 仍存在，快取被跳過，新 session 再次建立並等待 ❌
+
+**修復 1：Session `resolved` 旗標**（修正 v2.8.10 timing bug）
+
+`SessionData` 新增 `resolved?: boolean`，在 `session.resolve()` 之前先標記，retry 補償改為：
+
+```typescript
+// 舊邏輯（有 timing bug）:
+if (pendingEntry && !sessionStorage.getSession(sessionId))  // 5s 內都是 false
+
+// 新邏輯（立即生效）:
+if (pendingEntry && (!prevSession || prevSession.resolved))  // resolved 一設定就生效
+```
+
+**修復 2：Streamable HTTP 改用 GET SSE 作為主要回應通道**
+
+```
+舊架構（容易斷線）:
+  POST tools/call → 長輪詢等到工具完成（enableJsonResponse:true）
+  問題：等待期間 HTTP 連線死亡 → 回應遺失
+
+新架構（心跳保活）:
+  POST tools/call → 202 立即回傳（enableJsonResponse:false）
+  GET  /mcp SSE  → 長連心跳(15s) → 工具完成時由此通道回覆
+```
+
+**修復 3：GET /mcp SSE 心跳**
+
+每 15 秒發送 SSE comment，防止 Proxy/Router 因閒置超時切斷長連：
+```
+: ping
+(每 15s 重複)
+```
+
+**防護層次（v2.8.11 完整四層）**:
+
+| 層次 | 機制 | 保護對象 |
+|------|------|----------|
+| L1 | GET SSE 心跳 15s | Proxy 閒置超時 |
+| L2 | socket.setTimeout(0) + setKeepAlive | TCP 層超時 |
+| L3 | resolved 旗標 + pendingDeliveryCache | 連線斷後重試補償 |
+| L4 | 5s 延遲刪除 session | SDK 寫入緩衝時間 |
+
+---
+
 ## 🚀 v2.8.10 (2026-03-19)
 
 ### 🛡️ 容錯機制：MCP Client 連線斷開時回覆補償
@@ -362,11 +413,11 @@ kill -KILL <pid>    # 强制终止 (SIGKILL)
 ```
 
 ### 🎯 推荐使用场景
-| 场景 | 建议时间 | 说明 |
-|------|----------|------|
-| 快速测试 | 60-300秒 | 功能验证 |
-| 日常使用 | 1800-3600秒 | 1-2小时 |
-| 详细反馈 | 7200-14400秒 | 2-4小时 |
+| 场景     | 建议时间      | 说明       |
+| -------- | ------------- | ---------- |
+| 快速测试 | 60-300秒      | 功能验证   |
+| 日常使用 | 1800-3600秒   | 1-2小时    |
+| 详细反馈 | 7200-14400秒  | 2-4小时    |
 | 长期收集 | 21600-60000秒 | 6-16.7小时 |
 
 ---

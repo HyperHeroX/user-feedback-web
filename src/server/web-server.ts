@@ -2591,6 +2591,9 @@ export class WebServer {
 
       // 完成回饋收集
       if (session.resolve) {
+        // 先將 resolved 標記寫入 session（在 resolve() 之前），讓重試補償能在延遲刪除 5s 內立刻生效
+        this.sessionStorage.updateSession(feedbackData.sessionId, { resolved: true });
+
         // 先將回覆結果存入待交付快取（TTL=60秒），以便 MCP Transport 斷線時可重試
         if (session.projectId) {
           const cachedResult = {
@@ -2731,10 +2734,14 @@ export class WebServer {
 
     // 若同專案有尚未確認送達的回覆（MCP Transport 可能斷線），直接回傳快取結果
     const pendingEntry = this.pendingDeliveryCache.get(project.id);
-    if (pendingEntry && pendingEntry.expiresAt > Date.now() && !this.sessionStorage.getSession(pendingEntry.result.sessionId)) {
-      logger.warn(`[重試補償] 偵測到專案 "${project.name}" 存在未確認送達的回覆 (sessionId: ${pendingEntry.result.sessionId})，直接回傳快取結果`);
-      this.pendingDeliveryCache.delete(project.id);
-      return pendingEntry.result;
+    if (pendingEntry && pendingEntry.expiresAt > Date.now()) {
+      const prevSession = this.sessionStorage.getSession(pendingEntry.result.sessionId);
+      // 回傳快取條件：(a) 前次 session 的 resolve() 已被呼叫（resolved 旗標），或 (b) session 已不存在
+      if (!prevSession || prevSession.resolved) {
+        logger.warn(`[重試補償] 偵測到專案 "${project.name}" 存在未確認送達的回覆 (sessionId: ${pendingEntry.result.sessionId})，直接回傳快取結果`);
+        this.pendingDeliveryCache.delete(project.id);
+        return pendingEntry.result;
+      }
     }
 
     return new Promise((resolve, reject) => {
@@ -3169,11 +3176,12 @@ export class WebServer {
 
       if (isInitialize) {
         // 初始化請求：建立新 transport，先 connect 再 handleRequest
-        // enableJsonResponse: true — 工具回應以 application/json 傳遞而非長連 SSE stream，
-        //   可避免 collect_feedback 等長時間工具因 SSE 連線逾時而回應遺失的問題
+        // enableJsonResponse: false — 工具回應透過 GET /mcp SSE 通道傳回
+        // GET SSE 具備 15s 心跳，可防止 Proxy 閒置超時切斷連線
+        // 若 Client 未開啟 GET SSE，SDK 會退回在 POST response 以 SSE 串流傳遞
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => `http-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          enableJsonResponse: true
+          enableJsonResponse: false
         });
 
         transport.onclose = () => {
@@ -3233,20 +3241,36 @@ export class WebServer {
     });
 
     // GET /mcp - Standalone SSE stream (server-initiated notifications)
+    // 此通道是 enableJsonResponse:false 模式下工具回應的主要傳遞路徑
+    // 必須加心跳確保 Proxy/Client 不會因閒置而切斷
     this.app.get('/mcp', async (req, res) => {
       const sessionId = req.query['sessionId'] as string | undefined;
-      if (sessionId && streamableTransports.has(sessionId)) {
-        const transport = streamableTransports.get(sessionId)!;
-        try {
-          await transport.handleRequest(req, res);
-        } catch (error) {
-          logger.error('處理 Streamable HTTP GET 請求失敗:', error);
-          if (!res.headersSent) {
-            res.status(500).json({ error: 'Failed to process request' });
-          }
-        }
-      } else {
+      if (!sessionId || !streamableTransports.has(sessionId)) {
         res.status(400).json({ error: 'Invalid session' });
+        return;
+      }
+
+      const transport = streamableTransports.get(sessionId)!;
+
+      // 每 15 秒發送 SSE comment 心跳，防止 Proxy 閒置超時斷線
+      const heartbeat = setInterval(() => {
+        try {
+          if (!res.writableEnded) res.write(': ping\n\n');
+          else clearInterval(heartbeat);
+        } catch { clearInterval(heartbeat); }
+      }, 15000);
+
+      req.on('close', () => clearInterval(heartbeat));
+
+      try {
+        await transport.handleRequest(req, res);
+      } catch (error) {
+        logger.error('處理 Streamable HTTP GET 請求失敗:', error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Failed to process request' });
+        }
+      } finally {
+        clearInterval(heartbeat);
       }
     });
 
