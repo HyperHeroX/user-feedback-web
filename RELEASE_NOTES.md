@@ -1,5 +1,26 @@
 # 📋 user-feedback MCP Tools - 版本发布说明
 
+## 🚀 v2.8.9 (2026-03-19)
+
+### 🐛 修復：VSCode 收不到 MCP 工具回應（Streamable HTTP 傳輸層）
+
+**問題描述**: VSCode 呼叫 `collect_feedback` 等長時間工具後，MCP 伺服器已完成回覆並關閉連線，但 VSCode 仍顯示「等待工具回應」，工具結果遺失。
+
+**根本原因**:
+1. `setupStreamableHTTPEndpoints` 每個請求都建立新的 transport 實例，且 `handleRequest()` 在 `connect()` 之前呼叫，導致 `onmessage` handler 為 null，所有 tools/call 訊息被靜默丟棄
+2. `collect_feedback` 等待使用者輸入期間（分鐘級），POST `/mcp` 回傳的 SSE 長連線沒有心跳，代理或 socket timeout 將連線切斷，工具完成後的回應無處可達
+3. SSE 端點（GET `/mcp/sse`）無心跳機制，同樣在長等待期間斷線
+
+**修復內容**:
+- ✅ **Streamable HTTP session 管理**：以 `Map<sessionId, transport>` 維護 session，同一 session 的多個請求共用同一 transport 實例
+- ✅ **修正 connect/handleRequest 順序**：`initialize` 請求先 `connect()` 設定好 `onmessage`，再呼叫 `handleRequest()`
+- ✅ **enableJsonResponse: true**：工具回應改以 `application/json` 傳遞（而非等待長連 SSE stream），從根本消除 SSE 連線逾時導致的回應遺失
+- ✅ **Socket keepalive**：POST `/mcp` 設定 `socket.setTimeout(0)` + `setKeepAlive(true, 30000)`，防止 TCP 層強制斷線
+- ✅ **SSE 心跳**：GET `/mcp/sse` 每 30 秒發送 SSE comment（`: ping`），防止 SSE 長連線因閒置被代理切斷
+- ✅ **完整 MCP 端點**：新增 `DELETE /mcp`（終止 session）與 `GET /mcp`（standalone SSE stream）端點
+
+---
+
 ## 🚀 v2.2.1 (2026-01-02)
 
 ### 📝 說明

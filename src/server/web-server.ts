@@ -3031,8 +3031,19 @@ export class WebServer {
       const sessionKey = Symbol();
       this.sseTransportsList.push({ key: sessionKey, transport, res });
 
+      // SSE 心跳：每 30 秒送一次 SSE comment，防止代理或 VSCode 因閒置而斷線
+      // （collect_feedback 等待用戶回饋時可能長達數分鐘）
+      const heartbeat = setInterval(() => {
+        if (!res.writableEnded) {
+          res.write(': ping\n\n');
+        } else {
+          clearInterval(heartbeat);
+        }
+      }, 30000);
+
       // 設定關閉處理
       req.on('close', () => {
+        clearInterval(heartbeat);
         logger.info('SSE 連線已關閉');
         const index = this.sseTransportsList.findIndex(t => t.key === sessionKey);
         if (index !== -1) {
@@ -3045,6 +3056,7 @@ export class WebServer {
         await this.mcpServerRef.connectSSETransport(transport);
         logger.info('SSE Transport 已連接');
       } catch (error) {
+        clearInterval(heartbeat);
         logger.error('SSE Transport 連接失敗:', error);
         const index = this.sseTransportsList.findIndex(t => t.key === sessionKey);
         if (index !== -1) {
@@ -3095,6 +3107,11 @@ export class WebServer {
       '@modelcontextprotocol/sdk/server/streamableHttp.js'
     );
 
+    // 以 sessionId 為鍵存放活躍的 Transport，同一 session 的多個請求必須共用同一個 transport 實例
+    // 修正：原本每個請求都建立新 transport，且 handleRequest 在 connect() 之前呼叫
+    //      導致 onmessage 為 null，訊息被靜默丟棄，VSCode 收不到工具回應
+    const streamableTransports = new Map<string, InstanceType<typeof StreamableHTTPServerTransport>>();
+
     // POST /mcp - Streamable HTTP 端點
     this.app.post('/mcp', express.json(), async (req, res) => {
       logger.debug('收到 Streamable HTTP 請求:', JSON.stringify(req.body));
@@ -3104,29 +3121,97 @@ export class WebServer {
         return;
       }
 
-      try {
-        // 建立 Streamable HTTP Transport
+      // 取消 socket 逾時，防止長時間等待（如 collect_feedback）時 TCP 連線被強制斷開
+      req.socket?.setTimeout(0);
+      req.socket?.setKeepAlive(true, 30000);
+
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
+      const isInitialize = req.body?.method === 'initialize';
+
+      if (isInitialize) {
+        // 初始化請求：建立新 transport，先 connect 再 handleRequest
+        // enableJsonResponse: true — 工具回應以 application/json 傳遞而非長連 SSE stream，
+        //   可避免 collect_feedback 等長時間工具因 SSE 連線逾時而回應遺失的問題
         const transport = new StreamableHTTPServerTransport({
-          sessionIdGenerator: () => `http-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+          sessionIdGenerator: () => `http-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          enableJsonResponse: true
         });
 
-        // 處理請求
-        await transport.handleRequest(req, res, req.body);
+        transport.onclose = () => {
+          const sid = transport.sessionId;
+          if (sid) streamableTransports.delete(sid);
+          logger.info(`Streamable HTTP Transport 已關閉, 會話: ${sid}`);
+        };
 
-        // 如果這是初始化請求，連接 MCP Server
-        if (req.body?.method === 'initialize') {
+        try {
+          // 關鍵修正：必須先 connect() 讓 SDK 設定 onmessage handler，
+          //           再呼叫 handleRequest()，否則訊息會被靜默丟棄
           await this.mcpServerRef.getMcpServerInstance().connect(transport as any);
           logger.info('Streamable HTTP Transport 已連接');
+
+          // connect 完成後 onmessage 已就緒，再處理請求
+          await transport.handleRequest(req, res, req.body);
+
+          // handleRequest 完成後 sessionId 已由 SDK 填入，儲存供後續請求使用
+          const sid = transport.sessionId;
+          if (sid) streamableTransports.set(sid, transport);
+        } catch (error) {
+          logger.error('處理 Streamable HTTP 初始化請求失敗:', error);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to initialize MCP session' });
+          }
         }
-      } catch (error) {
-        logger.error('處理 Streamable HTTP 請求失敗:', error);
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Failed to process request' });
+      } else if (sessionId && streamableTransports.has(sessionId)) {
+        // 後續請求：重用同一 session 的 transport 實例
+        const transport = streamableTransports.get(sessionId)!;
+        try {
+          await transport.handleRequest(req, res, req.body);
+        } catch (error) {
+          logger.error('處理 Streamable HTTP 請求失敗:', error);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to process request' });
+          }
         }
+      } else {
+        res.status(400).json({ error: 'Bad request: missing or invalid session ID' });
       }
     });
 
-    logger.info('Streamable HTTP 端點已設定: POST /mcp');
+    // DELETE /mcp - 終止 Session
+    this.app.delete('/mcp', async (req, res) => {
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
+      if (sessionId && streamableTransports.has(sessionId)) {
+        const transport = streamableTransports.get(sessionId)!;
+        try {
+          await transport.handleRequest(req, res, req.body);
+        } catch {
+          // ignore
+        }
+        streamableTransports.delete(sessionId);
+      } else {
+        res.status(404).json({ error: 'Session not found' });
+      }
+    });
+
+    // GET /mcp - Standalone SSE stream (server-initiated notifications)
+    this.app.get('/mcp', async (req, res) => {
+      const sessionId = req.query['sessionId'] as string | undefined;
+      if (sessionId && streamableTransports.has(sessionId)) {
+        const transport = streamableTransports.get(sessionId)!;
+        try {
+          await transport.handleRequest(req, res);
+        } catch (error) {
+          logger.error('處理 Streamable HTTP GET 請求失敗:', error);
+          if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to process request' });
+          }
+        }
+      } else {
+        res.status(400).json({ error: 'Invalid session' });
+      }
+    });
+
+    logger.info('Streamable HTTP 端點已設定: GET/POST/DELETE /mcp');
   }
 
   /**
