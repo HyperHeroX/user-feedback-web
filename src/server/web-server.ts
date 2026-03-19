@@ -51,6 +51,10 @@ export class WebServer {
   private mcpServerRef: MCPServer | null = null;
   private sseTransports: Map<string, SSEServerTransport> = new Map();
   private sseTransportsList: Array<{ key: symbol; transport: SSEServerTransport; res: express.Response }> = [];
+  private pendingDeliveryCache = new Map<string, {
+    result: { feedback: FeedbackData[]; sessionId: string; feedbackUrl: string; projectId: string; projectName: string };
+    expiresAt: number;
+  }>();
   private dbInitialized = false;
   private selfProbeService: SelfProbeService;
 
@@ -2587,8 +2591,28 @@ export class WebServer {
 
       // 完成回饋收集
       if (session.resolve) {
+        // 先將回覆結果存入待交付快取（TTL=60秒），以便 MCP Transport 斷線時可重試
+        if (session.projectId) {
+          const cachedResult = {
+            feedback: session.feedback,
+            sessionId: feedbackData.sessionId,
+            feedbackUrl: this.generateFeedbackUrl(feedbackData.sessionId),
+            projectId: session.projectId,
+            projectName: session.projectName || ''
+          };
+          this.pendingDeliveryCache.set(session.projectId, {
+            result: cachedResult,
+            expiresAt: Date.now() + 60000
+          });
+          const projectId = session.projectId;
+          setTimeout(() => this.pendingDeliveryCache.delete(projectId), 60000);
+        }
+
         session.resolve(session.feedback);
-        this.sessionStorage.deleteSession(feedbackData.sessionId);
+
+        // 延遲刪除 session（5 秒緩衝），確保 MCP SDK 有足夠時間寫回應至 Transport
+        const sessionIdToDelete = feedbackData.sessionId;
+        setTimeout(() => this.sessionStorage.deleteSession(sessionIdToDelete), 5000);
       }
 
     } catch (error) {
@@ -2704,6 +2728,14 @@ export class WebServer {
 
     logger.info(`建立回饋會話: ${sessionId}, 逾時: ${timeoutSeconds}秒, 專案: ${project.name} (${project.id})`);
     const feedbackUrl = this.generateFeedbackUrl(sessionId);
+
+    // 若同專案有尚未確認送達的回覆（MCP Transport 可能斷線），直接回傳快取結果
+    const pendingEntry = this.pendingDeliveryCache.get(project.id);
+    if (pendingEntry && pendingEntry.expiresAt > Date.now() && !this.sessionStorage.getSession(pendingEntry.result.sessionId)) {
+      logger.warn(`[重試補償] 偵測到專案 "${project.name}" 存在未確認送達的回覆 (sessionId: ${pendingEntry.result.sessionId})，直接回傳快取結果`);
+      this.pendingDeliveryCache.delete(project.id);
+      return pendingEntry.result;
+    }
 
     return new Promise((resolve, reject) => {
       // 建立會話
@@ -3039,7 +3071,7 @@ export class WebServer {
         } else {
           clearInterval(heartbeat);
         }
-      }, 30000);
+      }, 15000);
 
       // 設定關閉處理
       req.on('close', () => {
@@ -3124,6 +3156,13 @@ export class WebServer {
       // 取消 socket 逾時，防止長時間等待（如 collect_feedback）時 TCP 連線被強制斷開
       req.socket?.setTimeout(0);
       req.socket?.setKeepAlive(true, 30000);
+
+      // 偵測 MCP Client 在工具執行期間提前斷線（例如 Proxy 逾時）
+      req.on('close', () => {
+        if (!res.writableEnded) {
+          logger.warn('[容錯] MCP Client HTTP 連線在工具執行期間提前關閉，回覆可能未送達，下次呼叫將從快取取回');
+        }
+      });
 
       const sessionId = req.headers['mcp-session-id'] as string | undefined;
       const isInitialize = req.body?.method === 'initialize';

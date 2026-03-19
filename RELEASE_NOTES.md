@@ -1,5 +1,41 @@
 # 📋 user-feedback MCP Tools - 版本发布说明
 
+## 🚀 v2.8.10 (2026-03-19)
+
+### 🛡️ 容錯機制：MCP Client 連線斷開時回覆補償
+
+**問題描述**: Proxy/Client 在等待 `collect_feedback` 期間超時關閉 HTTP/SSE 連線，導致使用者提交回饋後 MCP SDK 寫入回應至已關閉的 Transport 失敗，回覆資料永久遺失。
+
+**根本原因**:
+1. MCP Client 長時間等待（分鐘級）時，Proxy 或 Socket 因閒置超時悄悄關閉 TCP 連線
+2. 使用者提交回饋 → `session.resolve()` 被呼叫 → MCP SDK 嘗試寫入回應至已斷開的 Transport
+3. 寫入失敗被靜默吞沒，回覆資料永久遺失，原 session 立即刪除
+4. MCP Client 仍在「自認連線有效」的狀態下持續等待，最終超時
+
+**修復內容** (WebServer 內部容錯層):
+- ✅ **60 秒待交付快取** (`pendingDeliveryCache`)：使用者提交回饋後，回覆先存入 Map（按 projectId 索引），TTL 60 秒
+- ✅ **5 秒 Session 延遲刪除**：`session.resolve()` 後不立即刪除，給 MCP SDK 5 秒時間完成回應寫入
+- ✅ **重試補償**：MCP Client 斷線後重新呼叫 `collect_feedback`，若偵測到同專案有未送達快取且原 session 已刪除，直接回傳快取結果（使用者無需重新提交）
+- ✅ **Streamable HTTP 斷線偵測**：`req.on('close')` 記錄 WARN 日誌供連線診斷
+- ✅ **SSE 心跳加快**：30 秒 → 15 秒，降低 Proxy 無故超時機率
+
+**架構設計**:
+```
+使用者提交 → 本地儲存快取(60s) ↘
+             ↓
+      session.resolve()(回覆出隊)
+             ↓
+    延遲5秒刪除 session
+             ↓
+   [若 Transport 斷線，回覆已在快取]
+             ↓
+  MCP Client 重新呼叫 collect_feedback
+             ↓
+  [偵測無效 session + 有快取] → 直接回傳 ✅
+```
+
+---
+
 ## 🚀 v2.8.9 (2026-03-19)
 
 ### 🐛 修復：VSCode 收不到 MCP 工具回應（Streamable HTTP 傳輸層）
