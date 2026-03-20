@@ -55,6 +55,8 @@ export class WebServer {
     result: { feedback: FeedbackData[]; sessionId: string; feedbackUrl: string; projectId: string; projectName: string };
     expiresAt: number;
   }>();
+  private streamableHttpTransports: Map<string, any> = new Map();
+  private streamableHttpSseActive: Map<string, boolean> = new Map();
   private dbInitialized = false;
   private selfProbeService: SelfProbeService;
 
@@ -2533,6 +2535,19 @@ export class WebServer {
   /**
    * 處理回饋提交
    */
+
+  private async waitForActiveConnection(maxRounds = 5, intervalMs = 5000): Promise<boolean> {
+    for (let round = 1; round <= maxRounds; round++) {
+      const hasStreamableSSE = [...this.streamableHttpSseActive.values()].some(v => v);
+      const hasSSETransport = this.sseTransportsList.length > 0;
+      if (hasStreamableSSE || hasSSETransport) return true;
+      logger.warn(`[連線等待] 第 ${round}/${maxRounds} 輪：目前無活躍 MCP Client 連線，${intervalMs / 1000}s 後重試...`);
+      await new Promise<void>(r => setTimeout(r, intervalMs));
+    }
+    logger.error(`[連線等待] 已嘗試 ${maxRounds} 輪仍無活躍連線，將直接送出（快取機制作為保護）`);
+    return false;
+  }
+
   private async handleFeedbackSubmission(socket: any, feedbackData: FeedbackData): Promise<void> {
     const session = this.sessionStorage.getSession(feedbackData.sessionId);
 
@@ -2544,7 +2559,6 @@ export class WebServer {
     }
 
     try {
-      // 驗證回饋資料
       if (!feedbackData.text && (!feedbackData.images || feedbackData.images.length === 0)) {
         socket.emit('feedback_error', {
           error: '請提供文字回饋或上傳圖片'
@@ -2552,7 +2566,6 @@ export class WebServer {
         return;
       }
 
-      // 處理圖片資料
       const processedFeedback = { ...feedbackData };
       if (feedbackData.images && feedbackData.images.length > 0) {
         logger.info(`開始處理 ${feedbackData.images.length} 張圖片...`);
@@ -2573,28 +2586,22 @@ export class WebServer {
         }
       }
 
-      // 新增回饋到會話
       session.feedback.push(processedFeedback);
       this.sessionStorage.updateSession(feedbackData.sessionId, { feedback: session.feedback });
 
-      // 通知提交成功
       socket.emit('feedback_submitted', {
         success: true,
         message: '回饋提交成功',
         shouldCloseAfterSubmit: feedbackData.shouldCloseAfterSubmit || false
       });
 
-      // 發送 Dashboard 更新事件
       if (session.projectId) {
         this.emitDashboardSessionUpdated(session.projectId, feedbackData.sessionId, 'completed', session.workSummary);
       }
 
-      // 完成回饋收集
       if (session.resolve) {
-        // 先將 resolved 標記寫入 session（在 resolve() 之前），讓重試補償能在延遲刪除 5s 內立刻生效
         this.sessionStorage.updateSession(feedbackData.sessionId, { resolved: true });
 
-        // 先將回覆結果存入待交付快取（TTL=60秒），以便 MCP Transport 斷線時可重試
         if (session.projectId) {
           const cachedResult = {
             feedback: session.feedback,
@@ -2611,9 +2618,14 @@ export class WebServer {
           setTimeout(() => this.pendingDeliveryCache.delete(projectId), 60000);
         }
 
+        // 送出前先確認 MCP Client 連線狀態，若無連線則等待重連（最多 5 輪 × 5 秒）
+        const hasConnection = await this.waitForActiveConnection();
+        if (hasConnection) {
+          logger.info('[連線監控] 連線確認，正在送出回覆至 MCP Client...');
+        }
+
         session.resolve(session.feedback);
 
-        // 延遲刪除 session（5 秒緩衝），確保 MCP SDK 有足夠時間寫回應至 Transport
         const sessionIdToDelete = feedbackData.sessionId;
         setTimeout(() => this.sessionStorage.deleteSession(sessionIdToDelete), 5000);
       }
@@ -3141,15 +3153,9 @@ export class WebServer {
    * 設定 Streamable HTTP 端點
    */
   private async setupStreamableHTTPEndpoints(): Promise<void> {
-    // 動態匯入 Streamable HTTP Transport
     const { StreamableHTTPServerTransport } = await import(
       '@modelcontextprotocol/sdk/server/streamableHttp.js'
     );
-
-    // 以 sessionId 為鍵存放活躍的 Transport，同一 session 的多個請求必須共用同一個 transport 實例
-    // 修正：原本每個請求都建立新 transport，且 handleRequest 在 connect() 之前呼叫
-    //      導致 onmessage 為 null，訊息被靜默丟棄，VSCode 收不到工具回應
-    const streamableTransports = new Map<string, InstanceType<typeof StreamableHTTPServerTransport>>();
 
     // POST /mcp - Streamable HTTP 端點
     this.app.post('/mcp', express.json(), async (req, res) => {
@@ -3160,14 +3166,12 @@ export class WebServer {
         return;
       }
 
-      // 取消 socket 逾時，防止長時間等待（如 collect_feedback）時 TCP 連線被強制斷開
       req.socket?.setTimeout(0);
       req.socket?.setKeepAlive(true, 30000);
 
-      // 偵測 MCP Client 在工具執行期間提前斷線（例如 Proxy 逾時）
       req.on('close', () => {
         if (!res.writableEnded) {
-          logger.warn('[容錯] MCP Client HTTP 連線在工具執行期間提前關閉，回覆可能未送達，下次呼叫將從快取取回');
+          logger.warn('[連線監控] MCP Client HTTP 連線在工具執行期間提前關閉，回覆可能未送達');
         }
       });
 
@@ -3175,10 +3179,6 @@ export class WebServer {
       const isInitialize = req.body?.method === 'initialize';
 
       if (isInitialize) {
-        // 初始化請求：建立新 transport，先 connect 再 handleRequest
-        // enableJsonResponse: false — 工具回應透過 GET /mcp SSE 通道傳回
-        // GET SSE 具備 15s 心跳，可防止 Proxy 閒置超時切斷連線
-        // 若 Client 未開啟 GET SSE，SDK 會退回在 POST response 以 SSE 串流傳遞
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => `http-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           enableJsonResponse: false
@@ -3186,31 +3186,34 @@ export class WebServer {
 
         transport.onclose = () => {
           const sid = transport.sessionId;
-          if (sid) streamableTransports.delete(sid);
-          logger.info(`Streamable HTTP Transport 已關閉, 會話: ${sid}`);
+          if (sid) {
+            this.streamableHttpTransports.delete(sid);
+            this.streamableHttpSseActive.delete(sid);
+            logger.info(`[連線監控] MCP Client 已斷線 (sessionId=${sid})，剩餘活躍連線: ${this.streamableHttpTransports.size}`);
+          }
         };
 
         try {
-          // 關鍵修正：必須先 connect() 讓 SDK 設定 onmessage handler，
-          //           再呼叫 handleRequest()，否則訊息會被靜默丟棄
           await this.mcpServerRef.getMcpServerInstance().connect(transport as any);
-          logger.info('Streamable HTTP Transport 已連接');
 
-          // connect 完成後 onmessage 已就緒，再處理請求
+          const clientIp = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown';
+          logger.info(`[連線監控] ✅ MCP Client 已連線 — IP: ${clientIp}`);
+
           await transport.handleRequest(req, res, req.body);
 
-          // handleRequest 完成後 sessionId 已由 SDK 填入，儲存供後續請求使用
           const sid = transport.sessionId;
-          if (sid) streamableTransports.set(sid, transport);
+          if (sid) {
+            this.streamableHttpTransports.set(sid, transport);
+            logger.info(`[連線監控] MCP Session 已建立 (sessionId=${sid})，目前活躍連線: ${this.streamableHttpTransports.size}`);
+          }
         } catch (error) {
           logger.error('處理 Streamable HTTP 初始化請求失敗:', error);
           if (!res.headersSent) {
             res.status(500).json({ error: 'Failed to initialize MCP session' });
           }
         }
-      } else if (sessionId && streamableTransports.has(sessionId)) {
-        // 後續請求：重用同一 session 的 transport 實例
-        const transport = streamableTransports.get(sessionId)!;
+      } else if (sessionId && this.streamableHttpTransports.has(sessionId)) {
+        const transport = this.streamableHttpTransports.get(sessionId)!;
         try {
           await transport.handleRequest(req, res, req.body);
         } catch (error) {
@@ -3227,14 +3230,16 @@ export class WebServer {
     // DELETE /mcp - 終止 Session
     this.app.delete('/mcp', async (req, res) => {
       const sessionId = req.headers['mcp-session-id'] as string | undefined;
-      if (sessionId && streamableTransports.has(sessionId)) {
-        const transport = streamableTransports.get(sessionId)!;
+      if (sessionId && this.streamableHttpTransports.has(sessionId)) {
+        const transport = this.streamableHttpTransports.get(sessionId)!;
         try {
           await transport.handleRequest(req, res, req.body);
         } catch {
           // ignore
         }
-        streamableTransports.delete(sessionId);
+        this.streamableHttpTransports.delete(sessionId);
+        this.streamableHttpSseActive.delete(sessionId);
+        logger.info(`[連線監控] MCP Session 已刪除 (sessionId=${sessionId})`);
       } else {
         res.status(404).json({ error: 'Session not found' });
       }
@@ -3242,17 +3247,19 @@ export class WebServer {
 
     // GET /mcp - Standalone SSE stream (server-initiated notifications)
     // 此通道是 enableJsonResponse:false 模式下工具回應的主要傳遞路徑
-    // 必須加心跳確保 Proxy/Client 不會因閒置而切斷
     this.app.get('/mcp', async (req, res) => {
       const sessionId = req.query['sessionId'] as string | undefined;
-      if (!sessionId || !streamableTransports.has(sessionId)) {
+      if (!sessionId || !this.streamableHttpTransports.has(sessionId)) {
         res.status(400).json({ error: 'Invalid session' });
         return;
       }
 
-      const transport = streamableTransports.get(sessionId)!;
+      this.streamableHttpSseActive.set(sessionId, true);
+      const activeSseCount = [...this.streamableHttpSseActive.values()].filter(Boolean).length;
+      logger.info(`[連線監控] 📡 GET SSE 交付通道已開啟 (sessionId=${sessionId})，活躍 SSE 數: ${activeSseCount}`);
 
-      // 每 15 秒發送 SSE comment 心跳，防止 Proxy 閒置超時斷線
+      const transport = this.streamableHttpTransports.get(sessionId)!;
+
       const heartbeat = setInterval(() => {
         try {
           if (!res.writableEnded) res.write(': ping\n\n');
@@ -3260,7 +3267,12 @@ export class WebServer {
         } catch { clearInterval(heartbeat); }
       }, 15000);
 
-      req.on('close', () => clearInterval(heartbeat));
+      req.on('close', () => {
+        clearInterval(heartbeat);
+        this.streamableHttpSseActive.set(sessionId, false);
+        const remaining = [...this.streamableHttpSseActive.values()].filter(Boolean).length;
+        logger.warn(`[連線監控] ⚠️ GET SSE 交付通道已關閉 (sessionId=${sessionId})，剩餘活躍 SSE 數: ${remaining}`);
+      });
 
       try {
         await transport.handleRequest(req, res);

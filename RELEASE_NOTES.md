@@ -1,5 +1,34 @@
 # 📋 user-feedback MCP Tools - 版本发布说明
 
+## 🚀 v2.8.12 (2026-03-20)
+
+### 🔧 改善：MCP Client 連線追蹤與送出前重連等待機制
+
+**問題描述**: 回覆送出時 MCP Client 的 GET SSE 交付通道可能已關閉，導致回覆遺失。
+
+**新增功能**：
+
+**1. Streamable HTTP 連線提升至類別層級追蹤**
+- `streamableHttpTransports` Map：追蹤所有活躍的 Streamable HTTP sessions
+- `streamableHttpSseActive` Map：追蹤每個 session 的 GET SSE 交付通道是否開啟
+
+**2. 連線事件顯示（Console Log）**
+- 初始化：`[連線監控] ✅ MCP Client 已連線 — IP: ...`
+- Session 建立：`[連線監控] MCP Session 已建立 (sessionId=...) 目前活躍連線: N`
+- SSE 開啟：`[連線監控] 📡 GET SSE 交付通道已開啟 ...`
+- SSE 關閉：`[連線監控] ⚠️ GET SSE 交付通道已關閉 ...`
+- 斷線：`[連線監控] MCP Client 已斷線 ...`
+
+**3. 送出前等待重連 `waitForActiveConnection()`**
+```typescript
+// 回覆提交時，若無活躍連線則等待：最多 5 輪 × 5 秒 = 25 秒
+const hasConnection = await this.waitForActiveConnection();
+// 若 25 秒後仍無連線 → 仍呼叫 resolve（pendingDeliveryCache 快取作為保護）
+session.resolve(session.feedback);
+```
+
+---
+
 ## 🚀 v2.8.11 (2026-03-20)
 
 ### 🐛 修復：MCP Client 等待回覆但未收到（連線已斷）— 深度修復
