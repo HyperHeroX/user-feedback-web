@@ -57,6 +57,7 @@ export class WebServer {
   }>();
   private streamableHttpTransports: Map<string, any> = new Map();
   private streamableHttpSseActive: Map<string, boolean> = new Map();
+  private activeSessionPromises: Map<string, Promise<{ feedback: FeedbackData[]; sessionId: string; feedbackUrl: string; projectId: string; projectName: string }>> = new Map();
   private dbInitialized = false;
   private selfProbeService: SelfProbeService;
 
@@ -2736,19 +2737,21 @@ export class WebServer {
   async collectFeedback(workSummary: string, timeoutSeconds: number, projectName?: string, projectPath?: string): Promise<{ feedback: FeedbackData[]; sessionId: string; feedbackUrl: string; projectId: string; projectName: string }> {
     const sessionId = this.generateSessionId();
 
-    // 取得或建立專案
     const project = projectName
       ? projectManager.getOrCreateProject(projectName, projectPath)
       : projectManager.getDefaultProject();
 
-    logger.info(`建立回饋會話: ${sessionId}, 逾時: ${timeoutSeconds}秒, 專案: ${project.name} (${project.id})`);
-    const feedbackUrl = this.generateFeedbackUrl(sessionId);
+    // 1. 若同專案已有進行中的回饋會話（MCP Client 重試），直接重用，防止重複彈窗
+    const existingPromise = this.activeSessionPromises.get(project.id);
+    if (existingPromise) {
+      logger.warn(`[重複請求] 專案 "${project.name}" 已有進行中的回饋會話，重用現有請求（防止重複彈窗）`);
+      return existingPromise;
+    }
 
-    // 若同專案有尚未確認送達的回覆（MCP Transport 可能斷線），直接回傳快取結果
+    // 2. 若同專案有尚未確認送達的回覆（MCP Transport 斷線後已有回覆），直接回傳快取結果
     const pendingEntry = this.pendingDeliveryCache.get(project.id);
     if (pendingEntry && pendingEntry.expiresAt > Date.now()) {
       const prevSession = this.sessionStorage.getSession(pendingEntry.result.sessionId);
-      // 回傳快取條件：(a) 前次 session 的 resolve() 已被呼叫（resolved 旗標），或 (b) session 已不存在
       if (!prevSession || prevSession.resolved) {
         logger.warn(`[重試補償] 偵測到專案 "${project.name}" 存在未確認送達的回覆 (sessionId: ${pendingEntry.result.sessionId})，直接回傳快取結果`);
         this.pendingDeliveryCache.delete(project.id);
@@ -2756,8 +2759,11 @@ export class WebServer {
       }
     }
 
-    return new Promise((resolve, reject) => {
-      // 建立會話
+    logger.info(`建立回饋會話: ${sessionId}, 逾時: ${timeoutSeconds}秒, 專案: ${project.name} (${project.id})`);
+    const feedbackUrl = this.generateFeedbackUrl(sessionId);
+
+    // 3. 建立新 Promise 並注冊至 activeSessionPromises，確保同專案重複呼叫時共享同一 Promise
+    const sessionPromise = new Promise<{ feedback: FeedbackData[]; sessionId: string; feedbackUrl: string; projectId: string; projectName: string }>((resolve, reject) => {
       const session: SessionData = {
         workSummary,
         feedback: [],
@@ -2777,30 +2783,28 @@ export class WebServer {
 
       this.sessionStorage.createSession(sessionId, session);
 
-      // 發送 Dashboard 事件
       this.emitDashboardSessionCreated(project.id, sessionId, project.name, workSummary);
 
-      // 发送MCP日志通知，包含反馈页面信息
       logger.mcpFeedbackPageCreated(sessionId, feedbackUrl, timeoutSeconds);
 
-      // 注意：逾時處理現在由SessionStorage的清理機制處理
-
-      // 判斷是否為 HTTP 傳輸模式（sse/streamable-http）
       const isHTTPTransport = this.config.mcpTransport === 'sse' || this.config.mcpTransport === 'streamable-http';
 
       if (isHTTPTransport) {
-        // HTTP 模式：不嘗試開啟瀏覽器（容器環境無法開啟主機瀏覽器）
-        // 客戶端應從工具回應中的 feedbackUrl 自行開啟
         logger.info(`HTTP 傳輸模式，請手動開啟瀏覽器存取: ${feedbackUrl}`);
       } else {
-        // stdio 模式：嘗試開啟瀏覽器
         this.openFeedbackPage(sessionId).catch((error) => {
           logger.warn('開啟回饋頁面失敗（不影響會話）:', error);
           logger.info(`請手動開啟瀏覽器存取: ${feedbackUrl}`);
-          // 不再 reject 和刪除 session，讓使用者可以手動開啟
         });
       }
     });
+
+    this.activeSessionPromises.set(project.id, sessionPromise);
+    void sessionPromise.finally(() => {
+      this.activeSessionPromises.delete(project.id);
+    });
+
+    return sessionPromise;
   }
 
 

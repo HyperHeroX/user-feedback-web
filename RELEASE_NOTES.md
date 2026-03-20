@@ -1,5 +1,34 @@
 # 📋 user-feedback MCP Tools - 版本发布说明
 
+## 🚀 v2.8.13 (2026-03-20)
+
+### 🐛 修復：MCP Client 重試導致多個回饋視窗彈出
+
+**問題描述**: MCP Client 因傳輸斷線自動重試 `collect_feedback` 時，Server 每次都建立新 session，導致使用者端彈出多個回饋對話視窗。
+
+**根本原因**: `collectFeedback()` 沒有檢查同一專案是否已有進行中的回饋 session。
+
+**修復方案**: 新增 `activeSessionPromises` Map，對同一專案的重複呼叫返回相同 Promise：
+
+```typescript
+// 若同專案已有進行中的回饋會話，直接重用（不建立新 session、不彈新視窗）
+const existingPromise = this.activeSessionPromises.get(project.id);
+if (existingPromise) {
+  logger.warn(`[重複請求] 專案 已有進行中的回饋會話，重用現有請求`);
+  return existingPromise;
+}
+// 新 Promise 建立後注冊，並在完成後自動清除
+this.activeSessionPromises.set(project.id, sessionPromise);
+void sessionPromise.finally(() => { this.activeSessionPromises.delete(project.id); });
+```
+
+**呼叫優先順序**：
+1. `activeSessionPromises` — 防止重複建立 session（同一時間只有一個視窗）
+2. `pendingDeliveryCache` — 補償送達失敗（User 已回覆但 Client 未收到）
+3. 建立新 session
+
+---
+
 ## 🚀 v2.8.12 (2026-03-20)
 
 ### 🔧 改善：MCP Client 連線追蹤與送出前重連等待機制
