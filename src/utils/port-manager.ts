@@ -15,6 +15,10 @@ export class PortManager {
   private readonly PORT_RANGE_END = 5099;
   private readonly MAX_RETRIES = 20;
 
+  private readonly BROWSER_UNSAFE_PORTS = new Set([
+    5060, 5061,
+  ]);
+
   /**
    * 檢查連接埠是否可用（增強版本）
    */
@@ -81,6 +85,11 @@ export class PortManager {
   async resolvePortConflict(port: number): Promise<number> {
     logger.info(`檢查連接埠 ${port} 是否可用`);
 
+    if (this.BROWSER_UNSAFE_PORTS.has(port)) {
+      logger.warn(`連接埠 ${port} 是瀏覽器不安全端口，自動尋找替代`);
+      return await this.findAlternativePort(port);
+    }
+
     // 檢查連接埠是否可用
     if (await this.isPortAvailable(port)) {
       logger.info(`連接埠 ${port} 可用，直接使用`);
@@ -105,6 +114,11 @@ export class PortManager {
         break;
       }
 
+      if (this.BROWSER_UNSAFE_PORTS.has(port)) {
+        logger.debug(`連接埠 ${port} 是瀏覽器不安全端口，跳過`);
+        continue;
+      }
+
       logger.debug(`嘗試連接埠 ${port}...`);
       if (await this.isPortAvailable(port)) {
         logger.info(`找到可用連接埠: ${port}`);
@@ -122,18 +136,23 @@ export class PortManager {
   async findAvailablePort(preferredPort?: number): Promise<number> {
     // 如果指定了首選連接埠，先嘗試該連接埠
     if (preferredPort) {
-      logger.debug(`檢查首選連接埠: ${preferredPort}`);
-      const available = await this.isPortAvailable(preferredPort);
-      if (available) {
-        logger.info(`使用首選連接埠: ${preferredPort}`);
-        return preferredPort;
+      if (this.BROWSER_UNSAFE_PORTS.has(preferredPort)) {
+        logger.warn(`首選連接埠 ${preferredPort} 是瀏覽器不安全端口，跳過`);
       } else {
-        logger.warn(`首選連接埠 ${preferredPort} 不可用，尋找其他連接埠...`);
+        logger.debug(`檢查首選連接埠: ${preferredPort}`);
+        const available = await this.isPortAvailable(preferredPort);
+        if (available) {
+          logger.info(`使用首選連接埠: ${preferredPort}`);
+          return preferredPort;
+        } else {
+          logger.warn(`首選連接埠 ${preferredPort} 不可用，尋找其他連接埠...`);
+        }
       }
     }
 
     // 在連接埠範圍內查找可用連接埠
     for (let port = this.PORT_RANGE_START; port <= this.PORT_RANGE_END; port++) {
+      if (this.BROWSER_UNSAFE_PORTS.has(port)) continue;
       logger.debug(`檢查連接埠: ${port}`);
       if (await this.isPortAvailable(port)) {
         logger.info(`找到可用連接埠: ${port}`);
@@ -144,6 +163,7 @@ export class PortManager {
     // 如果範圍內沒有可用連接埠，隨機嘗試
     for (let i = 0; i < this.MAX_RETRIES; i++) {
       const randomPort = Math.floor(Math.random() * (65535 - 1024) + 1024);
+      if (this.BROWSER_UNSAFE_PORTS.has(randomPort)) continue;
       logger.debug(`嘗試隨機連接埠: ${randomPort}`);
       if (await this.isPortAvailable(randomPort)) {
         logger.info(`找到隨機可用連接埠: ${randomPort}`);
