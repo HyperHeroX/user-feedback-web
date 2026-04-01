@@ -474,6 +474,25 @@ function createTables(): void {
 
     // 初始化預設提示詞配置
     initDefaultPromptConfigs();
+
+    // Pending Responses 表（回應送達可靠性）
+    db.exec(`
+    CREATE TABLE IF NOT EXISTS pending_responses (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      project_id TEXT NOT NULL,
+      project_name TEXT DEFAULT '',
+      feedback_json TEXT NOT NULL,
+      feedback_url TEXT DEFAULT '',
+      created_at INTEGER NOT NULL,
+      delivered INTEGER DEFAULT 0,
+      delivery_attempts INTEGER DEFAULT 0,
+      last_attempt_at INTEGER,
+      expires_at INTEGER NOT NULL
+    )
+  `);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_pending_responses_project ON pending_responses(project_id, delivered)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_pending_responses_expires ON pending_responses(expires_at)`);
 }
 
 /**
@@ -2537,4 +2556,84 @@ export function resetPromptConfigs(): PromptConfig[] {
     db.prepare('DELETE FROM prompt_configs').run();
     initDefaultPromptConfigs();
     return getPromptConfigs();
+}
+
+// ========== Pending Responses (回應送達可靠性) ==========
+
+export interface PendingResponseRow {
+    id: string;
+    session_id: string;
+    project_id: string;
+    project_name: string;
+    feedback_json: string;
+    feedback_url: string;
+    created_at: number;
+    delivered: number;
+    delivery_attempts: number;
+    last_attempt_at: number | null;
+    expires_at: number;
+}
+
+export function savePendingResponse(data: {
+    id: string;
+    sessionId: string;
+    projectId: string;
+    projectName: string;
+    feedbackJson: string;
+    feedbackUrl: string;
+    ttlSeconds: number;
+}): void {
+    const db = tryGetDb();
+    if (!db) return;
+
+    const now = Date.now();
+    db.prepare(`
+        INSERT OR REPLACE INTO pending_responses (id, session_id, project_id, project_name, feedback_json, feedback_url, created_at, delivered, delivery_attempts, last_attempt_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, NULL, ?)
+    `).run(data.id, data.sessionId, data.projectId, data.projectName, data.feedbackJson, data.feedbackUrl, now, now + data.ttlSeconds * 1000);
+}
+
+export function getPendingResponseByProject(projectId: string): PendingResponseRow | null {
+    const db = tryGetDb();
+    if (!db) return null;
+
+    const now = Date.now();
+    return (db.prepare(`
+        SELECT * FROM pending_responses
+        WHERE project_id = ? AND delivered = 0 AND expires_at > ?
+        ORDER BY created_at DESC LIMIT 1
+    `).get(projectId, now) as PendingResponseRow | undefined) ?? null;
+}
+
+export function getPendingResponseById(id: string): PendingResponseRow | null {
+    const db = tryGetDb();
+    if (!db) return null;
+
+    return (db.prepare('SELECT * FROM pending_responses WHERE id = ?').get(id) as PendingResponseRow | undefined) ?? null;
+}
+
+export function markPendingResponseDelivered(id: string): void {
+    const db = tryGetDb();
+    if (!db) return;
+
+    db.prepare('UPDATE pending_responses SET delivered = 1, delivery_attempts = delivery_attempts + 1, last_attempt_at = ? WHERE id = ?').run(Date.now(), id);
+}
+
+export function incrementDeliveryAttempt(id: string): void {
+    const db = tryGetDb();
+    if (!db) return;
+
+    db.prepare('UPDATE pending_responses SET delivery_attempts = delivery_attempts + 1, last_attempt_at = ? WHERE id = ?').run(Date.now(), id);
+}
+
+export function cleanupExpiredPendingResponses(): number {
+    const db = tryGetDb();
+    if (!db) return 0;
+
+    const now = Date.now();
+    const deliveredCutoff = now - 3600000; // 已送達的保留 1 小時
+    const result = db.prepare(`
+        DELETE FROM pending_responses WHERE expires_at < ? OR (delivered = 1 AND last_attempt_at < ?)
+    `).run(now, deliveredCutoff);
+    return result.changes;
 }

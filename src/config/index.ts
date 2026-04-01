@@ -110,6 +110,9 @@ export function createDefaultConfig(): Config {
     selfProbeIntervalSeconds: getEnvNumber('MCP_SELF_PROBE_INTERVAL', 300),
     // Supervisor 配置
     supervisor: createSupervisorConfig(),
+    // Response Delivery 可靠性設定
+    responseTtl: getEnvNumber('MCP_RESPONSE_TTL', 86400),
+    stdioHeartbeatInterval: getEnvNumber('MCP_STDIO_HEARTBEAT_INTERVAL', 30),
   };
 }
 

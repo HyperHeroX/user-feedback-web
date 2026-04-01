@@ -248,6 +248,7 @@ Include a COMPLETE Markdown report with ALL of the following sections:
 
   // ========== 延遲啟動相關 ==========
   private deferredStartupTriggered = false;
+  private stdioHeartbeatTimer: NodeJS.Timeout | null = null;
 
   /**
    * 實作collect_feedback功能
@@ -480,6 +481,9 @@ Include a COMPLETE Markdown report with ALL of the following sections:
 
         // 保持進程運行（即使 stdin 關閉）
         process.stdin.resume();
+
+        // 啟動 stdio 心跳偵測
+        this.startStdioHeartbeat();
       } else if (transportMode === 'sse' || transportMode === 'streamable-http') {
         // HTTP 模式 (sse 或 streamable-http): 啟動 Web 伺服器並設定 MCP HTTP 端點
         logger.info(`HTTP 傳輸模式: ${transportMode}，MCP 連接將由 HTTP 端點處理`);
@@ -500,6 +504,21 @@ Include a COMPLETE Markdown report with ALL of the following sections:
         error
       );
     }
+  }
+
+  private startStdioHeartbeat(): void {
+    const intervalMs = (this.config.stdioHeartbeatInterval ?? 30) * 1000;
+    this.stdioHeartbeatTimer = setInterval(async () => {
+      try {
+        await this.mcpServer.server.notification({
+          method: 'notifications/message',
+          params: { level: 'debug', logger: 'heartbeat', data: { event: 'ping', ts: Date.now() } }
+        });
+        this.webServer.setStdioHealthy(true);
+      } catch {
+        this.webServer.setStdioHealthy(false);
+      }
+    }, intervalMs);
   }
 
   /**
@@ -570,6 +589,11 @@ Include a COMPLETE Markdown report with ALL of the following sections:
 
     try {
       logger.info('正在停止伺服器...');
+
+      if (this.stdioHeartbeatTimer) {
+        clearInterval(this.stdioHeartbeatTimer);
+        this.stdioHeartbeatTimer = null;
+      }
 
       // 停止Web伺服器
       await this.webServer.stop();

@@ -38,6 +38,9 @@ export interface Config {
   selfProbeIntervalSeconds?: number | undefined;   // 自我探查間隔（秒），範圍 60-600
   // Supervisor 設定
   supervisor?: SupervisorConfig | undefined;       // Supervisor 配置
+  // Response Delivery 可靠性設定
+  responseTtl?: number | undefined;                // 未送達回應保留時間（秒），預設 86400
+  stdioHeartbeatInterval?: number | undefined;     // stdio 心跳間隔（秒），預設 30
 }
 
 // 回饋資料類型

@@ -30,6 +30,7 @@ import { generateAIReply, validateAPIKey } from '../utils/ai-service.js';
 import { mcpClientManager } from '../utils/mcp-client-manager.js';
 import { detectCLITools, clearDetectionCache } from '../utils/cli-detector.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { ResponseStore } from '../utils/response-store.js';
 import type { MCPServer } from './mcp-server.js';
 
 /**
@@ -60,6 +61,9 @@ export class WebServer {
   private activeSessionPromises: Map<string, Promise<{ feedback: FeedbackData[]; sessionId: string; feedbackUrl: string; projectId: string; projectName: string }>> = new Map();
   private dbInitialized = false;
   private selfProbeService: SelfProbeService;
+  private responseStore: ResponseStore;
+  private responseCleanupInterval: NodeJS.Timeout | null = null;
+  private stdioHealthy = true;
 
   /**
    * 延遲載入 ImageProcessor
@@ -106,6 +110,7 @@ export class WebServer {
     this.portManager = new PortManager();
     this.sessionStorage = new SessionStorage();
     this.selfProbeService = new SelfProbeService(config);
+    this.responseStore = new ResponseStore(config.responseTtl ?? 86400);
 
     // 建立Express應用程式
     this.app = express();
@@ -2368,6 +2373,33 @@ export class WebServer {
       }
     });
 
+    // Pending Response API（回應送達可靠性）
+    this.app.get('/api/pending-response/:projectId', (req, res) => {
+      try {
+        this.ensureDatabase();
+        const pending = this.responseStore.getByProject(req.params.projectId);
+        if (pending) {
+          res.json({ success: true, response: pending });
+        } else {
+          res.json({ success: true, response: null });
+        }
+      } catch (error) {
+        logger.error('查詢未送達回應失敗:', error);
+        res.status(500).json({ success: false, error: 'Failed to query pending response' });
+      }
+    });
+
+    this.app.post('/api/pending-response/:responseId/ack', (req, res) => {
+      try {
+        this.ensureDatabase();
+        this.responseStore.markDelivered(req.params.responseId);
+        res.json({ success: true });
+      } catch (error) {
+        logger.error('確認回應送達失敗:', error);
+        res.status(500).json({ success: false, error: 'Failed to acknowledge response' });
+      }
+    });
+
     // 錯誤處理中介軟體
     this.app.use((error: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
       logger.error('Express錯誤:', error);
@@ -2549,6 +2581,27 @@ export class WebServer {
     return false;
   }
 
+  isTransportHealthy(): boolean {
+    const mode = this.config.mcpTransport || 'stdio';
+    if (mode === 'stdio') {
+      return this.stdioHealthy;
+    }
+    const hasStreamableSSE = [...this.streamableHttpSseActive.values()].some(v => v);
+    const hasSSETransport = this.sseTransportsList.length > 0;
+    return hasStreamableSSE || hasSSETransport;
+  }
+
+  setStdioHealthy(healthy: boolean): void {
+    if (this.stdioHealthy !== healthy) {
+      this.stdioHealthy = healthy;
+      logger.info(`[Transport] stdio 健康狀態變更: ${healthy ? 'healthy' : 'unhealthy'}`);
+    }
+  }
+
+  getResponseStore(): ResponseStore {
+    return this.responseStore;
+  }
+
   private async handleFeedbackSubmission(socket: any, feedbackData: FeedbackData): Promise<void> {
     const session = this.sessionStorage.getSession(feedbackData.sessionId);
 
@@ -2603,11 +2656,14 @@ export class WebServer {
       if (session.resolve) {
         this.sessionStorage.updateSession(feedbackData.sessionId, { resolved: true });
 
+        const feedbackUrl = this.generateFeedbackUrl(feedbackData.sessionId);
+        let pendingResponseId: string | undefined;
+
         if (session.projectId) {
           const cachedResult = {
             feedback: session.feedback,
             sessionId: feedbackData.sessionId,
-            feedbackUrl: this.generateFeedbackUrl(feedbackData.sessionId),
+            feedbackUrl,
             projectId: session.projectId,
             projectName: session.projectName || ''
           };
@@ -2617,15 +2673,37 @@ export class WebServer {
           });
           const projectId = session.projectId;
           setTimeout(() => this.pendingDeliveryCache.delete(projectId), 60000);
+
+          pendingResponseId = this.responseStore.save({
+            sessionId: feedbackData.sessionId,
+            projectId: session.projectId,
+            projectName: session.projectName || '',
+            feedback: session.feedback,
+            feedbackUrl,
+          });
         }
 
-        // 送出前先確認 MCP Client 連線狀態，若無連線則等待重連（最多 5 輪 × 5 秒）
-        const hasConnection = await this.waitForActiveConnection();
-        if (hasConnection) {
-          logger.info('[連線監控] 連線確認，正在送出回覆至 MCP Client...');
-        }
+        const transportHealthy = this.isTransportHealthy();
+        if (transportHealthy) {
+          const isHTTP = this.config.mcpTransport === 'sse' || this.config.mcpTransport === 'streamable-http';
+          if (isHTTP) {
+            const hasConnection = await this.waitForActiveConnection();
+            if (hasConnection) {
+              logger.info('[連線監控] 連線確認，正在送出回覆至 MCP Client...');
+            }
+          }
 
-        session.resolve(session.feedback);
+          session.resolve(session.feedback);
+          if (pendingResponseId) {
+            this.responseStore.markDelivered(pendingResponseId);
+          }
+        } else {
+          logger.warn('[Transport] Transport 不健康，回應已持久化至 DB，等待 MCP Client 重連取回');
+          session.resolve(session.feedback);
+          if (pendingResponseId) {
+            this.responseStore.incrementAttempt(pendingResponseId);
+          }
+        }
 
         const sessionIdToDelete = feedbackData.sessionId;
         setTimeout(() => this.sessionStorage.deleteSession(sessionIdToDelete), 5000);
@@ -2757,6 +2835,20 @@ export class WebServer {
         this.pendingDeliveryCache.delete(project.id);
         return pendingEntry.result;
       }
+    }
+
+    // 2b. 檢查 ResponseStore（DB 持久化的未送達回應）
+    const pendingResponse = this.responseStore.getByProject(project.id);
+    if (pendingResponse) {
+      logger.warn(`[ResponseStore 復原] 偵測到專案 "${project.name}" 有未送達的持久化回應 (id: ${pendingResponse.id})，直接回傳`);
+      this.responseStore.markDelivered(pendingResponse.id);
+      return {
+        feedback: pendingResponse.feedback,
+        sessionId: pendingResponse.sessionId,
+        feedbackUrl: pendingResponse.feedbackUrl,
+        projectId: pendingResponse.projectId,
+        projectName: pendingResponse.projectName,
+      };
     }
 
     logger.info(`建立回饋會話: ${sessionId}, 逾時: ${timeoutSeconds}秒, 專案: ${project.name} (${project.id})`);
@@ -3020,6 +3112,10 @@ export class WebServer {
         cleanupExpiredSessions: () => this.sessionStorage.cleanupExpiredSessions()
       });
       this.selfProbeService.start();
+
+      this.responseCleanupInterval = setInterval(() => {
+        this.responseStore.cleanup();
+      }, 3600000);
 
     } catch (error) {
       logger.error('Web伺服器啟動失敗:', error);
@@ -3377,6 +3473,11 @@ export class WebServer {
 
       // 停止 Self-Probe 服務
       this.selfProbeService.stop();
+
+      if (this.responseCleanupInterval) {
+        clearInterval(this.responseCleanupInterval);
+        this.responseCleanupInterval = null;
+      }
 
       // 清理所有活躍會話
       this.sessionStorage.clear();
