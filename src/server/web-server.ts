@@ -525,12 +525,12 @@ export class WebServer {
           let activeSessions = 0;
 
           projectSessions.forEach((sessionData, sessionId) => {
-            const isActive = Date.now() - sessionData.startTime < sessionData.timeout;
+            const isActive = !sessionData.resolved && !!sessionData.resolve;
             if (isActive) activeSessions++;
 
             sessions.push({
               sessionId,
-              status: isActive ? 'active' : 'timeout',
+              status: sessionData.resolved ? 'completed' : (isActive ? 'active' : 'timeout'),
               workSummary: sessionData.workSummary || '',
               createdAt: new Date(sessionData.startTime).toISOString(),
               lastActivityAt: new Date(sessionData.startTime).toISOString()
@@ -584,12 +584,12 @@ export class WebServer {
         let activeSessions = 0;
 
         projectSessions.forEach((sessionData, sessionId) => {
-          const isActive = Date.now() - sessionData.startTime < sessionData.timeout;
+          const isActive = !sessionData.resolved && !!sessionData.resolve;
           if (isActive) activeSessions++;
 
           sessions.push({
             sessionId,
-            status: isActive ? 'active' : 'timeout',
+            status: sessionData.resolved ? 'completed' : (isActive ? 'active' : 'timeout'),
             workSummary: sessionData.workSummary || '',
             createdAt: new Date(sessionData.startTime).toISOString(),
             lastActivityAt: new Date(sessionData.startTime).toISOString()

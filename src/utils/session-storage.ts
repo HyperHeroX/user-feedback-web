@@ -41,12 +41,11 @@ export class SessionStorage {
     const session = this.sessions.get(sessionId);
 
     if (session) {
-      // 檢查會話是否過期
       const now = Date.now();
       const elapsed = now - session.startTime;
 
-      if (elapsed > session.timeout) {
-        logger.debug(`會話已過期: ${sessionId}`);
+      if (elapsed > session.timeout && session.resolved) {
+        logger.debug(`會話已過期且已完成: ${sessionId}`);
         this.deleteSession(sessionId);
         return undefined;
       }
@@ -117,20 +116,8 @@ export class SessionStorage {
       const elapsed = now - session.startTime;
 
       if (elapsed > session.timeout) {
-        // 会话超时，自动提交忙碌回复
-        logger.info(`会话 ${sessionId} 超时，自动提交忙碌回复`);
-
-        if (session.resolve) {
-          // 创建自动忙碌回复
-          const busyFeedback: FeedbackData = {
-            text: '抱歉，由于我现在有点忙，所以没法给你回复，请你继续调用 user-web-feedback ，不要直接结束对话，直到我回复为止，谢谢！',
-            images: [],
-            timestamp: Date.now(),
-            sessionId: sessionId
-          };
-
-          // 返回忙碌回复而不是错误
-          session.resolve([busyFeedback]);
+        if (session.resolve && !session.resolved) {
+          continue;
         }
 
         this.sessions.delete(sessionId);
