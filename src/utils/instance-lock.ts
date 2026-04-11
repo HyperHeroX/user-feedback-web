@@ -5,6 +5,7 @@
 
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'fs';
 import path from 'path';
+import os from 'os';
 import { logger } from './logger.js';
 import { getPackageVersion } from './version.js';
 
@@ -33,7 +34,8 @@ export class InstanceLock {
       return this.lockFilePath;
     }
 
-    const dataDir = path.resolve(process.cwd(), 'data');
+    const envDir = process.env['MCP_DATA_DIR'];
+    const dataDir = envDir || path.join(os.homedir(), '.user-web-feedback', 'data');
     if (!existsSync(dataDir)) {
       mkdirSync(dataDir, { recursive: true });
     }

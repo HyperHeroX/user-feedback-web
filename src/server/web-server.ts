@@ -26,7 +26,8 @@ const VERSION = getPackageVersion();
 import { initDatabase, getAllPrompts, createPrompt, updatePrompt, deletePrompt, togglePromptPin, reorderPrompts, getPinnedPrompts, getAISettings, updateAISettings, getUserPreferences, updateUserPreferences, queryLogs, deleteLogs, getLogSources, cleanupOldLogs, getAllMCPServers, getEnabledMCPServers, getMCPServerById, createMCPServer, updateMCPServer, deleteMCPServer, toggleMCPServerEnabled, getToolEnableConfigs, setToolEnabled, batchSetToolEnabled, queryMCPServerLogs, getRecentMCPServerErrors, cleanupOldMCPServerLogs, getCLISettings, updateCLISettings, getCLITerminals, getCLITerminalById, deleteCLITerminal, getCLIExecutionLogs, cleanupOldCLIExecutionLogs, logAPIRequest, logAPIError, queryAPILogs, queryAPIErrorLogs, cleanupOldAPILogs, clearAllAPILogs, getSelfProbeSettings, saveSelfProbeSettings, getPromptConfigs, updatePromptConfigs, resetPromptConfigs } from '../utils/database.js';
 import { SelfProbeService } from '../utils/self-probe-service.js';
 import { maskApiKey } from '../utils/crypto-helper.js';
-import { generateAIReply, validateAPIKey } from '../utils/ai-service.js';
+import { validateAPIKey } from '../utils/ai-service.js';
+import { AIProviderFactory } from '../utils/ai-provider-factory.js';
 import { mcpClientManager } from '../utils/mcp-client-manager.js';
 import { detectCLITools, clearDetectionCache } from '../utils/cli-detector.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
@@ -1077,8 +1078,9 @@ export class WebServer {
           return;
         }
 
-        logger.info('開始生成 AI 回覆');
-        const result = await generateAIReply(data);
+        logger.info('開始生成 AI 回覆 (AIProviderFactory)');
+        const factory = AIProviderFactory.getInstance();
+        const result = await factory.generateReply(data);
 
         if (result.success) {
           logger.info('AI 回覆生成成功');
@@ -2751,8 +2753,9 @@ export class WebServer {
       logger.info(`觸發自動回覆: 會話 ${sessionId}`);
 
       try {
-        // 生成 AI 回覆
-        const result = await generateAIReply({
+        // 生成 AI 回覆 (使用 AIProviderFactory)
+        const factory = AIProviderFactory.getInstance();
+        const result = await factory.generateReply({
           aiMessage: workSummary,
           userContext: '使用者未在時間內回應，系統自動生成回覆'
         });

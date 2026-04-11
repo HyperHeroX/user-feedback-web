@@ -6,6 +6,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import crypto from 'crypto';
 import { encrypt, decrypt } from './crypto-helper.js';
 import { logger } from './logger.js';
@@ -31,7 +32,13 @@ import type {
     SelfProbeSettingsRequest
 } from '../types/index.js';
 
-const DB_DIR = path.join(process.cwd(), 'data');
+function getGlobalDataDir(): string {
+    const envDir = process.env['MCP_DATA_DIR'];
+    if (envDir) return envDir;
+    return path.join(os.homedir(), '.user-web-feedback', 'data');
+}
+
+const DB_DIR = getGlobalDataDir();
 const DB_PATH = path.join(DB_DIR, 'feedback.db');
 
 let db: Database.Database | null = null;

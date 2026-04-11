@@ -1,6 +1,6 @@
 /**
  * API Provider
- * 使用 Google Gemini API 生成 AI 回覆
+ * 支援 Google Gemini API 和 OpenAI 相容 API
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -22,9 +22,20 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 const CACHE_TTL = 5 * 60 * 1000;
 
+function getProviderFromUrl(apiUrl?: string): string {
+  if (!apiUrl) return 'google';
+  const normalizedUrl = apiUrl.toLowerCase();
+  if (normalizedUrl.includes('api.openai.com')) return 'openai';
+  if (normalizedUrl.includes('api.anthropic.com')) return 'anthropic';
+  if (normalizedUrl.includes('generativelanguage.googleapis.com')) return 'google';
+  if (normalizedUrl.includes('nvidia.com')) return 'nvidia';
+  if (normalizedUrl.includes('bigmodel.cn') || normalizedUrl.includes('z.ai')) return 'zai';
+  return 'openai';
+}
+
 export class APIProvider implements IAIProvider {
   getName(): string {
-    return 'Google Gemini API';
+    return 'API Provider';
   }
 
   getMode(): AIProviderMode {
@@ -76,13 +87,28 @@ export class APIProvider implements IAIProvider {
       const aggregated = aggregator.aggregate(context);
       const promptSent = aggregated.fullPrompt;
 
-      const reply = await this.generateWithRetry(
-        settings.apiKey,
-        settings.model,
-        promptSent,
-        settings.temperature,
-        settings.maxTokens
-      );
+      const provider = getProviderFromUrl(settings.apiUrl);
+      logger.info(`[APIProvider] 使用 ${provider} 提供商, apiUrl: ${settings.apiUrl || '(預設)'}`);
+
+      let reply: string;
+      if (provider !== 'google') {
+        reply = await this.generateWithOpenAI(
+          settings.apiKey,
+          settings.model,
+          settings.apiUrl,
+          promptSent,
+          settings.temperature,
+          settings.maxTokens
+        );
+      } else {
+        reply = await this.generateWithGoogle(
+          settings.apiKey,
+          settings.model,
+          promptSent,
+          settings.temperature,
+          settings.maxTokens
+        );
+      }
 
       if (!request.toolResults) {
         cache.set(cacheKey, { reply, timestamp: Date.now() });
@@ -100,7 +126,7 @@ export class APIProvider implements IAIProvider {
     }
   }
 
-  private async generateWithRetry(
+  private async generateWithGoogle(
     apiKey: string,
     model: string,
     prompt: string,
@@ -129,7 +155,7 @@ export class APIProvider implements IAIProvider {
         if (error.message.includes('429') || error.message.includes('quota')) {
           if (retryCount < MAX_RETRIES) {
             await this.sleep(RETRY_DELAYS[retryCount] || 4000);
-            return this.generateWithRetry(apiKey, model, prompt, temperature, maxTokens, retryCount + 1);
+            return this.generateWithGoogle(apiKey, model, prompt, temperature, maxTokens, retryCount + 1);
           }
           throw new Error('API 配額已用盡或速率限制，請稍後再試');
         }
@@ -140,7 +166,56 @@ export class APIProvider implements IAIProvider {
 
         if (retryCount < MAX_RETRIES) {
           await this.sleep(RETRY_DELAYS[retryCount] || 4000);
-          return this.generateWithRetry(apiKey, model, prompt, temperature, maxTokens, retryCount + 1);
+          return this.generateWithGoogle(apiKey, model, prompt, temperature, maxTokens, retryCount + 1);
+        }
+      }
+      throw error;
+    }
+  }
+
+  private async generateWithOpenAI(
+    apiKey: string,
+    model: string,
+    apiUrl: string | undefined,
+    prompt: string,
+    temperature?: number,
+    maxTokens?: number,
+    retryCount = 0
+  ): Promise<string> {
+    try {
+      const OpenAI = (await import('openai')).default;
+      const client = new OpenAI({
+        apiKey,
+        baseURL: apiUrl || 'https://api.openai.com/v1'
+      });
+
+      const response = await client.chat.completions.create({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: temperature ?? 0.7,
+        max_tokens: maxTokens ?? 1000,
+      });
+
+      const text = response.choices?.[0]?.message?.content;
+      if (!text) throw new Error('AI 回覆為空');
+      return text;
+    } catch (error) {
+      if (error instanceof Error) {
+        if (error.message.includes('429') || error.message.includes('quota') || error.message.includes('rate')) {
+          if (retryCount < MAX_RETRIES) {
+            await this.sleep(RETRY_DELAYS[retryCount] || 4000);
+            return this.generateWithOpenAI(apiKey, model, apiUrl, prompt, temperature, maxTokens, retryCount + 1);
+          }
+          throw new Error('API 配額已用盡或速率限制，請稍後再試');
+        }
+
+        if (error.message.includes('API key') || error.message.includes('401') || error.message.includes('Unauthorized')) {
+          throw new Error('API Key 無效，請檢查設定');
+        }
+
+        if (retryCount < MAX_RETRIES) {
+          await this.sleep(RETRY_DELAYS[retryCount] || 4000);
+          return this.generateWithOpenAI(apiKey, model, apiUrl, prompt, temperature, maxTokens, retryCount + 1);
         }
       }
       throw error;

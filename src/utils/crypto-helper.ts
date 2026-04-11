@@ -6,6 +6,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { logger } from './logger.js';
 
 const ALGORITHM = 'aes-256-gcm';
@@ -23,7 +24,9 @@ let cachedPassword: string | null = null;
  */
 function loadPasswordFromConfig(): string | null {
     try {
-        const configPath = path.join(process.cwd(), 'data', 'config.json');
+        const envDir = process.env['MCP_DATA_DIR'];
+        const dataDir = envDir || path.join(os.homedir(), '.user-web-feedback', 'data');
+        const configPath = path.join(dataDir, 'config.json');
         if (fs.existsSync(configPath)) {
             const configData = fs.readFileSync(configPath, 'utf8');
             const config = JSON.parse(configData);
