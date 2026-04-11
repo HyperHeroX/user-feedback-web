@@ -29,7 +29,17 @@
     "pickerGroup.foreground": "#524aee",
     "list.activeSelectionBackground": "#453de14d",
     "panelTitle.activeBorder": "#524aee",
-    "activityBar.activeBorder": "#453de1"
+    "activityBar.activeBorder": "#453de1",
+    "statusBarItem.remoteBackground": "#524aee",
+    "statusBarItem.remoteForeground": "#ffffff",
+    "statusBar.background": "#453de1",
+    "statusBar.foreground": "#ffffff",
+    "statusBar.border": "#453de1",
+    "statusBar.debuggingBackground": "#453de1",
+    "statusBar.debuggingForeground": "#ffffff",
+    "statusBar.debuggingBorder": "#453de1",
+    "activityBarBadge.foreground": "#ffffff",
+    "activityBarBadge.background": "#453de1"
   },
   "github.copilot.chat.codeGeneration.useInstructionFiles": true,
   "chat.useAgentsMdFile": true,

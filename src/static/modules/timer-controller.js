@@ -108,6 +108,12 @@ export function startCloseCountdown() {
       setCloseCountdownInterval(null);
       console.log("倒數結束，關閉頁面");
       window.close();
+      setTimeout(() => {
+        document.body.innerHTML = `
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:system-ui;color:#888;">
+            <p style="font-size:1.2rem;">✅ 回應已送出，您可以關閉此分頁。</p>
+          </div>`;
+      }, 300);
     }
   }, 1000);
 

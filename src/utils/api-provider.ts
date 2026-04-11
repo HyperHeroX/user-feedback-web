@@ -14,13 +14,6 @@ import { getPromptAggregator } from './prompt-aggregator/index.js';
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [1000, 2000, 4000];
 
-interface CacheEntry {
-  reply: string;
-  timestamp: number;
-}
-
-const cache = new Map<string, CacheEntry>();
-const CACHE_TTL = 5 * 60 * 1000;
 
 function getProviderFromUrl(apiUrl?: string): string {
   if (!apiUrl) return 'google';
@@ -49,16 +42,18 @@ export class APIProvider implements IAIProvider {
 
   async generateReply(request: AIReplyRequest): Promise<AIReplyResponse> {
     try {
-      const cacheKey = `${request.aiMessage}:${request.userContext || ''}`;
-      if (!request.toolResults) {
-        const cached = cache.get(cacheKey);
-        if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-          logger.debug('[APIProvider] 使用快取回覆');
-          return { success: true, reply: cached.reply, mode: 'api' };
-        }
-      }
-
       const settings = getAISettings();
+      logger.info('[APIProvider] AI 設定狀態', {
+        hasSettings: !!settings,
+        hasApiKey: !!settings?.apiKey,
+        apiKeyLength: settings?.apiKey?.length,
+        apiKeyPrefix: settings?.apiKey?.substring(0, 6),
+        model: settings?.model,
+        apiUrl: settings?.apiUrl || '(未設定)',
+        temperature: settings?.temperature,
+        maxTokens: settings?.maxTokens
+      });
+
       if (!settings || !settings.apiKey || settings.apiKey === 'YOUR_API_KEY_HERE') {
         logger.warn('[APIProvider] API Key 未設定或無效');
         return { success: false, error: '請先在設定中配置 AI API Key', mode: 'api' };
@@ -86,12 +81,15 @@ export class APIProvider implements IAIProvider {
 
       const aggregated = aggregator.aggregate(context);
       const promptSent = aggregated.fullPrompt;
+      logger.info(`[APIProvider] Prompt 已建構, 長度: ${promptSent.length}`);
 
       const provider = getProviderFromUrl(settings.apiUrl);
-      logger.info(`[APIProvider] 使用 ${provider} 提供商, apiUrl: ${settings.apiUrl || '(預設)'}`);
+      logger.info(`[APIProvider] 使用 ${provider} 提供商, apiUrl: ${settings.apiUrl || '(預設)'}, model: ${settings.model}`);
 
+      const startTime = Date.now();
       let reply: string;
       if (provider !== 'google') {
+        logger.info(`[APIProvider] 開始呼叫 OpenAI 相容 API...`);
         reply = await this.generateWithOpenAI(
           settings.apiKey,
           settings.model,
@@ -101,6 +99,7 @@ export class APIProvider implements IAIProvider {
           settings.maxTokens
         );
       } else {
+        logger.info(`[APIProvider] 開始呼叫 Google Gemini API...`);
         reply = await this.generateWithGoogle(
           settings.apiKey,
           settings.model,
@@ -109,11 +108,7 @@ export class APIProvider implements IAIProvider {
           settings.maxTokens
         );
       }
-
-      if (!request.toolResults) {
-        cache.set(cacheKey, { reply, timestamp: Date.now() });
-        this.cleanExpiredCache();
-      }
+      logger.info(`[APIProvider] API 呼叫完成, 耗時: ${Date.now() - startTime}ms, 回覆長度: ${reply.length}`);
 
       return { success: true, reply, promptSent, mode: 'api' };
     } catch (error) {
@@ -135,6 +130,7 @@ export class APIProvider implements IAIProvider {
     retryCount = 0
   ): Promise<string> {
     try {
+      logger.info(`[APIProvider/Google] 呼叫 API: model=${model}, promptLength=${prompt.length}, retry=${retryCount}`);
       const genAI = new GoogleGenerativeAI(apiKey);
       const generativeModel = genAI.getGenerativeModel({
         model,
@@ -183,10 +179,14 @@ export class APIProvider implements IAIProvider {
     retryCount = 0
   ): Promise<string> {
     try {
+      const baseURL = apiUrl || 'https://api.openai.com/v1';
+      logger.info(`[APIProvider/OpenAI] 呼叫 API: baseURL=${baseURL}, model=${model}, promptLength=${prompt.length}, retry=${retryCount}`);
+
       const OpenAI = (await import('openai')).default;
       const client = new OpenAI({
         apiKey,
-        baseURL: apiUrl || 'https://api.openai.com/v1'
+        baseURL,
+        timeout: 120000,
       });
 
       const response = await client.chat.completions.create({
@@ -195,6 +195,8 @@ export class APIProvider implements IAIProvider {
         temperature: temperature ?? 0.7,
         max_tokens: maxTokens ?? 1000,
       });
+
+      logger.info(`[APIProvider/OpenAI] API 回應: choices=${response.choices?.length}, usage=${JSON.stringify(response.usage)}`);
 
       const text = response.choices?.[0]?.message?.content;
       if (!text) throw new Error('AI 回覆為空');
@@ -226,10 +228,4 @@ export class APIProvider implements IAIProvider {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  private cleanExpiredCache(): void {
-    const now = Date.now();
-    for (const [key, entry] of cache.entries()) {
-      if (now - entry.timestamp > CACHE_TTL) cache.delete(key);
-    }
-  }
 }
