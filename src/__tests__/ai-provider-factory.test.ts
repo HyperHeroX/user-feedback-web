@@ -100,7 +100,7 @@ describe('AI Provider Factory', () => {
       const factory = getAIProviderFactory();
       const provider = await factory.getProvider();
       expect(provider.getMode()).toBe('api');
-      expect(provider.getName()).toBe('Google Gemini API');
+      expect(provider.getName()).toBe('API Provider');
     });
 
     it('should return CLIProvider when mode is cli and tool is available', async () => {
@@ -145,7 +145,7 @@ describe('APIProvider', () => {
 
   it('should return correct name', () => {
     const provider = new APIProvider();
-    expect(provider.getName()).toBe('Google Gemini API');
+    expect(provider.getName()).toBe('API Provider');
   });
 
   it('should return correct mode', () => {
