@@ -681,6 +681,7 @@
         showToast("提示詞配置已儲存", "success");
         if (data.prompts) {
           promptConfigs = data.prompts;
+          renderPromptConfigs();
         }
       } else {
         showToast(`儲存失敗: ${data.error || "未知錯誤"}`, "error");
