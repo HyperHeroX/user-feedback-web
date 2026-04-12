@@ -30,11 +30,11 @@ import type { PromptConfig } from '../../types/ai-provider.js';
 
 const COMPONENT_NAME_MAP: Record<string, string> = {
     'system_prompt': 'SystemPrompt',
-    'mcp_tools': 'MCPToolsPrompt',
+    'mcp_tools': 'MCPTools',
     'mcp_tools_detailed': 'MCPToolsDetailed',
     'user_context': 'UserContext',
     'tool_results': 'ToolResults',
-    'closing': 'ClosingPrompt'
+    'closing': 'Closing'
 };
 
 export class PromptAggregator {
@@ -83,9 +83,10 @@ export class PromptAggregator {
 
         const configuredComponents = this.components
             .map(component => {
-                const configId = Object.entries(COMPONENT_NAME_MAP).find(
+                const configEntry = Object.entries(COMPONENT_NAME_MAP).find(
                     ([, name]) => name === component.getName()
-                )?.[0];
+                );
+                const configId = configEntry?.[0];
                 const config = configId ? configs.find(c => c.id === configId) : null;
                 const order = config
                     ? (isFirstCall ? config.firstOrder : config.secondOrder)
