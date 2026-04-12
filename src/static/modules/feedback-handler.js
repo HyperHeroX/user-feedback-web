@@ -111,6 +111,13 @@ export function clearSubmissionInputs() {
 export async function generateAIReply() {
   const workSummary = getWorkSummary();
   if (!workSummary) {
+    showConversationPanel();
+    updateConversationTitle("AI 回覆");
+    addConversationEntry(ConversationEntryType.ERROR, "目前沒有活躍的 AI 工作匯報。\n\n可能原因：\n1. 尚未有 AI 代理透過 MCP 發送工作匯報\n2. 會話已過期或尚未建立\n3. 伺服器剛重啟，尚未收到任何匯報", {
+      title: "無法取得 AI 訊息",
+      collapsed: false,
+      timestamp: Date.now(),
+    });
     showToast("error", "錯誤", "無法取得 AI 訊息");
     return;
   }
@@ -814,6 +821,13 @@ function buildLocalPromptPreview(workSummary, userContext, toolResults) {
 export async function generateAIReplyWithTools() {
   const workSummary = getWorkSummary();
   if (!workSummary) {
+    showConversationPanel();
+    updateConversationTitle("AI 回覆");
+    addConversationEntry(ConversationEntryType.ERROR, "目前沒有活躍的 AI 工作匯報。\n\n可能原因：\n1. 尚未有 AI 代理透過 MCP 發送工作匯報\n2. 會話已過期或尚未建立\n3. 伺服器剛重啟，尚未收到任何匯報", {
+      title: "無法取得 AI 訊息",
+      collapsed: false,
+      timestamp: Date.now(),
+    });
     showToast("error", "錯誤", "無法取得 AI 訊息");
     return;
   }

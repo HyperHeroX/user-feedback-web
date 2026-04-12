@@ -361,8 +361,7 @@ export class WebServer {
   private setupRoutes(): void {
     const staticPath = this.getStaticAssetsPath();
 
-    // 靜態檔案服務 - 使用絕對路徑
-    this.app.use(express.static(staticPath));
+    this.app.use(express.static(staticPath, { etag: false, lastModified: true, maxAge: 0 }));
 
     // Dashboard 路由
     this.app.get('/dashboard', (req, res) => {
