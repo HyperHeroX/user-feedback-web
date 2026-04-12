@@ -291,6 +291,20 @@ export interface AIReplyResponse {
   cliTool?: string;           // 使用的 CLI 工具（僅 CLI 模式）
   promptSent?: string;        // 傳送給 CLI 的完整 prompt
   fallbackReason?: string;    // CLI fallback 到 API 的原因
+  debug?: AIReplyDebugInfo;   // debug 資訊
+}
+
+export interface AIReplyDebugInfo {
+  sections?: Array<{ name: string; order: number; length: number }>;
+  tokenEstimate?: number;
+  totalPromptLength?: number;
+  elapsedMs?: number;
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+  mcpToolsCount?: number;
+  componentCount?: number;
+  promptConfigs?: Array<{ id: string; enabled: boolean; firstOrder: number; secondOrder: number }>;
 }
 
 // 使用者偏好設定類型

@@ -38,6 +38,7 @@ import {
   showConversationPanel,
   hideConversationPanel,
   addConversationEntry,
+  addDebugEntry,
   clearConversationPanel,
   updateConversationMode,
   updateConversationTitle,
@@ -170,10 +171,18 @@ export async function generateAIReply() {
     const data = await response.json();
     removeThinkingEntry();
 
+    if (data.debug) {
+      addDebugEntry(data.debug, {
+        title: "Debug 資訊",
+        collapsed: true,
+        timestamp: Date.now(),
+        badge: data.debug.elapsedMs ? `${data.debug.elapsedMs}ms` : undefined,
+      });
+    }
+
     if (data.success) {
       updateConversationMode(data.mode, data.cliTool);
 
-      // 如果有 fallback 原因，顯示通知
       if (data.fallbackReason) {
         showToast("warning", "模式切換", data.fallbackReason);
       }
@@ -199,7 +208,6 @@ export async function generateAIReply() {
       document.getElementById("feedbackText").value = finalReply;
       updateCharCount();
 
-      // 如果是 fallback，badge 顯示不同的樣式
       let badge = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
       if (data.fallbackReason) {
         badge = "API (fallback)";
@@ -905,6 +913,15 @@ export async function generateAIReplyWithTools() {
       const data = await response.json();
       removeThinkingEntry();
 
+      if (data.debug) {
+        addDebugEntry(data.debug, {
+          title: `Debug (第 ${round} 輪)`,
+          collapsed: true,
+          timestamp: Date.now(),
+          badge: data.debug.elapsedMs ? `${data.debug.elapsedMs}ms` : undefined,
+        });
+      }
+
       if (!data.success) {
         addConversationEntry(ConversationEntryType.ERROR, data.error || "AI 回覆失敗", {
           title: "錯誤",
@@ -917,12 +934,10 @@ export async function generateAIReplyWithTools() {
 
       updateConversationMode(data.mode, data.cliTool);
 
-      // 如果有 fallback 原因，顯示通知
       if (data.fallbackReason) {
         showToast("warning", "模式切換", data.fallbackReason);
       }
 
-      // 如果是 fallback，badge 顯示不同的樣式
       let badgeTools1 = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
       if (data.fallbackReason) {
         badgeTools1 = "API (fallback)";
@@ -1092,10 +1107,18 @@ export async function triggerAutoAIReply() {
       const data = await response.json();
       removeThinkingEntry();
 
+      if (data.debug) {
+        addDebugEntry(data.debug, {
+          title: "Debug 資訊 (自動回覆)",
+          collapsed: true,
+          timestamp: Date.now(),
+          badge: data.debug.elapsedMs ? `${data.debug.elapsedMs}ms` : undefined,
+        });
+      }
+
       if (data.success) {
         updateConversationMode(data.mode, data.cliTool);
 
-        // 如果有 fallback 原因，顯示通知
         if (data.fallbackReason) {
           showToast("warning", "模式切換", data.fallbackReason);
         }
@@ -1108,7 +1131,6 @@ export async function triggerAutoAIReply() {
           finalReply = "以下為我的回覆:\n" + data.reply;
         }
 
-        // 如果是 fallback，badge 顯示不同的樣式
         let badgeAuto1 = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
         if (data.fallbackReason) {
           badgeAuto1 = "API (fallback)";
@@ -1224,6 +1246,15 @@ export async function triggerAutoAIReply() {
       const data = await response.json();
       removeThinkingEntry();
 
+      if (data.debug) {
+        addDebugEntry(data.debug, {
+          title: `Debug (自動第 ${round} 輪)`,
+          collapsed: true,
+          timestamp: Date.now(),
+          badge: data.debug.elapsedMs ? `${data.debug.elapsedMs}ms` : undefined,
+        });
+      }
+
       if (!data.success) {
         addConversationEntry(ConversationEntryType.ERROR, data.error || "AI 回覆失敗", {
           title: "錯誤",
@@ -1236,12 +1267,10 @@ export async function triggerAutoAIReply() {
 
       updateConversationMode(data.mode, data.cliTool);
 
-      // 如果有 fallback 原因，顯示通知
       if (data.fallbackReason) {
         showToast("warning", "模式切換", data.fallbackReason);
       }
 
-      // 如果是 fallback，badge 顯示不同的樣式
       let badgeAuto2 = data.mode === "cli" ? `CLI (${data.cliTool})` : "API";
       if (data.fallbackReason) {
         badgeAuto2 = "API (fallback)";

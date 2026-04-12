@@ -276,141 +276,97 @@ function buildCLIPrompt(request: AIReplyRequest): string {
  * 使用 API 生成回覆（原有邏輯）
  */
 async function generateAPIReply(request: AIReplyRequest): Promise<AIReplyResponse> {
+    const startTime = Date.now();
     try {
-        // 檢查快取（不包含工具結果時才使用）
         const cacheKey = `${request.aiMessage}:${request.userContext || ''}`;
         if (!request.toolResults) {
             const cached = cache.get(cacheKey);
-
             if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
                 logger.debug('[AI Service] 使用快取回覆');
-                return {
-                    success: true,
-                    reply: cached.reply
-                };
+                return { success: true, reply: cached.reply };
             }
         }
 
-        // 獲取 AI 設定
         logger.debug('[AI Service] 獲取 AI 設定');
         const settings = getAISettings();
-        logger.debug('[AI Service] AI 設定獲取完成', {
-            hasApiKey: !!settings?.apiKey,
-            model: settings?.model,
-            hasMcpToolsPrompt: !!settings?.mcpToolsPrompt
-        });
 
         if (!settings || !settings.apiKey || settings.apiKey === 'YOUR_API_KEY_HERE') {
             logger.warn('[AI Service] API Key 未設定或無效');
-            return {
-                success: false,
-                error: '請先在設定中配置 AI API Key'
-            };
+            return { success: false, error: '請先在設定中配置 AI API Key' };
         }
 
-        // 獲取 MCP 工具描述（如果啟用）
-        let mcpToolsPrompt = '';
+        // 使用 PromptAggregator 構建提示詞（尊重設定中的順序與啟用）
+        const aggregator = getPromptAggregator();
+        const cliSettings = getCLISettings();
+
+        let mcpTools: { name: string; description?: string; inputSchema?: Record<string, unknown> }[] = [];
         if (request.includeMCPTools) {
-            logger.debug('[AI Service] 開始獲取 MCP 工具');
             try {
                 const allTools = mcpClientManager.getAllTools();
-                logger.debug('[AI Service] MCP 工具獲取完成', {
-                    toolCount: allTools.length
-                });
-
-                // 優先使用資料庫中的自定義 MCP 工具提示詞
-                if (settings.mcpToolsPrompt) {
-                    logger.debug('[AI Service] 使用資料庫中的 MCP 工具提示詞');
-                    // 替換佔位符
-                    mcpToolsPrompt = settings.mcpToolsPrompt
-                        .replace(/\{project_name\}/g, request.projectName || '未命名專案')
-                        .replace(/\{project_path\}/g, request.projectPath || '');
-
-                    // 附加工具列表
-                    if (allTools.length > 0) {
-                        logger.debug('[AI Service] 附加工具列表到提示詞');
-                        mcpToolsPrompt += '\n\n## 可用工具列表\n\n';
-                        for (const tool of allTools) {
-                            mcpToolsPrompt += `### ${tool.name}\n`;
-                            if (tool.description) {
-                                mcpToolsPrompt += `${tool.description}\n`;
-                            }
-                            if (tool.inputSchema) {
-                                mcpToolsPrompt += '\n參數格式:\n```json\n';
-                                mcpToolsPrompt += JSON.stringify(tool.inputSchema, null, 2);
-                                mcpToolsPrompt += '\n```\n';
-                            }
-                            mcpToolsPrompt += '\n';
-                        }
-                    }
-                } else {
-                    logger.debug('[AI Service] 使用預設的 buildToolsPrompt');
-                    // 使用預設的 buildToolsPrompt
-                    mcpToolsPrompt = buildToolsPrompt(allTools, request.projectName, request.projectPath);
-                }
-            } catch (error) {
-                logger.warn('[AI Service] Failed to get MCP tools for AI prompt', error);
+                mcpTools = allTools.map(t => ({
+                    name: t.name,
+                    description: t.description,
+                    inputSchema: t.inputSchema as Record<string, unknown>
+                }));
+            } catch {
+                logger.warn('[AI Service] 無法獲取 MCP 工具');
             }
         }
 
-        // 生成回覆（帶重試機制）
-        logger.debug('[AI Service] 開始生成回覆', {
-            hasSystemPrompt: !!settings.systemPrompt,
-            hasMcpToolsPrompt: !!mcpToolsPrompt,
-            temperature: settings.temperature,
-            maxTokens: settings.maxTokens
+        const context = aggregator.buildContextSync(request, settings, cliSettings, mcpTools);
+        context.mode = 'api';
+        const aggregated = aggregator.aggregate(context);
+        const promptSent = aggregated.fullPrompt;
+
+        logger.debug('[AI Service] PromptAggregator 構建完成', {
+            componentCount: aggregated.sections.length,
+            sections: aggregated.sections.map(s => `${s.name}(order:${s.order})`),
+            totalLength: promptSent.length,
+            tokenEstimate: aggregated.metadata.tokenEstimate
         });
 
-        // 構建提示詞（用於返回給前端顯示）
-        const promptSent = buildPrompt(
-            settings.systemPrompt,
-            request.aiMessage,
-            request.userContext,
-            mcpToolsPrompt,
-            request.toolResults
-        );
-
-        const reply = await generateWithRetry(
+        const reply = await generateWithRetryFromPrompt(
             settings.apiKey,
             settings.model,
-            settings.systemPrompt,
-            request.aiMessage,
-            request.userContext,
+            promptSent,
             settings.temperature,
-            settings.maxTokens,
-            0,
-            mcpToolsPrompt,
-            request.toolResults
+            settings.maxTokens
         );
-        logger.debug('[AI Service] 回覆生成完成', {
-            replyLength: reply.length
-        });
+        const elapsedMs = Date.now() - startTime;
 
-        // 存入快取（不包含工具結果時）
         if (!request.toolResults) {
-            cache.set(cacheKey, {
-                reply,
-                timestamp: Date.now()
-            });
-
-            // 清理過期快取
+            cache.set(cacheKey, { reply, timestamp: Date.now() });
             cleanExpiredCache();
         }
 
-        logger.debug('[AI Service] AI 回覆請求處理完成');
+        const promptConfigs = aggregator.getPromptConfigsForDebug();
+
         return {
             success: true,
             reply,
             promptSent,
-            mode: 'api' as const
+            mode: 'api' as const,
+            debug: {
+                sections: aggregated.sections.map(s => ({ name: s.name, order: s.order, length: s.content.length })),
+                tokenEstimate: aggregated.metadata.tokenEstimate,
+                totalPromptLength: promptSent.length,
+                elapsedMs,
+                model: settings.model,
+                temperature: settings.temperature,
+                maxTokens: settings.maxTokens,
+                mcpToolsCount: mcpTools.length,
+                componentCount: aggregated.sections.length,
+                promptConfigs
+            }
         };
     } catch (error) {
+        const elapsedMs = Date.now() - startTime;
         logger.error('[AI Service] AI service error:', error);
-
         return {
             success: false,
             error: error instanceof Error ? error.message : '未知錯誤',
-            mode: 'api' as const
+            mode: 'api' as const,
+            debug: { elapsedMs }
         };
     }
 }
@@ -558,6 +514,58 @@ function buildPrompt(
     prompt += '請生成一個簡潔、專業的回應：';
 
     return prompt;
+}
+
+/**
+ * 使用已組合好的 prompt 生成回覆（帶重試）
+ */
+async function generateWithRetryFromPrompt(
+    apiKey: string,
+    model: string,
+    prompt: string,
+    temperature?: number,
+    maxTokens?: number,
+    retryCount: number = 0
+): Promise<string> {
+    try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const generativeModel = genAI.getGenerativeModel({
+            model,
+            generationConfig: {
+                temperature: temperature ?? 0.7,
+                maxOutputTokens: maxTokens ?? 1000,
+            }
+        });
+
+        logger.debug('[AI Service] 開始調用 API (PromptAggregator prompt)', { promptLength: prompt.length });
+        const result = await generativeModel.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+
+        if (!text) {
+            throw new Error('AI 回覆為空');
+        }
+
+        return text;
+    } catch (error) {
+        if (error instanceof Error) {
+            if (error.message.includes('429') || error.message.includes('quota')) {
+                if (retryCount < MAX_RETRIES) {
+                    await sleep(RETRY_DELAYS[retryCount] || 4000);
+                    return generateWithRetryFromPrompt(apiKey, model, prompt, temperature, maxTokens, retryCount + 1);
+                }
+                throw new Error('API 配額已用盡或速率限制，請稍後再試');
+            }
+            if (error.message.includes('API key') || error.message.includes('401')) {
+                throw new Error('API Key 無效，請檢查設定');
+            }
+            if (retryCount < MAX_RETRIES) {
+                await sleep(RETRY_DELAYS[retryCount] || 4000);
+                return generateWithRetryFromPrompt(apiKey, model, prompt, temperature, maxTokens, retryCount + 1);
+            }
+        }
+        throw error;
+    }
 }
 
 /**

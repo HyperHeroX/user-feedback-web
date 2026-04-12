@@ -2075,6 +2075,112 @@ textarea.form-control {
     border-left-color: var(--accent-red);
 }
 
+.conversation-entry.entry-debug {
+    border-left-color: var(--accent-orange, #f97316);
+}
+
+.conversation-header-right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.debug-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    user-select: none;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.debug-toggle:hover {
+    opacity: 1;
+}
+
+.debug-toggle input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
+.debug-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 16px;
+    margin-bottom: 8px;
+}
+
+.debug-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--bg-primary);
+    font-size: 12px;
+}
+
+.debug-label {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.debug-value {
+    color: var(--text-primary);
+    font-family: "Consolas", "Monaco", monospace;
+}
+
+.debug-sections {
+    margin-top: 8px;
+}
+
+.debug-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.debug-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    font-family: "Consolas", "Monaco", monospace;
+}
+
+.debug-table th,
+.debug-table td {
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    text-align: left;
+}
+
+.debug-table th {
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.debug-table td {
+    color: var(--text-primary);
+}
+
+.debug-error {
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--accent-red);
+}
+
+.debug-body {
+    font-size: 12px;
+}
+
 .entry-summary {
     padding: var(--spacing-sm) var(--spacing-md);
     cursor: pointer;

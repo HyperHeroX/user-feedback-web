@@ -210,6 +210,16 @@ export class PromptAggregator {
         return this.components.map(c => c.getName());
     }
 
+    getPromptConfigsForDebug(): Array<{ id: string; enabled: boolean; firstOrder: number; secondOrder: number }> {
+        const configs = this.getPromptConfigsWithDefaults();
+        return configs.map(c => ({
+            id: c.id,
+            enabled: c.enabled,
+            firstOrder: c.firstOrder,
+            secondOrder: c.secondOrder
+        }));
+    }
+
     private getPromptConfigsWithDefaults(): PromptConfig[] {
         try {
             const configs = getPromptConfigs();
